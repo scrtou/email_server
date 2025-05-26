@@ -51,6 +51,10 @@ type EmailService struct {
     Service             *Service   `json:"service,omitempty"`
     ServiceName         string     `json:"service_name,omitempty"`
     EmailAddr           string     `json:"email_addr,omitempty"`
+
+    // 关联字段
+    EmailDisplayName      string    `json:"email_display_name,omitempty"`
+    ServiceWebsite        string    `json:"service_website,omitempty"`
 }
 
 type DashboardData struct {

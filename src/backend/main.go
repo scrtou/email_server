@@ -13,10 +13,10 @@ import (
     "email_server/middleware"
 )
 
-func setupRouter() *gin.Engine {
+func setupRouter() *gin.Engine { //函数签名 返回指针类型
     r := gin.Default()
 
-    // CORS中间件
+    // 应用CORS中间件
     r.Use(middleware.CORS())
 
     // 公开路由（不需要认证）
@@ -109,7 +109,7 @@ func main() {
     defer database.Close()
 
     // 设置路由
-    r := setupRouter()
+    r := setupRouter() //短变量声明
 
     // 启动服务器
     fmt.Printf("服务器启动在 http://localhost:%s\n", config.AppConfig.Server.Port)

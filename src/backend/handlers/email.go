@@ -13,7 +13,45 @@ func GetEmails(c *gin.Context) {
     userID, _ := c.Get("user_id")
     email := c.Query("email")
     provider := c.Query("provider")
+    
+    // 获取分页参数
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+    
+    if page < 1 {
+        page = 1
+    }
+    if pageSize < 1 || pageSize > 100 {
+        pageSize = 10
+    }
+    
+    offset := (page - 1) * pageSize
 
+    // 先查询总数
+    countQuery := `
+        SELECT COUNT(*) 
+        FROM emails e
+        WHERE e.status = 1 AND e.user_id = ?
+    `
+    countArgs := []interface{}{userID}
+    
+    if email != "" {
+        countQuery += " AND e.email LIKE ?"
+        countArgs = append(countArgs, "%"+email+"%")
+    }
+    if provider != "" {
+        countQuery += " AND e.provider = ?"
+        countArgs = append(countArgs, provider)
+    }
+    
+    var total int
+    err := database.DB.QueryRow(countQuery, countArgs...).Scan(&total)
+    if err != nil {
+        utils.SendError(c, 500, "查询总数失败")
+        return
+    }
+
+    // 查询数据
     query := `
         SELECT e.id, e.email, e.display_name, e.provider, e.phone, e.backup_email, 
                e.notes, e.status, e.created_at, e.updated_at, COUNT(es.id) as service_count
@@ -32,7 +70,8 @@ func GetEmails(c *gin.Context) {
         args = append(args, provider)
     }
 
-    query += " GROUP BY e.id ORDER BY e.created_at DESC"
+    query += " GROUP BY e.id ORDER BY e.created_at DESC LIMIT ? OFFSET ?"
+    args = append(args, pageSize, offset)
 
     rows, err := database.DB.Query(query, args...)
     if err != nil {
@@ -52,8 +91,17 @@ func GetEmails(c *gin.Context) {
         }
     }
 
-    utils.Success(c, emails)
+    // 返回分页数据
+    result := map[string]interface{}{
+        "data":     emails,
+        "total":    total,
+        "page":     page,
+        "pageSize": pageSize,
+    }
+    
+    utils.Success(c, result)
 }
+
 
 func CreateEmail(c *gin.Context) {
     userID, _ := c.Get("user_id")
