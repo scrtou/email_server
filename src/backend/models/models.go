@@ -18,7 +18,7 @@ type Email struct {
     Status       int       `json:"status" db:"status"`
     CreatedAt    time.Time `json:"created_at" db:"created_at"`
     UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
-    ServiceCount int       `json:"service_count,omitempty"`
+    ServiceCount int       `json:"service_count"`
 }
 
 type Service struct {
@@ -30,7 +30,7 @@ type Service struct {
     LogoURL     string    `json:"logo_url" db:"logo_url"`
     CreatedAt   time.Time `json:"created_at" db:"created_at"`
     UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
-    EmailCount  int       `json:"email_count,omitempty"`
+    EmailCount  int       `json:"email_count"`
 }
 
 type EmailService struct {
@@ -54,7 +54,7 @@ type EmailService struct {
 
     // 关联字段
     EmailDisplayName      string    `json:"email_display_name,omitempty"`
-    ServiceWebsite        string    `json:"service_website,omitempty"`
+    ServiceWebsite        string    `json:"service_website"`
 }
 
 type DashboardData struct {

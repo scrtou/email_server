@@ -2,7 +2,8 @@ package handlers
 
 import (
     "strconv"
-
+    "log"
+   // "encoding/json"
     "github.com/gin-gonic/gin"
     "email_server/database"
     "email_server/models"
@@ -86,11 +87,16 @@ func GetEmails(c *gin.Context) {
         err := rows.Scan(&email.ID, &email.Email, &email.DisplayName, &email.Provider,
             &email.Phone, &email.BackupEmail, &email.Notes, &email.Status,
             &email.CreatedAt, &email.UpdatedAt, &email.ServiceCount)
+        
         if err == nil {
+            // 正确打印email信息
+           // log.Printf("处理邮箱: %s, 服务数量: %d", email.Email, email.ServiceCount)
             emails = append(emails, email)
+        } else {
+            log.Printf("扫描行时出错: %v", err)
         }
     }
-
+    
     // 返回分页数据
     result := map[string]interface{}{
         "data":     emails,
@@ -99,7 +105,14 @@ func GetEmails(c *gin.Context) {
         "pageSize": pageSize,
     }
     
-    utils.Success(c, result)
+    // 打印完整返回结果（可选）
+    if len(emails) > 0 {
+        log.Printf("总共返回 %d 个邮箱记录，总记录数: %d", len(emails), total)
+    }
+    
+  //  resultJSON, _ := json.MarshalIndent(result, "", "  ")
+//log.Println("Response data:", string(resultJSON))
+utils.Success(c, result)
 }
 
 
@@ -234,7 +247,7 @@ func GetEmailServices(c *gin.Context) {
     query := `
         SELECT es.id, es.email_id, es.service_id, es.username, es.phone, 
                es.registration_date, es.subscription_type, es.subscription_expires,
-               es.notes, es.status, es.created_at, es.updated_at, s.name as service_name
+               es.notes, es.status, es.created_at, es.updated_at, s.name as service_name,s.Website as service_website
         FROM email_services es
         JOIN services s ON es.service_id = s.id
         WHERE es.email_id = ? AND es.status = 1
@@ -252,7 +265,7 @@ func GetEmailServices(c *gin.Context) {
         es := &models.EmailService{}
         err := rows.Scan(&es.ID, &es.EmailID, &es.ServiceID, &es.Username, &es.Phone,
             &es.RegistrationDate, &es.SubscriptionType, &es.SubscriptionExpires,
-            &es.Notes, &es.Status, &es.CreatedAt, &es.UpdatedAt, &es.ServiceName)
+            &es.Notes, &es.Status, &es.CreatedAt, &es.UpdatedAt, &es.ServiceName,&es.ServiceWebsite)
         if err == nil {
             emailServices = append(emailServices, es)
         }
