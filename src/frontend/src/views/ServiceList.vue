@@ -35,7 +35,13 @@
     <el-card>
       <el-table :data="services" style="width: 100%" v-loading="loading">
         <el-table-column prop="name" label="服务名称" width="200" />
-        <el-table-column prop="website" label="网站" width="250" />
+        <el-table-column label="网站" width="250">
+          <template #default="scope">
+            <a :href="formatLink(scope.row.website)" target="_blank" rel="noopener noreferrer">
+              {{ scope.row.website }}
+            </a>
+          </template>
+        </el-table-column>
         <el-table-column prop="category" label="分类" width="120" />
         <el-table-column prop="description" label="描述" width="300" />
         <el-table-column prop="email_count" label="邮箱数量" width="100" />
@@ -264,10 +270,17 @@ export default {
       return new Date(dateString).toLocaleString()
     }
 
+    const formatLink = (url) => {
+      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+        return 'http://' + url;
+      }
+      return url;
+    };
+  
     onMounted(() => {
       loadServices()
     })
-
+  
     return {
       services,
       loading,
@@ -288,12 +301,13 @@ export default {
       deleteService,
       viewEmails,
       formatDate,
+      formatLink, // 导出 formatLink 方法
       // 添加分页处理方法
       handleSizeChange,
       handleCurrentChange
     }
   }
-}
+  }
 </script>
 
 <style scoped>
