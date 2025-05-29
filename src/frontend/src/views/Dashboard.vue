@@ -45,7 +45,7 @@
     <!-- 最近添加的邮箱和服务 -->
     <el-row :gutter="20">
       <el-col :span="12">
-        <el-card>
+        <el-card class="dashboard-list-card">
           <template #header>
             <div class="card-header">
               <span>最近添加的邮箱</span>
@@ -82,7 +82,7 @@
       </el-col>
       
       <el-col :span="12">
-        <el-card>
+        <el-card class="dashboard-list-card">
           <template #header>
             <div class="card-header">
               <span>最近添加的服务</span>
@@ -220,5 +220,20 @@ export default {
   justify-content: center;
   align-items: center;
   height: 200px;
+}
+
+.dashboard-list-card {
+  height: 100%; /* 使卡片填满其 <el-col> 父容器的高度 */
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-list-card > :deep(.el-card__header) {
+  flex-shrink: 0; /* 防止 header 在空间不足时被压缩 */
+}
+
+.dashboard-list-card > :deep(.el-card__body) {
+  flex-grow: 1; /* 使卡片主体部分伸展以填充剩余空间 */
+  overflow-y: auto; /* 如果内部表格内容过高，允许卡片主体滚动 */
 }
 </style>

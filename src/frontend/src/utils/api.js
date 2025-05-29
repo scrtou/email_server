@@ -6,9 +6,9 @@ import router from '@/router'
 // 根据环境判断API基础URL
 const getBaseURL = () => {
   if (process.env.NODE_ENV === 'development') {
-    return 'http://216.126.234.4:5555/api/v1'
+    return 'http://localhost:5555/api/v1'
   }
-  return 'http://216.126.234.4:5555/api/v1'
+  return 'http://localhost:5555/api/v1'
 }
 
 const API_BASE_URL = getBaseURL()
