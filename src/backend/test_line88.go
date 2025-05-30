@@ -3,7 +3,7 @@ package main
 import (
     "database/sql"
     "log"
-    _ "github.com/go-sql-driver/mysql"
+    // _ "github.com/go-sql-driver/mysql" // Removed as we are switching to SQLite and GORM
 )
 
 var db *sql.DB

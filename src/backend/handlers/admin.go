@@ -1,129 +1,106 @@
 package handlers
 
 import (
-    "database/sql"
-    "strconv"
-
-    "github.com/gin-gonic/gin"
-    "email_server/database"
-    "email_server/models"
-    "email_server/utils"
+	"strconv"
+	// "database/sql" // GORM handles this
+	"gorm.io/gorm"
+	"github.com/gin-gonic/gin"
+	"email_server/database"
+	"email_server/models"
+	"email_server/utils"
 )
 
 // GetAllUsers 获取所有用户列表（管理员功能）
 func GetAllUsers(c *gin.Context) {
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-    status := c.Query("status")
-    keyword := c.Query("keyword")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	// status := c.Query("status") // Status field removed from User model
+	keyword := c.Query("keyword")
 
-    offset := (page - 1) * pageSize
+	offset := (page - 1) * pageSize
 
-    query := `
-        SELECT id, username, email, real_name, phone, role, status, 
-               last_login, created_at, updated_at
-        FROM users WHERE 1=1
-    `
-    countQuery := "SELECT COUNT(*) FROM users WHERE 1=1"
-    args := []interface{}{}
+	dbQuery := database.DB.Model(&models.User{})
 
-    if status != "" {
-        query += " AND status = ?"
-        countQuery += " AND status = ?"
-        args = append(args, status)
-    }
+	// Build base query for filtering
+	// if status != "" { // Status field removed from User model
+	// 	dbQuery = dbQuery.Where("status = ?", status)
+	// }
 
-    if keyword != "" {
-        query += " AND (username LIKE ? OR email LIKE ? OR real_name LIKE ?)"
-        countQuery += " AND (username LIKE ? OR email LIKE ? OR real_name LIKE ?)"
-        likeKeyword := "%" + keyword + "%"
-        args = append(args, likeKeyword, likeKeyword, likeKeyword)
-    }
+	if keyword != "" {
+		likeKeyword := "%" + keyword + "%"
+		dbQuery = dbQuery.Where("username LIKE ? OR email LIKE ?", likeKeyword, likeKeyword)
+	}
 
-    // 获取总数
-    var total int
-    err := database.DB.QueryRow(countQuery, args...).Scan(&total)
-    if err != nil {
-        utils.SendError(c, 500, "查询用户总数失败")
-        return
-    }
+	// 获取总数
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		utils.SendErrorResponse(c, 500, "查询用户总数失败: "+err.Error())
+		return
+	}
 
-    // 分页查询
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    pageArgs := append(args, pageSize, offset)
+	// 分页查询
+	var usersDB []*models.User
+	if err := dbQuery.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&usersDB).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			usersDB = []*models.User{} // Return empty list if no records found
+		} else {
+			utils.SendErrorResponse(c, 500, "查询用户列表失败: "+err.Error())
+			return
+		}
+	}
 
-    rows, err := database.DB.Query(query, pageArgs...)
-    if err != nil {
-        utils.SendError(c, 500, "查询用户列表失败")
-        return
-    }
-    defer rows.Close()
+	userResponses := make([]*models.UserResponse, len(usersDB))
+	for i, u := range usersDB {
+		userResponses[i] = u.ToResponse()
+	}
 
-    var users []*models.UserResponse
-    for rows.Next() {
-        user := &models.User{}
-        var phone sql.NullString
-        var lastLogin sql.NullTime
-        
-        err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.RealName,
-            &phone, &user.Role, &user.Status, &lastLogin,
-            &user.CreatedAt, &user.UpdatedAt)
-        if err == nil {
-            // 处理NULL值
-            if phone.Valid {
-                user.Phone = phone.String
-            } else {
-                user.Phone = ""
-            }
-            
-            if lastLogin.Valid {
-                user.LastLogin = &lastLogin.Time
-            } else {
-                user.LastLogin = nil
-            }
-            
-            users = append(users, user.ToResponse())
-        }
-    }
+	result := map[string]interface{}{
+		"users":     userResponses,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}
 
-    result := map[string]interface{}{
-        "users":     users,
-        "total":     total,
-        "page":      page,
-        "page_size": pageSize,
-    }
-
-    utils.Success(c, result)
+	utils.SendSuccessResponse(c, result)
 }
 
 // UpdateUserStatus 更新用户状态（管理员功能）
+// Note: This function is commented out because the 'Status' field has been removed from the 'User' model.
+// If user status management is required, the 'User' model and this function will need to be updated accordingly.
+/*
 func UpdateUserStatus(c *gin.Context) {
-    userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-    if err != nil {
-        utils.SendError(c, 400, "用户ID错误")
-        return
-    }
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.SendErrorResponse(c, 400, "用户ID错误")
+		return
+	}
 
-    var req struct {
-        Status int `json:"status" binding:"required,oneof=0 1"`
-    }
+	var req struct {
+		Status int `json:"status" binding:"required,oneof=0 1"` // This Status field no longer exists in models.User
+	}
 
-    if err := c.ShouldBindJSON(&req); err != nil {
-        utils.SendError(c, 400, "参数错误")
-        return
-    }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendErrorResponse(c, 400, "参数错误: "+err.Error())
+		return
+	}
 
-    _, err = database.DB.Exec("UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?", 
-        req.Status, userID)
-    if err != nil {
-        utils.SendError(c, 500, "更新用户状态失败")
-        return
-    }
+	// The 'status' column does not exist in the 'users' table anymore.
+	// result := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("status", req.Status)
+	// if result.Error != nil {
+	// 	utils.SendError(c, 500, "更新用户状态失败: "+result.Error.Error())
+	// 	return
+	// }
+	// if result.RowsAffected == 0 {
+	// 	utils.SendError(c, 404, "未找到用户或状态未改变")
+	// 	return
+	// }
 
-    statusText := "启用"
-    if req.Status == 0 {
-        statusText = "禁用"
-    }
 
-    utils.Success(c, "用户已"+statusText)
+	statusText := "启用" // This logic is now obsolete
+	if req.Status == 0 {
+		statusText = "禁用"
+	}
+
+	utils.SendSuccessResponse(c, "用户状态更新操作已停用 (用户模型已简化)") // Placeholder message
 }
+*/

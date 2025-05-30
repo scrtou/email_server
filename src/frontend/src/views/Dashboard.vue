@@ -8,35 +8,27 @@
     
     <!-- 统计卡片 -->
     <el-row v-else :gutter="20" style="margin-bottom: 20px">
-      <el-col :span="6">
+      <el-col :span="8">
         <el-card class="stat-card">
           <div class="stat-item">
-            <div class="stat-number">{{ dashboardData.email_count || 0 }}</div>
+            <div class="stat-number">{{ dashboardData.email_account_count || 0 }}</div>
             <div class="stat-label">邮箱总数</div>
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="8">
         <el-card class="stat-card">
           <div class="stat-item">
-            <div class="stat-number">{{ dashboardData.service_count || 0 }}</div>
+            <div class="stat-number">{{ dashboardData.platform_count || 0 }}</div>
             <div class="stat-label">服务总数</div>
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="8">
         <el-card class="stat-card">
           <div class="stat-item">
             <div class="stat-number">{{ dashboardData.relation_count || 0 }}</div>
             <div class="stat-label">关联总数</div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <div class="stat-item">
-            <div class="stat-number">{{ Object.keys(dashboardData.emails_by_provider || {}).length }}</div>
-            <div class="stat-label">邮箱提供商</div>
           </div>
         </el-card>
       </el-col>
@@ -49,20 +41,16 @@
           <template #header>
             <div class="card-header">
               <span>最近添加的邮箱</span>
-              <el-button type="primary" size="small" @click="$router.push('/emails')">
-                查看全部
-              </el-button>
             </div>
           </template>
           
-          <el-table 
-            :data="dashboardData.recent_emails || []" 
+          <el-table
+            :data="dashboardData.recent_email_accounts || []"
             style="width: 100%"
             v-loading="loading"
           >
-            <el-table-column prop="email" label="邮箱" />
-            <el-table-column prop="provider" label="提供商" />
-            <el-table-column prop="service_count" label="服务数量" />
+            <el-table-column prop="email_address" label="邮箱" />
+            <el-table-column prop="platform_count" label="服务数量" /> <!-- Assuming service_count is a field in EmailAccount model -->
             <el-table-column prop="created_at" label="创建时间">
               <template #default="scope">
                 {{ formatDate(scope.row.created_at) }}
@@ -70,13 +58,9 @@
             </el-table-column>
           </el-table>
           
-          <div v-if="!loading && (!dashboardData.recent_emails || dashboardData.recent_emails.length === 0)" 
+          <div v-if="!loading && (!dashboardData.recent_email_accounts || dashboardData.recent_email_accounts.length === 0)"
                class="no-data">
-            <el-empty description="暂无数据">
-              <el-button type="primary" @click="$router.push('/emails')">
-                添加邮箱
-              </el-button>
-            </el-empty>
+            <el-empty description="暂无数据" />
           </div>
         </el-card>
       </el-col>
@@ -86,20 +70,16 @@
           <template #header>
             <div class="card-header">
               <span>最近添加的服务</span>
-              <el-button type="primary" size="small" @click="$router.push('/services')">
-                查看全部
-              </el-button>
             </div>
           </template>
           
-          <el-table 
-            :data="dashboardData.recent_services || []" 
+          <el-table
+            :data="dashboardData.recent_platforms || []"
             style="width: 100%"
             v-loading="loading"
           >
             <el-table-column prop="name" label="服务名称" />
-            <el-table-column prop="category" label="分类" />
-            <el-table-column prop="email_count" label="邮箱数量" />
+            <el-table-column prop="email_account_count" label="邮箱数量" /> <!-- Assuming email_count is a field in Platform model -->
             <el-table-column prop="created_at" label="创建时间">
               <template #default="scope">
                 {{ formatDate(scope.row.created_at) }}
@@ -107,13 +87,9 @@
             </el-table-column>
           </el-table>
           
-          <div v-if="!loading && (!dashboardData.recent_services || dashboardData.recent_services.length === 0)" 
+          <div v-if="!loading && (!dashboardData.recent_platforms || dashboardData.recent_platforms.length === 0)"
                class="no-data">
-            <el-empty description="暂无数据">
-              <el-button type="primary" @click="$router.push('/services')">
-                添加服务
-              </el-button>
-            </el-empty>
+            <el-empty description="暂无数据" />
           </div>
         </el-card>
       </el-col>

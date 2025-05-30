@@ -12,7 +12,8 @@ type Config struct {
 }
 
 type DatabaseConfig struct {
-    DSN string
+	// DSN string // Kept for potential future use or other DB types
+	File string // For SQLite database file path
 }
 
 type ServerConfig struct {
@@ -28,10 +29,11 @@ var AppConfig *Config
 
 func Init() {
     AppConfig = &Config{
-        Database: DatabaseConfig{
-            DSN: getEnv("DATABASE_URL", "avnadmin:AVNS_icoPVWCDqQgoAM4nCH1@tcp(mysql-yxmysql.c.aivencloud.com:19894)/email-server?charset=utf8mb4&parseTime=True&loc=Local"),
-        },
-        Server: ServerConfig{
+    	Database: DatabaseConfig{
+    		// DSN: getEnv("DATABASE_URL", "avnadmin:AVNS_icoPVWCDqQgoAM4nCH1@tcp(mysql-yxmysql.c.aivencloud.com:19894)/email-server?charset=utf8mb4&parseTime=True&loc=Local"),
+    		File: getEnv("SQLITE_FILE", "./gorm.db"), // Default SQLite file path
+    	},
+    	Server: ServerConfig{
             Port: getEnv("SERVER_PORT", "5555"),
         },
         JWT: JWTConfig{

@@ -118,6 +118,8 @@
   <style scoped>
   .login-container {
     min-height: 100vh;
+    width: 1920px;
+    margin: 0 auto; /* Add this to center the container if viewport is wider than 1920px */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -126,10 +128,11 @@
   }
   
   .login-card {
-    width: 100%;
-    max-width: 400px;
+    width: 100%; /* Occupy full width of parent until max-width is reached */
+    max-width: 400px; /* As per user's working example */
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    /* margin-left and margin-right auto are not needed as .login-container uses flex to center */
   }
   
   .login-header {

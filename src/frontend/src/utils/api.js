@@ -5,10 +5,16 @@ import router from '@/router'
 
 // 根据环境判断API基础URL
 const getBaseURL = () => {
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:5555/api/v1'
+  // Use VUE_APP_API_BASE_URL environment variable
+  // Fallback to localhost for development if not set
+  if (process.env.VUE_APP_API_BASE_URL) {
+    return process.env.VUE_APP_API_BASE_URL;
   }
-  return 'http://localhost:5555/api/v1'
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:5555/api/v1'; // Default for development
+  }
+  // Fallback for production if VUE_APP_API_BASE_URL is not set (should be configured in deployment)
+  return '/api/v1'; // Example: relative path for production if served on same domain
 }
 
 const API_BASE_URL = getBaseURL()
@@ -45,10 +51,20 @@ api.interceptors.response.use(
   response => {
     console.log('API响应:', response.config.url, response.data)
     
-    if (response.data.code === 200) {
-      return response.data.data
+    if (response.data.code === 200 || response.status === 201 || response.status === 200) { // Check for HTTP success too
+      // If the backend response includes a meta object (typical for pagination)
+      // return an object containing both data and meta.
+      // Otherwise, just return the data.
+      if (response.data.meta) {
+        return { data: response.data.data, meta: response.data.meta };
+      }
+      // For non-paginated or create/update/delete successful responses that might only have data
+      return response.data.data !== undefined ? response.data.data : {}; // Ensure data field exists or return empty obj
     } else {
-      throw new Error(response.data.message || '请求失败')
+      // Handle business logic errors (e.g., validation errors sent with a 200/2xx status but a non-200 business code)
+      const message = response.data.message || '操作失败，未知错误';
+      ElMessage.error(message);
+      return Promise.reject(new Error(message));
     }
   },
   error => {
@@ -80,10 +96,10 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   register: (data) => api.post('/auth/register', data),
-  logout: () => api.post('/user/logout'),
-  getProfile: () => api.get('/user/profile'),
-  updateProfile: (data) => api.put('/user/profile', data),
-  changePassword: (data) => api.post('/user/change-password', data),
+  logout: () => api.post('/auth/logout'), // Updated path
+  getProfile: () => api.get('/users/me'), // Updated path
+  updateProfile: (data) => api.put('/users/me', data), // Updated path for consistency with proposal
+  changePassword: (data) => api.post('/users/me/change-password', data), // Updated path for consistency
   refreshToken: () => api.post('/auth/refresh')
 }
 
@@ -117,4 +133,43 @@ export const dashboardAPI = {
   getDashboard: () => api.get('/dashboard')
 }
 
+// EmailAccount API (New as per plan)
+export const emailAccountAPI = {
+  getAll: (params = {}) => api.get('/email-accounts', { params }),
+  getById: (id) => api.get(`/email-accounts/${id}`),
+  create: (data) => api.post('/email-accounts', data),
+  update: (id, data) => api.put(`/email-accounts/${id}`, data),
+  delete: (id) => api.delete(`/email-accounts/${id}`),
+  getAssociatedPlatformRegistrations: (emailAccountId, params = {}) => api.get(`/email-accounts/${emailAccountId}/platform-registrations`, { params }),
+};
+
+// Platform API
+export const platformAPI = {
+  getAll: (params = {}) => api.get('/platforms', { params }),
+  getById: (id) => api.get(`/platforms/${id}`),
+  create: (data) => api.post('/platforms', data),
+  update: (id, data) => api.put(`/platforms/${id}`, data),
+  delete: (id) => api.delete(`/platforms/${id}`),
+  getAssociatedEmailRegistrations: (platformId, params = {}) => api.get(`/platforms/${platformId}/email-registrations`, { params }),
+};
+
+// PlatformRegistration API
+export const platformRegistrationAPI = {
+  getAll: (params = {}) => api.get('/platform-registrations', { params }),
+  getById: (id) => api.get(`/platform-registrations/${id}`),
+  create: (data) => api.post('/platform-registrations', data), // For creating with IDs
+  createByName: (data) => api.post('/platform-registrations/by-name', data), // For creating with names
+  update: (id, data) => api.put(`/platform-registrations/${id}`, data),
+  delete: (id) => api.delete(`/platform-registrations/${id}`),
+};
+
+// ServiceSubscription API
+export const serviceSubscriptionAPI = {
+  getAll: (params = {}) => api.get('/service-subscriptions', { params }),
+  getById: (id) => api.get(`/service-subscriptions/${id}`),
+  create: (data) => api.post('/service-subscriptions', data),
+  update: (id, data) => api.put(`/service-subscriptions/${id}`, data),
+  delete: (id) => api.delete(`/service-subscriptions/${id}`),
+};
+ 
 export default api
