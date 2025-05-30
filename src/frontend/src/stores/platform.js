@@ -1,0 +1,150 @@
+import { defineStore } from 'pinia';
+import { platformAPI } from '@/utils/api';
+import { ElMessage } from 'element-plus';
+
+// First, define platformAPI within api.js or ensure it's added there.
+// For now, assuming it will be added to api.js like emailAccountAPI:
+/*
+// In api.js:
+export const platformAPI = {
+  getAll: (params = {}) => api.get('/platforms', { params }),
+  getById: (id) => api.get(`/platforms/${id}`),
+  create: (data) => api.post('/platforms', data),
+  update: (id, data) => api.put(`/platforms/${id}`, data),
+  delete: (id) => api.delete(`/platforms/${id}`),
+};
+*/
+
+export const usePlatformStore = defineStore('platform', {
+  state: () => ({
+    platforms: [],
+    currentPlatform: null,
+    loading: false,
+    error: null,
+    pagination: {
+      currentPage: 1,
+      pageSize: 10,
+      totalItems: 0,
+    },
+  }),
+  actions: {
+    async fetchPlatforms(page = 1, pageSize = 10) {
+      this.loading = true;
+      this.error = null;
+      try {
+        const result = await platformAPI.getAll({ params: { page, pageSize } });
+        if (result && result.data) {
+          this.platforms = result.data;
+          if (result.meta) {
+            this.pagination.currentPage = result.meta.current_page;
+            this.pagination.pageSize = result.meta.page_size;
+            this.pagination.totalItems = result.meta.total_records;
+          } else {
+            this.pagination = { currentPage: page, pageSize: pageSize, totalItems: result.data.length };
+          }
+        } else {
+          this.platforms = [];
+          this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
+        }
+      } catch (err) {
+        this.error = err.message || '获取平台列表失败';
+        ElMessage.error(this.error);
+        this.platforms = [];
+        this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
+      } finally {
+        this.loading = false;
+      }
+    },
+    async fetchPlatformById(id) {
+      this.loading = true;
+      this.error = null;
+      this.currentPlatform = null;
+      try {
+        const data = await platformAPI.getById(id);
+        this.currentPlatform = data;
+        return data;
+      } catch (err) {
+        this.error = err.message || '获取平台详情失败';
+        ElMessage.error(this.error);
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async createPlatform(data) {
+      this.loading = true;
+      this.error = null;
+      try {
+        const createdData = await platformAPI.create(data);
+        ElMessage.success('平台创建成功');
+        await this.fetchPlatforms(this.pagination.currentPage, this.pagination.pageSize);
+        return createdData;
+      } catch (err) {
+        const errorMessage = err.message || '创建平台失败';
+        if (errorMessage.includes('UNIQUE constraint failed') && errorMessage.includes('platforms.name')) {
+          this.error = '该平台名称已被使用。请输入一个不同的平台名称。';
+          ElMessage.error(this.error);
+        } else {
+          this.error = errorMessage;
+          ElMessage.error(this.error);
+        }
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async updatePlatform(id, data) {
+      this.loading = true;
+      this.error = null;
+      try {
+        const updatedData = await platformAPI.update(id, data);
+        ElMessage.success('平台更新成功');
+        await this.fetchPlatforms(this.pagination.currentPage, this.pagination.pageSize);
+        if (this.currentPlatform && this.currentPlatform.id === id) {
+          this.currentPlatform = updatedData;
+        }
+        return updatedData;
+      } catch (err) {
+        this.error = err.message || '更新平台失败';
+        ElMessage.error(this.error);
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async deletePlatform(id) {
+      this.loading = true;
+      this.error = null;
+      try {
+        await platformAPI.delete(id);
+        ElMessage.success('平台删除成功');
+        await this.fetchPlatforms(this.pagination.currentPage, this.pagination.pageSize);
+        return true;
+      } catch (err) {
+        this.error = err.message || '删除平台失败';
+        ElMessage.error(this.error);
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    setCurrentPlatform(platform) {
+        this.currentPlatform = platform;
+    },
+    async fetchAssociatedEmailRegistrations(platformId, params = { page: 1, pageSize: 5 }) {
+      this.loading = true;
+      this.error = null;
+      try {
+        // api.js interceptor returns { data: [...], meta: {...} } for paginated responses
+        const result = await platformAPI.getAssociatedEmailRegistrations(platformId, params);
+        return result || { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } };
+      } catch (err) {
+        this.error = err.message || '获取关联邮箱注册信息失败';
+        ElMessage.error(this.error);
+        return { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } }; // Return empty structure on error
+      } finally {
+        this.loading = false;
+      }
+    }
+  },
+});

@@ -74,8 +74,8 @@
     </el-card>
 
     <!-- 创建/编辑服务对话框 -->
-    <el-dialog 
-      v-model="showCreateDialog" 
+    <el-dialog
+      v-model="showCreateDialog"
       :title="isEdit ? '编辑服务' : '添加服务'"
       width="500px"
     >
@@ -108,6 +108,24 @@
         <el-button type="primary" @click="saveService">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 查看邮箱对话框 -->
+    <el-dialog
+      v-model="showEmailDialog"
+      title="邮箱列表"
+      width="600px"
+    >
+      <el-card>
+        <el-table :data="emails" style="width: 100%" v-loading="emailLoading">
+          <el-table-column prop="email_addr" label="邮箱地址" width="200" />
+          <el-table-column prop="display_name" label="显示名称" width="150" />
+          <el-table-column prop="provider" label="提供商" width="100" />
+        </el-table>
+      </el-card>
+      <template #footer>
+        <el-button @click="showEmailDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -124,8 +142,11 @@ export default {
   },
   setup() {
     const services = ref([])
+    const emails = ref([]) // 用于存储邮箱列表
     const loading = ref(false)
+    const emailLoading = ref(false) // 邮箱列表加载状态
     const showCreateDialog = ref(false)
+    const showEmailDialog = ref(false) // 控制邮箱列表对话框的显示
     const isEdit = ref(false)
     const serviceFormRef = ref(null)
     
@@ -262,8 +283,36 @@ export default {
       }
     }
 
-    const viewEmails = (row) => {
-      ElMessage.info(`查看服务 ${row.name} 的邮箱列表功能待实现`)
+    const viewEmails = async (row) => {
+      if (row.email_count === 0) {
+        ElMessage.info(`服务 ${row.name} 没有绑定的邮箱`)
+        return
+      }
+      
+      emailLoading.value = true
+      showEmailDialog.value = true
+      
+      try {
+        // 假设 serviceAPI 有一个 getServiceEmails 方法
+        const response = await serviceAPI.getServiceEmails(row.id)
+        // API 拦截器会处理 response.data.data，所以 response 直接就是数据
+        // 尝试更灵活地处理数据结构，例如 { items: [...] } 或直接是 [...]
+        if (Array.isArray(response)) {
+          emails.value = response
+        } else if (response && Array.isArray(response.items)) {
+          emails.value = response.items
+        } else if (response && Array.isArray(response.data)) { // 再次检查 .data，以防万一
+          emails.value = response.data
+        }
+        else {
+          emails.value = [] // 默认空数组
+        }
+      } catch (error) {
+        ElMessage.error('获取邮箱列表失败: ' + (error.message || '未知错误'))
+        emails.value = []
+      } finally {
+        emailLoading.value = false
+      }
     }
 
     const formatDate = (dateString) => {
@@ -283,8 +332,11 @@ export default {
   
     return {
       services,
+      emails, // 导出 emails
       loading,
+      emailLoading, // 导出 emailLoading
       showCreateDialog,
+      showEmailDialog, // 导出 showEmailDialog
       isEdit,
       serviceFormRef,
       searchForm,

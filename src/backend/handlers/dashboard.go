@@ -1,117 +1,118 @@
 package handlers
 
 import (
-    "github.com/gin-gonic/gin"
-    "email_server/database"
-    "email_server/models"
-    "email_server/utils"
+	"github.com/gin-gonic/gin"
+	"email_server/database"
+	"email_server/models"
+	"email_server/utils"
 )
 
 func GetDashboard(c *gin.Context) {
-    dashboard := &models.DashboardData{
-        EmailsByProvider:   make(map[string]int),
-        ServicesByCategory: make(map[string]int),
-    }
+	dashboard := &models.DashboardData{
+		PlatformsByCategory:     make(map[string]int), // Initialized, but logic to fill it is removed as Platform has no Category
+	}
+	var err error
 
-    err := database.DB.QueryRow("SELECT COUNT(*) FROM emails WHERE status = 1").Scan(&dashboard.EmailCount)
-    if err != nil {
-        utils.SendError(c, 500, "获取邮箱数量失败")
-        return
-    }
+	// Get EmailAccount Count
+	err = database.DB.Model(&models.EmailAccount{}).Count(&dashboard.EmailAccountCount).Error
+	if err != nil {
+		utils.SendErrorResponse(c, 500, "获取邮箱账户数量失败: "+err.Error())
+		return
+	}
 
-    err = database.DB.QueryRow("SELECT COUNT(*) FROM services").Scan(&dashboard.ServiceCount)
-    if err != nil {
-        utils.SendError(c, 500, "获取服务数量失败")
-        return
-    }
+	// Get Platform Count
+	err = database.DB.Model(&models.Platform{}).Count(&dashboard.PlatformCount).Error
+	if err != nil {
+		utils.SendErrorResponse(c, 500, "获取平台数量失败: "+err.Error())
+		return
+	}
 
-    err = database.DB.QueryRow("SELECT COUNT(*) FROM email_services WHERE status = 1").Scan(&dashboard.RelationCount)
-    if err != nil {
-        utils.SendError(c, 500, "获取关联数量失败")
-        return
-    }
+	// Get Relation Count (e.g., PlatformRegistrations)
+	err = database.DB.Model(&models.PlatformRegistration{}).Count(&dashboard.RelationCount).Error
+	if err != nil {
+		utils.SendErrorResponse(c, 500, "获取关联数量 (PlatformRegistrations) 失败: "+err.Error())
+		return
+	}
 
-    rows, err := database.DB.Query("SELECT provider, COUNT(*) FROM emails WHERE status = 1 GROUP BY provider")
-    if err == nil {
-        defer rows.Close()
-        for rows.Next() {
-            var provider string
-            var count int
-            if err := rows.Scan(&provider, &count); err == nil {
-                dashboard.EmailsByProvider[provider] = count
-            }
-        }
-    }
+	// PlatformsByCategory is initialized in DashboardData but not populated here as Platform has no Category.
 
-    rows, err = database.DB.Query("SELECT category, COUNT(*) FROM services GROUP BY category")
-    if err == nil {
-        defer rows.Close()
-        for rows.Next() {
-            var category string
-            var count int
-            if err := rows.Scan(&category, &count); err == nil {
-                dashboard.ServicesByCategory[category] = count
-            }
-        }
-    }
+	recentEmailAccounts, err := GetRecentEmailAccountsWithCounts(c)
+	if err != nil {
+		// Error already handled and response sent in GetRecentEmailAccountsWithCounts
+		return
+	}
+	dashboard.RecentEmailAccounts = recentEmailAccounts
 
-    dashboard.RecentEmails = GetRecentEmails()
-    dashboard.RecentServices = GetRecentServices()
+	recentPlatforms, err := GetRecentPlatformsWithCounts(c)
+	if err != nil {
+		// Error already handled and response sent in GetRecentPlatformsWithCounts
+		return
+	}
+	dashboard.RecentPlatforms = recentPlatforms
 
-    utils.Success(c, dashboard)
+	utils.SendSuccessResponse(c, dashboard)
 }
 
-func GetRecentEmails() []*models.Email {
-    query := `
-        SELECT e.id, e.email, e.display_name, e.provider, e.phone, e.created_at, COUNT(es.id) as service_count
-        FROM emails e
-        LEFT JOIN email_services es ON e.id = es.email_id AND es.status = 1
-        WHERE e.status = 1
-        GROUP BY e.id
-        ORDER BY e.created_at DESC
-        LIMIT 5
-    `
-    rows, err := database.DB.Query(query)
-    if err != nil {
-        return []*models.Email{}
-    }
-    defer rows.Close()
+// GetRecentEmailAccountsWithCounts - Fetches recent EmailAccount entries with platform counts.
+func GetRecentEmailAccountsWithCounts(c *gin.Context) ([]models.EmailAccountResponse, error) {
+	var recentEmailAccounts []*models.EmailAccount
+	
+	dbResult := database.DB.Model(&models.EmailAccount{}).
+		Order("created_at DESC").
+		Limit(5).
+		Find(&recentEmailAccounts)
 
-    var emails []*models.Email
-    for rows.Next() {
-        email := &models.Email{}
-        err := rows.Scan(&email.ID, &email.Email, &email.DisplayName, &email.Provider,
-            &email.Phone, &email.CreatedAt, &email.ServiceCount)
-        if err == nil {
-            emails = append(emails, email)
-        }
-    }
-    return emails
+	if dbResult.Error != nil {
+		utils.SendErrorResponse(c, 500, "获取最近邮箱账户失败: "+dbResult.Error.Error())
+		return nil, dbResult.Error
+	}
+
+	var response []models.EmailAccountResponse
+	for _, ea := range recentEmailAccounts {
+		var platformCount int64
+		// Count related PlatformRegistrations
+		// Assuming PlatformRegistration has an EmailAccountID field
+		countResult := database.DB.Model(&models.PlatformRegistration{}).Where("email_account_id = ?", ea.ID).Count(&platformCount)
+		if countResult.Error != nil {
+			// Log error or handle. For simplicity, we'll set count to 0 if query fails.
+			platformCount = 0
+		}
+		
+		eaResponse := ea.ToEmailAccountResponse()
+		eaResponse.PlatformCount = platformCount
+		response = append(response, eaResponse)
+	}
+	return response, nil
 }
 
-func GetRecentServices() []*models.Service {
-    query := `
-        SELECT s.id, s.name, s.website, s.category, s.description, s.created_at, COUNT(es.id) as email_count
-        FROM services s
-        LEFT JOIN email_services es ON s.id = es.service_id AND es.status = 1
-        GROUP BY s.id
-        ORDER BY s.created_at DESC
-        LIMIT 5
-    `
-    rows, err := database.DB.Query(query)
-    if err != nil {
-        return []*models.Service{}
-    }
-    defer rows.Close()
+// GetRecentPlatformsWithCounts - Fetches recent Platform entries with email account counts.
+func GetRecentPlatformsWithCounts(c *gin.Context) ([]models.PlatformResponse, error) {
+	var recentPlatforms []*models.Platform
 
-    var services []*models.Service
-    for rows.Next() {
-        service := &models.Service{}
-        err := rows.Scan(&service.ID, &service.Name, &service.Website, &service.Category,
-            &service.Description, &service.CreatedAt, &service.EmailCount)
-        if err == nil {
-            services = append(services, service)
-        }
-    }
-    return services
+	dbResult := database.DB.Model(&models.Platform{}).
+		Order("created_at DESC").
+		Limit(5).
+		Find(&recentPlatforms)
+
+	if dbResult.Error != nil {
+		utils.SendErrorResponse(c, 500, "获取最近平台失败: "+dbResult.Error.Error())
+		return nil, dbResult.Error
+	}
+
+	var response []models.PlatformResponse
+	for _, p := range recentPlatforms {
+		var emailAccountCount int64
+		// Count related PlatformRegistrations
+		// Assuming PlatformRegistration has a PlatformID field
+		countResult := database.DB.Model(&models.PlatformRegistration{}).Where("platform_id = ?", p.ID).Count(&emailAccountCount)
+		if countResult.Error != nil {
+			// Log error or handle. For simplicity, we'll set count to 0 if query fails.
+			emailAccountCount = 0
+		}
+
+		pResponse := p.ToPlatformResponse()
+		pResponse.EmailAccountCount = emailAccountCount
+		response = append(response, pResponse)
+	}
+	return response, nil
 }

@@ -13,7 +13,7 @@ func AuthRequired() gin.HandlerFunc {
     return gin.HandlerFunc(func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
-            utils.SendError(c, 401, "请先登录")
+            utils.SendErrorResponse(c, 401, "请先登录")
             c.Abort()
             return
         }
@@ -21,7 +21,7 @@ func AuthRequired() gin.HandlerFunc {
         // Bearer token格式
         parts := strings.SplitN(authHeader, " ", 2)
         if !(len(parts) == 2 && parts[0] == "Bearer") {
-            utils.SendError(c, 401, "认证格式错误")
+            utils.SendErrorResponse(c, 401, "认证格式错误")
             c.Abort()
             return
         }
@@ -29,7 +29,7 @@ func AuthRequired() gin.HandlerFunc {
         claims, err := utils.ParseToken(parts[1])
         if err != nil {
             log.Printf("Token解析失败: %v", err)
-            utils.SendError(c, 401, "登录已过期，请重新登录")
+            utils.SendErrorResponse(c, 401, "登录已过期，请重新登录")
             c.Abort()
             return
         }
@@ -47,7 +47,7 @@ func AdminRequired() gin.HandlerFunc {
     return gin.HandlerFunc(func(c *gin.Context) {
         role, exists := c.Get("role")
         if !exists || role != "admin" {
-            utils.SendError(c, 403, "需要管理员权限")
+            utils.SendErrorResponse(c, 403, "需要管理员权限")
             c.Abort()
             return
         }

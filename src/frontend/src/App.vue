@@ -23,17 +23,21 @@
             <el-icon><House /></el-icon>
             <span>仪表板</span>
           </el-menu-item>
-          <el-menu-item index="/emails">
+          <el-menu-item index="/email-accounts">
             <el-icon><Message /></el-icon>
-            <span>邮箱管理</span>
+            <span>邮箱账户</span>
           </el-menu-item>
-          <el-menu-item index="/services">
-            <el-icon><Setting /></el-icon>
-            <span>服务管理</span>
+          <el-menu-item index="/platforms">
+            <el-icon><Platform /></el-icon> <!-- Assuming Platform icon exists or use a generic one -->
+            <span>平台管理</span>
           </el-menu-item>
-          <el-menu-item index="/email-services">
+          <el-menu-item index="/platform-registrations">
             <el-icon><Link /></el-icon>
-            <span>关联管理</span>
+            <span>平台注册</span>
+          </el-menu-item>
+          <el-menu-item index="/service-subscriptions">
+            <el-icon><Tickets /></el-icon> <!-- Assuming Tickets icon or similar for subscriptions -->
+            <span>服务订阅</span>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -90,14 +94,16 @@ import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { 
-  House, 
-  Message, 
-  Setting, 
-  Link, 
-  User, 
-  ArrowDown, 
-  SwitchButton 
+import {
+  House,
+  Message,
+  // Setting, // Replaced by Platform and Tickets/Service
+  Link,
+  User,
+  ArrowDown,
+  SwitchButton,
+  Platform, // Added for Platform Management
+  Tickets // Added for Service Subscriptions
 } from '@element-plus/icons-vue'
 
 export default {
@@ -105,11 +111,13 @@ export default {
   components: {
     House,
     Message,
-    Setting,
+    // Setting,
     Link,
     User,
     ArrowDown,
-    SwitchButton
+    SwitchButton,
+    Platform,
+    Tickets
   },
   setup() {
     const route = useRoute()
@@ -119,9 +127,10 @@ export default {
     // 页面标题映射
     const pageTitles = {
       '/': '系统概览',
-      '/emails': '邮箱管理',
-      '/services': '服务管理',
-      '/email-services': '关联管理',
+      '/email-accounts': '邮箱账户管理',
+      '/platforms': '平台管理',
+      '/platform-registrations': '平台注册信息管理',
+      '/service-subscriptions': '服务订阅管理',
       '/profile': '个人信息'
     }
     
