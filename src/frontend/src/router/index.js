@@ -21,6 +21,7 @@ import PlatformRegistrationListView from '../views/PlatformRegistrationListView.
 import PlatformRegistrationForm from '../components/forms/PlatformRegistrationForm.vue'
 import ServiceSubscriptionListView from '../views/ServiceSubscriptionListView.vue'
 import ServiceSubscriptionForm from '../components/forms/ServiceSubscriptionForm.vue'
+import SearchResultView from '../views/SearchResultView.vue' // Import SearchResultView
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
 const routes = [
@@ -151,6 +152,13 @@ const routes = [
         name: 'ServiceSubscriptionEdit',
         component: ServiceSubscriptionForm,
         props: true
+      },
+      // Search Results Route
+      {
+        path: 'search-results',
+        name: 'search-results', // Changed from 'SearchResults' to 'search-results' for consistency
+        component: SearchResultView,
+        // meta: { requiresAuth: true } // Already covered by parent AppLayout
       }
       // Add other authenticated routes as children of AppLayout here
     ]

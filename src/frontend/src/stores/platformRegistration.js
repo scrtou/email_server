@@ -29,22 +29,55 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       orderBy: 'created_at', // Default sort
       sortDirection: 'desc',
     },
+    filters: { // New state for filters
+      email_account_id: null,
+      platform_id: null,
+    }
   }),
   actions: {
-    async fetchPlatformRegistrations(params = { page: 1, pageSize: 10, orderBy: 'created_at', sortDirection: 'desc' }) {
+    // Action to update filter values
+    setFilter(filterName, value) {
+      if (Object.prototype.hasOwnProperty.call(this.filters, filterName)) {
+        this.filters[filterName] = value;
+        this.pagination.currentPage = 1; // Reset to first page
+        this.fetchPlatformRegistrations(); // Re-fetch data
+      }
+    },
+    // Action to clear all filters
+    clearFilters() {
+      this.filters.email_account_id = null;
+      this.filters.platform_id = null;
+      this.pagination.currentPage = 1;
+      this.fetchPlatformRegistrations();
+    },
+    async fetchPlatformRegistrations(
+        page = this.pagination.currentPage,
+        pageSize = this.pagination.pageSize,
+        sortOptions = {},
+        filterOptions = {}
+    ) {
       this.loading = true;
       this.error = null;
       
-      const page = params.page || this.pagination.currentPage;
-      const pageSize = params.pageSize || this.pagination.pageSize;
-      const orderBy = params.orderBy || this.sort.orderBy;
-      const sortDirection = params.sortDirection || this.sort.sortDirection;
+      const orderBy = sortOptions.orderBy || this.sort.orderBy;
+      const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
 
-      // Update sort state if new options are provided directly in params
-      if (params.orderBy) this.sort.orderBy = params.orderBy;
-      if (params.sortDirection) this.sort.sortDirection = params.sortDirection;
+      // Update sort state
+      if (sortOptions.orderBy) this.sort.orderBy = sortOptions.orderBy;
+      if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
 
-      const apiParams = { ...params, page, pageSize, orderBy, sortDirection };
+      // Update filter state if new options are provided
+      if (filterOptions.email_account_id !== undefined) this.filters.email_account_id = filterOptions.email_account_id;
+      if (filterOptions.platform_id !== undefined) this.filters.platform_id = filterOptions.platform_id;
+
+      const apiParams = {
+        page,
+        pageSize,
+        orderBy,
+        sortDirection,
+        email_account_id: this.filters.email_account_id || undefined,
+        platform_id: this.filters.platform_id || undefined,
+      };
 
       try {
         const result = await platformRegistrationAPI.getAll(apiParams);
@@ -93,12 +126,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         const createdData = await platformRegistrationAPI.create(data);
         ElMessage.success('平台注册信息创建成功');
         // Decide on re-fetch strategy, e.g., based on current view or always re-fetch first page
-        await this.fetchPlatformRegistrations({
-          page: 1,
-          pageSize: this.pagination.pageSize,
-          orderBy: this.sort.orderBy,
-          sortDirection: this.sort.sortDirection,
-        });
+        await this.fetchPlatformRegistrations(1, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
         return createdData;
       } catch (err) {
         if (err.response && err.response.status === 409) {
@@ -120,12 +148,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         // 假设 platformRegistrationAPI.createByName 将被添加到 api.js
         const createdData = await platformRegistrationAPI.createByName(data);
         ElMessage.success('平台注册信息创建成功 (by name)');
-        await this.fetchPlatformRegistrations({
-          page: 1,
-          pageSize: this.pagination.pageSize,
-          orderBy: this.sort.orderBy,
-          sortDirection: this.sort.sortDirection,
-        });
+        await this.fetchPlatformRegistrations(1, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
         return createdData;
       } catch (err) {
         if (err.response && err.response.status === 409) {
@@ -146,12 +169,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       try {
         const updatedData = await platformRegistrationAPI.update(id, data);
         ElMessage.success('平台注册信息更新成功');
-        await this.fetchPlatformRegistrations({
-            page: this.pagination.currentPage,
-            pageSize: this.pagination.pageSize,
-            orderBy: this.sort.orderBy,
-            sortDirection: this.sort.sortDirection,
-        });
+        await this.fetchPlatformRegistrations(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
         if (this.currentPlatformRegistration && this.currentPlatformRegistration.id === id) {
           this.currentPlatformRegistration = updatedData;
         }
@@ -174,12 +192,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
          const currentPage = (this.platformRegistrations.length === 1 && this.pagination.currentPage > 1) 
                             ? this.pagination.currentPage - 1
                             : this.pagination.currentPage;
-       await this.fetchPlatformRegistrations({
-           page: currentPage,
-           pageSize: this.pagination.pageSize,
-           orderBy: this.sort.orderBy,
-           sortDirection: this.sort.sortDirection,
-       });
+       await this.fetchPlatformRegistrations(currentPage, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
        return true;
      } catch (err) {
         this.error = err.message || '删除平台注册信息失败';

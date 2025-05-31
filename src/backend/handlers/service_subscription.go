@@ -146,7 +146,10 @@ func CreateServiceSubscription(c *gin.Context) {
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
 // @Param platform_registration_id query int false "按平台注册ID筛选"
-// @Param status query string false "按订阅状态筛选"
+// @Param status query string false "按订阅状态筛选 (e.g., active, inactive, expired)"
+// @Param billing_cycle query string false "按计费周期筛选 (e.g., monthly, annually)"
+// @Param renewal_date_start query string false "续费日期开始 (YYYY-MM-DD)"
+// @Param renewal_date_end query string false "续费日期结束 (YYYY-MM-DD)"
 // @Param orderBy query string false "排序字段 (e.g., service_name, status, cost, next_renewal_date, created_at)" default(created_at)
 // @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
 // @Success 200 {object} models.SuccessResponse{data=[]models.ServiceSubscriptionResponse,meta=models.PaginationMeta} "获取成功"
@@ -170,7 +173,10 @@ func GetServiceSubscriptions(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	prIDFilter, _ := strconv.Atoi(c.Query("platform_registration_id"))
-	statusFilter := c.Query("status")
+	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
+	billingCycleFilter := strings.ToLower(strings.TrimSpace(c.Query("billing_cycle")))
+	renewalDateStartStr := strings.TrimSpace(c.Query("renewal_date_start"))
+	renewalDateEndStr := strings.TrimSpace(c.Query("renewal_date_end"))
 	orderBy := c.DefaultQuery("orderBy", "created_at")
 	sortDirection := c.DefaultQuery("sortDirection", "desc")
 
@@ -211,8 +217,33 @@ func GetServiceSubscriptions(c *gin.Context) {
 		countQuery = countQuery.Where("platform_registration_id = ?", prIDFilter)
 	}
 	if statusFilter != "" {
-		query = query.Where("status = ?", statusFilter)
-		countQuery = countQuery.Where("status = ?", statusFilter)
+		query = query.Where("LOWER(status) = ?", statusFilter)
+		countQuery = countQuery.Where("LOWER(status) = ?", statusFilter)
+	}
+	if billingCycleFilter != "" {
+		query = query.Where("LOWER(billing_cycle) = ?", billingCycleFilter)
+		countQuery = countQuery.Where("LOWER(billing_cycle) = ?", billingCycleFilter)
+	}
+
+	if renewalDateStartStr != "" {
+		startDate, err := time.Parse("2006-01-02", renewalDateStartStr)
+		if err == nil {
+			query = query.Where("next_renewal_date >= ?", startDate)
+			countQuery = countQuery.Where("next_renewal_date >= ?", startDate)
+		} else {
+			// Optionally handle or log date parsing error for filter
+		}
+	}
+	if renewalDateEndStr != "" {
+		endDate, err := time.Parse("2006-01-02", renewalDateEndStr)
+		if err == nil {
+			// To include the end date, typically query for dates less than the day after
+			endDate = endDate.AddDate(0, 0, 1)
+			query = query.Where("next_renewal_date < ?", endDate)
+			countQuery = countQuery.Where("next_renewal_date < ?", endDate)
+		} else {
+			// Optionally handle or log date parsing error for filter
+		}
 	}
 	
 	if err := countQuery.Count(&totalRecords).Error; err != nil {

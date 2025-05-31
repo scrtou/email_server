@@ -93,6 +93,8 @@ func CreateEmailAccount(c *gin.Context) {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param orderBy query string false "排序字段 (e.g., email_address, created_at, updated_at)" default(created_at)
 // @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
+// @Param provider query string false "按服务商名称进行模糊匹配筛选"
+// @Param email_address query string false "按邮箱地址进行模糊匹配筛选"
 // @Success 200 {object} models.SuccessResponse{data=[]models.EmailAccountResponse,meta=models.PaginationMeta} "获取成功"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
@@ -115,6 +117,8 @@ func GetEmailAccounts(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	orderBy := c.DefaultQuery("orderBy", "created_at")
 	sortDirection := c.DefaultQuery("sortDirection", "desc")
+	filterProvider := strings.ToLower(strings.TrimSpace(c.Query("provider")))
+	filterEmailAddress := strings.ToLower(strings.TrimSpace(c.Query("email_address")))
 
 	// Validate orderBy parameter to prevent SQL injection
 	allowedOrderByFields := map[string]string{
@@ -154,6 +158,14 @@ func GetEmailAccounts(c *gin.Context) {
 	// Count total records for pagination meta
 	query := database.DB.Model(&models.EmailAccount{}).Where("user_id = ?", actualUserID)
 
+	// Apply provider filter if provided
+	if filterProvider != "" {
+		query = query.Where("LOWER(provider) LIKE ?", "%"+filterProvider+"%")
+	}
+	if filterEmailAddress != "" {
+		query = query.Where("LOWER(email_address) LIKE ?", "%"+filterEmailAddress+"%")
+	}
+	
 	if err := query.Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户总数失败: "+err.Error())
 		return
@@ -402,4 +414,48 @@ func DeleteEmailAccount(c *gin.Context) {
 	}
 
 	utils.SendSuccessResponse(c, gin.H{"message": "邮箱账户及关联信息删除成功"})
+}
+
+// GetEmailAccountProviders godoc
+// @Summary 获取当前用户邮箱账户的所有唯一服务商列表
+// @Description 获取当前登录用户的所有邮箱账户中不重复的服务商名称列表
+// @Tags EmailAccounts
+// @Produce json
+// @Success 200 {object} models.SuccessResponse{data=[]string} "获取成功"
+// @Failure 401 {object} models.ErrorResponse "用户未认证"
+// @Failure 500 {object} models.ErrorResponse "服务器内部错误"
+// @Router /email-accounts/providers [get]
+// @Security BearerAuth
+func GetEmailAccountProviders(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	actualUserID := uint(userID)
+
+	var providers []string
+	if err := database.DB.Model(&models.EmailAccount{}).
+		Where("user_id = ?", actualUserID).
+		Distinct().Pluck("provider", &providers).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取服务商列表失败: "+err.Error())
+		return
+	}
+
+	// Filter out empty or null providers if any were stored that way
+	var uniqueProviders []string
+	seenProviders := make(map[string]bool)
+	for _, p := range providers {
+		if p != "" && !seenProviders[p] {
+			uniqueProviders = append(uniqueProviders, p)
+			seenProviders[p] = true
+		}
+	}
+
+	utils.SendSuccessResponse(c, uniqueProviders)
 }

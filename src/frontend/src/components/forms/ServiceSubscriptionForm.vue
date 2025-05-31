@@ -36,7 +36,7 @@
       </el-form-item>
 
       <el-form-item label="订阅状态" prop="status">
-        <el-select v-model="form.status" placeholder="选择订阅状态" style="width: 100%;">
+        <el-select v-model="form.status" placeholder="选择订阅状态" filterable style="width: 100%;">
           <el-option label="活跃 (active)" value="active" />
           <el-option label="已取消 (cancelled)" value="cancelled" />
           <el-option label="试用 (free_trial)" value="free_trial" />
@@ -50,7 +50,7 @@
       </el-form-item>
 
       <el-form-item label="计费周期" prop="billing_cycle">
-        <el-select v-model="form.billing_cycle" placeholder="选择计费周期" style="width: 100%;">
+        <el-select v-model="form.billing_cycle" placeholder="选择计费周期" filterable style="width: 100%;">
           <el-option label="每月 (monthly)" value="monthly" />
           <el-option label="每年 (yearly)" value="yearly" />
           <el-option label="一次性 (onetime)" value="onetime" />
@@ -135,7 +135,12 @@ const rules = ref({
 onMounted(async () => {
   loading.value = true;
   // Fetch platform registrations for the dropdown
-  await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 10000 }); // Fetch all or implement paginated select
+  await platformRegistrationStore.fetchPlatformRegistrations(
+    1,
+    10000,
+    { orderBy: 'platform_name', sortDirection: 'asc' }, // Default sort for dropdown
+    { email_account_id: null, platform_id: null } // Explicitly clear filters
+  );
 
   if (isEditMode.value && currentId.value) {
     const subData = await serviceSubscriptionStore.fetchServiceSubscriptionById(currentId.value);

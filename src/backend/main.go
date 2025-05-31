@@ -64,6 +64,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			emailAccounts.GET("/:id", handlers.GetEmailAccountByID)
 			emailAccounts.PUT("/:id", handlers.UpdateEmailAccount)
 			emailAccounts.DELETE("/:id", handlers.DeleteEmailAccount)
+			emailAccounts.GET("/providers", handlers.GetEmailAccountProviders) // 新增：获取唯一服务商列表
 			emailAccounts.GET("/:id/platform-registrations", handlers.GetPlatformRegistrationsByEmailAccountID) // 修改参数名
 		}
 
@@ -102,7 +103,10 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
  
 		// 仪表板
 		protected.GET("/dashboard", handlers.GetDashboard)
- 
+
+		// 全局搜索
+		protected.GET("/search", handlers.SearchHandler)
+	
 		// 邮箱管理 (DEPRECATED - Use /email-accounts)
 		// emails := protected.Group("/emails")
 		// {

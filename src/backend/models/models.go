@@ -23,3 +23,15 @@ type Response struct {
 	Data    interface{} `json:"data,omitempty"`
 	Meta    interface{} `json:"meta,omitempty"`
 }
+// GlobalSearchResult defines the structure for items in global search results.
+type GlobalSearchResultItem struct {
+	ID          uint        `json:"id"`
+	Type        string      `json:"type"`         // e.g., "user", "email_account", "platform", "platform_registration", "service_subscription"
+	DisplayName string      `json:"display_name"` // A user-friendly name for the item
+	Details     interface{} `json:"details,omitempty"` // Additional details specific to the item type
+}
+
+// GlobalSearchResponse defines the structure for the global search API response.
+type GlobalSearchResponse struct {
+	Results []GlobalSearchResultItem `json:"results"`
+}

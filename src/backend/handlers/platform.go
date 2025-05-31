@@ -78,6 +78,7 @@ var input struct {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param orderBy query string false "排序字段 (e.g., name, website_url, created_at, updated_at)" default(name)
 // @Param sortDirection query string false "排序方向 (asc, desc)" default(asc)
+// @Param name query string false "按平台名称进行模糊匹配筛选"
 // @Success 200 {object} models.SuccessResponse{data=[]models.PlatformResponse,meta=models.PaginationMeta} "获取成功"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
@@ -100,6 +101,7 @@ page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 orderBy := c.DefaultQuery("orderBy", "name")
 sortDirection := c.DefaultQuery("sortDirection", "asc")
+filterName := strings.ToLower(strings.TrimSpace(c.Query("name")))
 
 // Validate orderBy parameter
 allowedOrderByFields := map[string]string{
@@ -136,6 +138,11 @@ if page <= 0 {
 	var totalRecords int64
 
 	query := database.DB.Model(&models.Platform{}).Where("user_id = ?", currentUserID)
+
+	// Apply name filter if provided
+	if filterName != "" {
+		query = query.Where("LOWER(name) LIKE ?", "%"+filterName+"%")
+	}
 
 	if err := query.Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台总数失败: "+err.Error())

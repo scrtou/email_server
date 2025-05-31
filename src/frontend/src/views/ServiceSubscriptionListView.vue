@@ -10,14 +10,14 @@
         </div>
       </template>
 
-      <el-form :inline="true" :model="filters" class="filter-form">
+      <el-form :inline="true" class="filter-form">
         <el-form-item label="平台注册信息">
-          <el-select 
-            v-model="filters.platformRegistrationId" 
-            placeholder="选择平台注册信息" 
-            clearable 
+          <el-select
+            v-model="serviceSubscriptionStore.filters.platform_registration_id"
+            placeholder="选择平台注册信息"
+            clearable
             filterable
-            @change="applyFilters"
+            @change="handlePlatformRegistrationFilterChange"
             style="width: 300px;"
           >
             <el-option
@@ -29,16 +29,55 @@
           </el-select>
         </el-form-item>
          <el-form-item label="订阅状态">
-          <el-select v-model="filters.status" placeholder="选择状态" clearable @change="applyFilters">
-            <el-option label="活跃 (active)" value="active" />
-            <el-option label="已取消 (cancelled)" value="cancelled" />
-            <el-option label="试用 (free_trial)" value="free_trial" />
-            <el-option label="已过期 (expired)" value="expired" />
+          <el-select
+            v-model="serviceSubscriptionStore.filters.status"
+            placeholder="选择状态"
+            clearable
+            filterable
+            @change="handleStatusFilterChange"
+            style="width: 180px;"
+          >
+            <el-option label="全部状态" value="" />
+            <el-option label="活跃 (Active)" value="active" />
+            <el-option label="不活跃 (Inactive)" value="inactive" />
+            <el-option label="已过期 (Expired)" value="expired" />
+            <el-option label="试用 (Trial)" value="free_trial" />
+            <el-option label="已取消 (Cancelled)" value="cancelled" />
+            <el-option label="待处理 (Pending)" value="pending" />
           </el-select>
         </el-form-item>
+        <el-form-item label="计费周期">
+          <el-select
+            v-model="serviceSubscriptionStore.filters.billing_cycle"
+            placeholder="选择计费周期"
+            clearable
+            filterable
+            @change="handleBillingCycleFilterChange"
+            style="width: 180px;"
+          >
+            <el-option label="全部周期" value="" />
+            <el-option label="月付 (Monthly)" value="monthly" />
+            <el-option label="年付 (Annually)" value="annually" />
+            <el-option label="一次性 (One-time)" value="one_time" />
+            <el-option label="其他 (Other)" value="other" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="续费日期范围">
+          <el-date-picker
+            :model-value="[serviceSubscriptionStore.filters.renewal_date_start, serviceSubscriptionStore.filters.renewal_date_end]"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            clearable
+            @change="handleRenewalDateChange"
+            value-format="YYYY-MM-DD"
+            style="width: 280px;"
+          />
+        </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="applyFilters">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button type="primary" @click="triggerFetchWithCurrentFilters">查询</el-button>
+          <el-button @click="triggerClearFilters">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -102,7 +141,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive } from 'vue';
+import { onMounted } from 'vue'; // Removed reactive, using ref for local renewalDateRange if needed
 import { useRouter } from 'vue-router';
 import { useServiceSubscriptionStore } from '@/stores/serviceSubscription';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
@@ -113,54 +152,59 @@ const router = useRouter();
 const serviceSubscriptionStore = useServiceSubscriptionStore();
 const platformRegistrationStore = usePlatformRegistrationStore();
 
-const filters = reactive({
-  platformRegistrationId: null,
-  status: '',
-});
+// const filters = reactive({...}); // Removed, use store directly
 
 onMounted(async () => {
-  // Fetch platform registrations for the filter dropdown
-  // Fetching all, or implement a paginated/searchable select if list is too long
-  await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 10000 }); 
-  fetchData();
+  // Fetch options for platform registration dropdown
+  if (platformRegistrationStore.platformRegistrations.length === 0) {
+    await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 10000, orderBy: 'platform_name', sortDirection: 'asc' });
+  }
+  // Initial data fetch for the table using current store state
+  serviceSubscriptionStore.fetchServiceSubscriptions();
 });
 
-const fetchData = (
-  page = serviceSubscriptionStore.pagination.currentPage,
-  pageSize = serviceSubscriptionStore.pagination.pageSize,
-  sortOptions = { orderBy: serviceSubscriptionStore.sort.orderBy, sortDirection: serviceSubscriptionStore.sort.sortDirection }
-) => {
-  const params = {
-    page,
-    pageSize,
-    orderBy: sortOptions.orderBy,
-    sortDirection: sortOptions.sortDirection
-  };
-  if (filters.platformRegistrationId) {
-    params.platform_registration_id = filters.platformRegistrationId;
-  }
-  if (filters.status) {
-    params.status = filters.status;
-  }
-  serviceSubscriptionStore.fetchServiceSubscriptions(params);
+// Removed local fetchData, applyFilters, resetFilters
+
+const handlePlatformRegistrationFilterChange = (value) => {
+  serviceSubscriptionStore.setFilter('platform_registration_id', value);
+};
+
+const handleStatusFilterChange = (value) => {
+  serviceSubscriptionStore.setFilter('status', value);
+};
+
+const handleBillingCycleFilterChange = (value) => {
+  serviceSubscriptionStore.setFilter('billing_cycle', value);
+};
+
+const handleRenewalDateChange = (dateRange) => {
+  const start = dateRange && dateRange.length > 0 ? dateRange[0] : '';
+  const end = dateRange && dateRange.length > 1 ? dateRange[1] : '';
+  // Update store filters separately then fetch, or enhance setFilter to handle multiple
+  serviceSubscriptionStore.filters.renewal_date_start = start;
+  serviceSubscriptionStore.filters.renewal_date_end = end;
+  serviceSubscriptionStore.pagination.currentPage = 1; // Reset page
+  serviceSubscriptionStore.fetchServiceSubscriptions(); // Fetch with updated dates
+};
+
+const triggerFetchWithCurrentFilters = () => {
+  // v-models have updated the store's filters (except date range which is handled by handleRenewalDateChange)
+  // fetchServiceSubscriptions will use them. Reset to page 1.
+  serviceSubscriptionStore.fetchServiceSubscriptions(1);
+};
+
+const triggerClearFilters = () => {
+  serviceSubscriptionStore.clearFilters(); // This clears all filters in store and fetches
 };
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
-  // Note: Backend currently only supports sorting by ServiceSubscription's own fields.
-  // If prop is 'platform_name' or 'email_address', it will default to 'created_at' on backend.
-  fetchData(1, serviceSubscriptionStore.pagination.pageSize, { orderBy: prop, sortDirection });
+  serviceSubscriptionStore.fetchServiceSubscriptions(
+    1, // Reset to page 1 on sort change
+    serviceSubscriptionStore.pagination.pageSize,
+    { orderBy: prop, sortDirection }
+  );
 };
-
-const applyFilters = () => {
-    fetchData(1, serviceSubscriptionStore.pagination.pageSize);
-}
-
-const resetFilters = () => {
-    filters.platformRegistrationId = null;
-    filters.status = '';
-    fetchData(1, serviceSubscriptionStore.pagination.pageSize);
-}
 
 const handleAdd = () => {
   router.push({ name: 'ServiceSubscriptionCreate' }); 
@@ -176,11 +220,11 @@ const handleDelete = async (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  fetchData(1, newSize); 
+  serviceSubscriptionStore.fetchServiceSubscriptions(1, newSize);
 };
 
 const handleCurrentChange = (newPage) => {
-  fetchData(newPage, serviceSubscriptionStore.pagination.pageSize);
+  serviceSubscriptionStore.fetchServiceSubscriptions(newPage, serviceSubscriptionStore.pagination.pageSize);
 };
 </script>
 

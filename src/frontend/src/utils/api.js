@@ -141,6 +141,7 @@ export const emailAccountAPI = {
   update: (id, data) => api.put(`/email-accounts/${id}`, data),
   delete: (id) => api.delete(`/email-accounts/${id}`),
   getAssociatedPlatformRegistrations: (emailAccountId, params = {}) => api.get(`/email-accounts/${emailAccountId}/platform-registrations`, { params }),
+  getUniqueProviders: () => api.get('/email-accounts/providers'), // Added for provider filter dropdown
 };
 
 // Platform API
@@ -171,6 +172,11 @@ export const serviceSubscriptionAPI = {
   create: (data) => api.post('/service-subscriptions', data),
   update: (id, data) => api.put(`/service-subscriptions/${id}`, data),
   delete: (id) => api.delete(`/service-subscriptions/${id}`),
+};
+
+// Search API
+export const searchAPI = {
+  search: (params = {}) => api.get('/search', { params }),
 };
  
 export default api
