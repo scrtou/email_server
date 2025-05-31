@@ -20,7 +20,7 @@ COPY . .
 # - GOOS=linux: Build for Linux
 # - -ldflags="-s -w": Strip debugging information and symbol table to reduce binary size
 # - -o /app/email_server_app: Output the binary to /app/email_server_app
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/email_server_app ./main.go
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /app/email_server_app ./main.go
 
 # ---- Run Stage ----
 FROM alpine:latest
