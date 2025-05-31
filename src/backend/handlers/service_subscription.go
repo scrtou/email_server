@@ -6,6 +6,7 @@ import (
 	"email_server/utils"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -77,21 +78,59 @@ func CreateServiceSubscription(c *gin.Context) {
 		nextRenewalDate = &parsedDate
 	}
 
-	subscription := models.ServiceSubscription{
+	// 查找或创建/恢复 ServiceSubscription 记录
+	// 假设业务唯一性基于 UserID, PlatformRegistrationID, ServiceName
+	var subscription models.ServiceSubscription
+	err := database.DB.Unscoped().Where(models.ServiceSubscription{
 		UserID:                 currentUserID,
 		PlatformRegistrationID: input.PlatformRegistrationID,
 		ServiceName:            input.ServiceName,
-		Description:            input.Description,
-		Status:                 input.Status,
-		Cost:                   input.Cost,
-		BillingCycle:           input.BillingCycle,
-		NextRenewalDate:        nextRenewalDate,
-		PaymentMethodNotes:     input.PaymentMethodNotes,
-	}
+	}).First(&subscription).Error
 
-	if err := database.DB.Create(&subscription).Error; err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "创建服务订阅失败: "+err.Error())
-		return
+	if err != nil {
+		if err == gorm.ErrRecordNotFound { // 记录不存在，创建新的
+			subscription = models.ServiceSubscription{
+				UserID:                 currentUserID,
+				PlatformRegistrationID: input.PlatformRegistrationID,
+				ServiceName:            input.ServiceName,
+				Description:            input.Description,
+				Status:                 input.Status,
+				Cost:                   input.Cost,
+				BillingCycle:           input.BillingCycle,
+				NextRenewalDate:        nextRenewalDate,
+				PaymentMethodNotes:     input.PaymentMethodNotes,
+			}
+			if createErr := database.DB.Create(&subscription).Error; createErr != nil {
+				// 如果未来 ServiceSubscription 表添加了唯一约束 (e.g., user_id, platform_registration_id, service_name)
+				// 且这里依然发生 UNIQUE constraint failed，则说明并发创建或数据不一致
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建服务订阅失败: "+createErr.Error())
+				return
+			}
+		} else { // 其他查询错误
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询服务订阅失败: "+err.Error())
+			return
+		}
+	} else { // 找到了记录
+		if subscription.DeletedAt.Valid { // 如果是软删除的记录
+			// 恢复记录并更新字段
+			subscription.Description = input.Description
+			subscription.Status = input.Status
+			subscription.Cost = input.Cost
+			subscription.BillingCycle = input.BillingCycle
+			subscription.NextRenewalDate = nextRenewalDate
+			subscription.PaymentMethodNotes = input.PaymentMethodNotes
+			subscription.DeletedAt = gorm.DeletedAt{} // 重置软删除标记
+			if updateErr := database.DB.Unscoped().Save(&subscription).Error; updateErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新服务订阅失败: "+updateErr.Error())
+				return
+			}
+		} else { // 记录已存在且未被软删除
+			// 根据业务逻辑，这里可能应该提示用户“该服务订阅已存在”
+			// 为简单起见，如果用户尝试创建完全相同的（且未删除的）订阅，我们返回冲突错误
+			// 或者，也可以选择更新现有记录，但这更像是 PUT 操作的行为
+			utils.SendErrorResponse(c, http.StatusConflict, "该服务订阅已存在。")
+			return
+		}
 	}
 	
 	// subscription will have its ID populated. We need pr, pr.Platform, pr.EmailAccount for the response.
@@ -108,6 +147,8 @@ func CreateServiceSubscription(c *gin.Context) {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param platform_registration_id query int false "按平台注册ID筛选"
 // @Param status query string false "按订阅状态筛选"
+// @Param orderBy query string false "排序字段 (e.g., service_name, status, cost, next_renewal_date, created_at)" default(created_at)
+// @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
 // @Success 200 {object} models.SuccessResponse{data=[]models.ServiceSubscriptionResponse,meta=models.PaginationMeta} "获取成功"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
@@ -130,6 +171,29 @@ func GetServiceSubscriptions(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	prIDFilter, _ := strconv.Atoi(c.Query("platform_registration_id"))
 	statusFilter := c.Query("status")
+	orderBy := c.DefaultQuery("orderBy", "created_at")
+	sortDirection := c.DefaultQuery("sortDirection", "desc")
+
+	// Validate orderBy parameter
+	allowedOrderByFields := map[string]string{
+		"service_name":      "service_name",
+		"status":            "status",
+		"cost":              "cost",
+		"billing_cycle":     "billing_cycle",
+		"next_renewal_date": "next_renewal_date",
+		"created_at":        "created_at",
+		"updated_at":        "updated_at",
+	}
+	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
+	if !isValidField {
+		dbOrderByField = "created_at" // Default to a safe field
+	}
+
+	// Validate sortDirection
+	if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
+		sortDirection = "desc" // Default to desc
+	}
+	orderClause := dbOrderByField + " " + sortDirection
 
 	if page <= 0 { page = 1 }
 	if pageSize <= 0 { pageSize = 10 }
@@ -157,7 +221,7 @@ func GetServiceSubscriptions(c *gin.Context) {
 	}
 
 	// Preload PlatformRegistration and its nested Platform and EmailAccount
-	err := query.Order("created_at desc").Offset(offset).Limit(pageSize).
+	err := query.Order(orderClause).Offset(offset).Limit(pageSize).
 		Preload("PlatformRegistration.Platform").
 		Preload("PlatformRegistration.EmailAccount").
 		Find(&subscriptions).Error
@@ -376,4 +440,124 @@ func DeleteServiceSubscription(c *gin.Context) {
 	}
 
 	utils.SendSuccessResponse(c, gin.H{"message": "服务订阅删除成功"})
+}
+
+// GetServiceSubscriptionsByPlatformRegistrationID godoc
+// @Summary 获取指定平台注册信息关联的所有服务订阅
+// @Description 获取当前用户拥有的指定平台注册信息所关联的所有服务订阅
+// @Tags ServiceSubscriptions
+// @Produce json
+// @Param id path int true "平台注册ID"
+// @Param page query int false "页码" default(1)
+// @Param pageSize query int false "每页数量" default(10)
+// @Param orderBy query string false "排序字段 (e.g., service_name, status, cost, next_renewal_date, created_at)" default(created_at)
+// @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
+// @Success 200 {object} models.SuccessResponse{data=[]models.ServiceSubscriptionResponse,meta=models.PaginationMeta} "获取成功"
+// @Failure 400 {object} models.ErrorResponse "无效的ID格式"
+// @Failure 401 {object} models.ErrorResponse "用户未认证"
+// @Failure 403 {object} models.ErrorResponse "无权访问该平台注册信息"
+// @Failure 404 {object} models.ErrorResponse "平台注册信息未找到"
+// @Failure 500 {object} models.ErrorResponse "服务器内部错误"
+// @Router /platform-registrations/{id}/service-subscriptions [get]
+// @Security BearerAuth
+func GetServiceSubscriptionsByPlatformRegistrationID(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+	currentUserID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+
+	platformRegistrationIDParam := c.Param("id")
+	platformRegistrationID, err := strconv.ParseUint(platformRegistrationIDParam, 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台注册ID格式")
+		return
+	}
+
+	// 验证平台注册信息是否属于当前用户
+	var pr models.PlatformRegistration
+	if err := database.DB.Where("id = ? AND user_id = ?", platformRegistrationID, uint(currentUserID)).
+		Preload("Platform").Preload("EmailAccount").First(&pr).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusForbidden, "无权访问该平台注册信息或平台注册信息不存在")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	orderBy := c.DefaultQuery("orderBy", "created_at")
+	sortDirection := c.DefaultQuery("sortDirection", "desc")
+
+	// Validate orderBy parameter (same as GetServiceSubscriptions)
+	allowedOrderByFields := map[string]string{
+		"service_name":      "service_name",
+		"status":            "status",
+		"cost":              "cost",
+		"billing_cycle":     "billing_cycle",
+		"next_renewal_date": "next_renewal_date",
+		"created_at":        "created_at",
+		"updated_at":        "updated_at",
+	}
+	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
+	if !isValidField {
+		dbOrderByField = "created_at"
+	}
+	if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
+		sortDirection = "desc"
+	}
+	orderClause := dbOrderByField + " " + sortDirection
+
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	if pageSize > 100 { // Max page size limit
+		pageSize = 100
+	}
+	offset := (page - 1) * pageSize
+
+	var subscriptions []models.ServiceSubscription
+	var totalRecords int64
+
+	dbQuery := database.DB.Model(&models.ServiceSubscription{}).Where("platform_registration_id = ? AND user_id = ?", platformRegistrationID, uint(currentUserID))
+
+	// Count total records
+	if err := dbQuery.Count(&totalRecords).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "统计关联服务订阅总数失败: "+err.Error())
+		return
+	}
+
+	// Fetch paginated records
+	// Preload PlatformRegistration and its nested Platform and EmailAccount for the response
+	// Since we already have `pr` (PlatformRegistration with its preloads), we can use it.
+	// However, the subscriptions themselves need to be fetched.
+	err = database.DB.Model(&models.ServiceSubscription{}).
+		Where("platform_registration_id = ? AND user_id = ?", platformRegistrationID, uint(currentUserID)).
+		Order(orderClause).
+		Offset(offset).
+		Limit(pageSize).
+		Find(&subscriptions).Error
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取服务订阅信息失败: "+err.Error())
+		return
+	}
+
+	var responses []models.ServiceSubscriptionResponse
+	for _, ss := range subscriptions {
+		// For each subscription, we use the already fetched `pr` for its related data.
+		responses = append(responses, ss.ToServiceSubscriptionResponse(pr, pr.Platform, pr.EmailAccount))
+	}
+
+	pagination := utils.CreatePaginationMeta(page, pageSize, int(totalRecords))
+	utils.SendSuccessResponseWithMeta(c, responses, pagination)
 }

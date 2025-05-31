@@ -37,15 +37,21 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="platformRegistrationStore.platformRegistrations" v-loading="platformRegistrationStore.loading" style="width: 100%">
-        <el-table-column prop="email_address" label="邮箱账户" min-width="200" />
+      <el-table
+        :data="platformRegistrationStore.platformRegistrations"
+        v-loading="platformRegistrationStore.loading"
+        style="width: 100%"
+        @sort-change="handleSortChange"
+        :default-sort="{ prop: platformRegistrationStore.sort.orderBy, order: platformRegistrationStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+      >
+        <el-table-column prop="email_address" label="邮箱账户" min-width="200" sortable="custom" />
         <!-- <el-table-column prop="id" label="ID" width="80" /> -->
-        <el-table-column prop="platform_name" label="平台" min-width="150" />
-        <el-table-column prop="login_username" label="登录用户名/ID" min-width="180" />
-        <el-table-column prop="notes" label="备注" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column prop="updated_at" label="更新时间" width="180" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="platform_name" label="平台" min-width="150" sortable="custom" />
+        <el-table-column prop="login_username" label="登录用户名/ID" min-width="180" sortable="custom" />
+        <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="180" sortable="custom" />
+        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
           <template #default="scope">
             <el-button size="small" @click="handleEdit(scope.row)">
               <el-icon><Edit /></el-icon> 编辑
@@ -98,8 +104,17 @@ onMounted(async () => {
   fetchData();
 });
 
-const fetchData = (page = platformRegistrationStore.pagination.currentPage, pageSize = platformRegistrationStore.pagination.pageSize) => {
-  const params = { page, pageSize };
+const fetchData = (
+  page = platformRegistrationStore.pagination.currentPage,
+  pageSize = platformRegistrationStore.pagination.pageSize,
+  sortOptions = { orderBy: platformRegistrationStore.sort.orderBy, sortDirection: platformRegistrationStore.sort.sortDirection }
+) => {
+  const params = {
+    page,
+    pageSize,
+    orderBy: sortOptions.orderBy,
+    sortDirection: sortOptions.sortDirection
+  };
   if (filters.emailAccountId) {
     params.email_account_id = filters.emailAccountId;
   }
@@ -107,6 +122,15 @@ const fetchData = (page = platformRegistrationStore.pagination.currentPage, page
     params.platform_id = filters.platformId;
   }
   platformRegistrationStore.fetchPlatformRegistrations(params);
+};
+
+const handleSortChange = ({ prop, order }) => {
+  const sortDirection = order === 'descending' ? 'desc' : 'asc';
+  // Note: Backend currently only supports sorting by PlatformRegistration's own fields.
+  // If prop is 'email_address' or 'platform_name', it will default to 'created_at' on backend.
+  // For a better UX, we might disable sorting on these columns or adjust backend.
+  // For now, we pass the prop as is.
+  fetchData(1, platformRegistrationStore.pagination.pageSize, { orderBy: prop, sortDirection });
 };
 
 const handleFilterChange = () => {

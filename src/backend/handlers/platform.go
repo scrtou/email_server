@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -74,6 +76,8 @@ var input struct {
 // @Produce json
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
+// @Param orderBy query string false "排序字段 (e.g., name, website_url, created_at, updated_at)" default(name)
+// @Param sortDirection query string false "排序方向 (asc, desc)" default(asc)
 // @Success 200 {object} models.SuccessResponse{data=[]models.PlatformResponse,meta=models.PaginationMeta} "获取成功"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
@@ -94,8 +98,29 @@ currentUserID := uint(userID)
 
 page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+orderBy := c.DefaultQuery("orderBy", "name")
+sortDirection := c.DefaultQuery("sortDirection", "asc")
 
-	if page <= 0 {
+// Validate orderBy parameter
+allowedOrderByFields := map[string]string{
+	"name":        "name",
+	"website_url": "website_url",
+	"notes":       "notes",
+	"created_at":  "created_at",
+	"updated_at":  "updated_at",
+}
+dbOrderByField, isValidField := allowedOrderByFields[orderBy]
+if !isValidField {
+	dbOrderByField = "name" // Default to a safe field
+}
+
+// Validate sortDirection
+if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
+	sortDirection = "asc" // Default to asc
+}
+orderClause := dbOrderByField + " " + sortDirection
+
+if page <= 0 {
 		page = 1
 	}
 	if pageSize <= 0 {
@@ -117,7 +142,7 @@ pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 		return
 	}
 
-	if err := query.Order("name asc").Offset(offset).Limit(pageSize).Find(&platforms).Error; err != nil {
+	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Find(&platforms).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台列表失败: "+err.Error())
 		return
 	}

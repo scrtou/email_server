@@ -40,14 +40,40 @@
         <el-button @click="handleCancel">取消</el-button>
       </el-form-item>
     </el-form>
+
+    <el-divider v-if="isEditMode && form.email_address" content-position="left">关联的平台注册信息</el-divider>
+    <div v-if="isEditMode && form.email_address" class="associated-info-section">
+      <el-button
+        type="primary"
+        plain
+        @click="showAssociatedPlatformsDialog"
+        :disabled="associatedInfoDialog.loading"
+        class="view-associated-button"
+      >
+        查看在此邮箱下注册的平台 ({{ form.platform_count || 0 }})
+      </el-button>
+    </div>
   </el-card>
+
+  <AssociatedInfoDialog
+    v-if="isEditMode"
+    v-model:visible="associatedInfoDialog.visible"
+    :title="associatedInfoDialog.title"
+    :items="associatedInfoDialog.items"
+    :item-layout="associatedInfoDialog.layout"
+    :pagination="associatedInfoDialog.pagination"
+    :loading="associatedInfoDialog.loading"
+    @page-change="handleAssociatedPageChange"
+  />
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'; // Removed watch
+import { ref, onMounted, computed, reactive } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useEmailAccountStore } from '@/stores/emailAccount';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElDivider, ElButton } from 'element-plus';
+import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
+// import { View as ViewIcon } from '@element-plus/icons-vue';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
@@ -68,8 +94,27 @@ const form = ref({
   confirm_password: '', // Only for edit mode password change confirmation
   // provider: '', // 已移除
   notes: '',
+  platform_count: 0,
 });
 const loading = ref(false);
+
+const associatedInfoDialog = reactive({
+  visible: false,
+  title: '',
+  items: [],
+  layout: [
+    { label: '平台名称', prop: 'platform_name', minWidth: '150px' },
+    { label: '平台网址', prop: 'platform_website_url', type: 'link', minWidth: '200px' },
+    { label: '登录用户名', prop: 'login_username', minWidth: '150px' },
+    { label: '注册备注', prop: 'registration_notes', minWidth: '200px', showOverflowTooltip: true },
+  ],
+  pagination: {
+    currentPage: 1,
+    pageSize: 5,
+    totalItems: 0,
+  },
+  loading: false,
+});
 
 const isEditMode = computed(() => !!props.id || !!route.params.id);
 const currentId = computed(() => props.id || route.params.id);
@@ -118,9 +163,10 @@ onMounted(async () => {
     const accountData = await emailAccountStore.fetchEmailAccountById(currentId.value);
     if (accountData) {
       form.value.email_address = accountData.email_address;
-      // form.value.provider = accountData.provider; // 已移除，provider 由后端处理
       form.value.notes = accountData.notes;
+      form.value.platform_count = accountData.platform_count || 0;
       // Password is not pre-filled for security
+      emailAccountStore.setCurrentEmailAccount(accountData);
     } else {
       ElMessage.error('无法加载邮箱账户数据，可能ID无效');
       router.push({ name: 'EmailAccountList' }); // Or some error page
@@ -170,11 +216,49 @@ const handleSubmit = async () => {
 const handleCancel = () => {
   router.push({ name: 'EmailAccountList' });
 };
+
+const fetchAssociatedPlatformsData = async (page = 1, pageSize = 5) => {
+  if (!currentId.value) return;
+  associatedInfoDialog.loading = true;
+  try {
+    const result = await emailAccountStore.fetchAssociatedPlatformRegistrations(currentId.value, { page, pageSize });
+    associatedInfoDialog.items = result.data;
+    associatedInfoDialog.pagination.currentPage = result.meta.current_page;
+    associatedInfoDialog.pagination.pageSize = result.meta.page_size;
+    associatedInfoDialog.pagination.totalItems = result.meta.total_records;
+  } catch (error) {
+    associatedInfoDialog.items = [];
+    associatedInfoDialog.pagination.totalItems = 0;
+    // ElMessage.error('获取关联平台信息失败'); // Already handled in store
+  } finally {
+    associatedInfoDialog.loading = false;
+  }
+};
+
+const showAssociatedPlatformsDialog = async () => {
+  if (!form.value.email_address || !currentId.value) return;
+  associatedInfoDialog.title = `邮箱 "${form.value.email_address}" 关联的平台注册信息`;
+  associatedInfoDialog.pagination.currentPage = 1; // Reset to first page
+  await fetchAssociatedPlatformsData(1, associatedInfoDialog.pagination.pageSize);
+  associatedInfoDialog.visible = true;
+};
+
+const handleAssociatedPageChange = (payload) => {
+  fetchAssociatedPlatformsData(payload.currentPage, payload.pageSize);
+};
+
 </script>
 
 <style scoped>
 .email-account-form-card {
   max-width: 700px;
   margin: 20px auto;
+}
+.associated-info-section {
+  margin-top: 20px;
+  padding-top: 20px;
+}
+.view-associated-button {
+  margin-bottom: 10px;
 }
 </style>

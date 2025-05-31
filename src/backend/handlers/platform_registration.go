@@ -6,6 +6,7 @@ import (
 	"email_server/utils"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -98,26 +99,51 @@ func CreatePlatformRegistrationWithIDs(c *gin.Context) {
 		}
 	}
 
-	registration := models.PlatformRegistration{
-		UserID:                 currentUserID,
-		EmailAccountID:         input.EmailAccountID,
-		PlatformID:             input.PlatformID,
-		LoginUsername:          input.LoginUsername,
-		LoginPasswordEncrypted: hashedPassword,
-		Notes:                  input.Notes,
-	}
+	// 查找或创建/恢复 PlatformRegistration 记录
+	var registration models.PlatformRegistration
+	err = database.DB.Unscoped().Where(models.PlatformRegistration{
+		UserID:         currentUserID,
+		EmailAccountID: input.EmailAccountID,
+		PlatformID:     input.PlatformID,
+	}).First(&registration).Error
 
-	if err = database.DB.Create(&registration).Error; err != nil {
-		if merr, ok := err.(interface{ Error() string }); ok {
-			if utils.IsUniqueConstraintError(merr) {
-				utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册。")
+	if err != nil {
+		if err == gorm.ErrRecordNotFound { // 记录不存在，创建新的
+			registration = models.PlatformRegistration{
+				UserID:                 currentUserID,
+				EmailAccountID:         input.EmailAccountID,
+				PlatformID:             input.PlatformID,
+				LoginUsername:          input.LoginUsername,
+				LoginPasswordEncrypted: hashedPassword,
+				Notes:                  input.Notes,
+			}
+			if createErr := database.DB.Create(&registration).Error; createErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
 				return
 			}
+		} else { // 其他查询错误
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
+			return
 		}
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+err.Error())
-		return
+	} else { // 找到了记录
+		if registration.DeletedAt.Valid { // 如果是软删除的记录
+			// 恢复记录并更新字段
+			registration.LoginUsername = input.LoginUsername
+			registration.LoginPasswordEncrypted = hashedPassword
+			registration.Notes = input.Notes
+			registration.DeletedAt = gorm.DeletedAt{} // 重置软删除标记
+			if updateErr := database.DB.Unscoped().Save(&registration).Error; updateErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新平台注册信息失败: "+updateErr.Error())
+				return
+			}
+		} else { // 记录已存在且未被软删除
+			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册。")
+			return
+		}
 	}
 	
+	// 确保 emailAccount 和 platform 包含最新的信息 (如果它们被恢复或创建)
+	// GetPlatformRegistrationByID 预加载了这些，所以这里我们直接使用传入的或新创建/恢复的
 	response := registration.ToPlatformRegistrationResponse(emailAccount, platform)
 	utils.SendSuccessResponse(c, response)
 }
@@ -159,46 +185,68 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 
 	// 查找或创建 EmailAccount
 	var emailAccount models.EmailAccount
-	err = database.DB.Where("email_address = ? AND user_id = ?", input.EmailAddress, currentUserID).First(&emailAccount).Error
+	// 尝试查找包括软删除在内的记录
+	err = database.DB.Unscoped().Where("email_address = ? AND user_id = ?", input.EmailAddress, currentUserID).First(&emailAccount).Error
+
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			// 邮箱账户不存在，创建新的
+		if err == gorm.ErrRecordNotFound { // 完全不存在，创建新的
 			emailAccount = models.EmailAccount{
 				UserID:       currentUserID,
 				EmailAddress: input.EmailAddress,
-				// Provider 和 Notes 可以根据需要从 input 获取或留空
+				Provider:     utils.ExtractProviderFromEmail(input.EmailAddress),
+				// Notes 可以在创建 EmailAccount 时考虑是否从 PlatformRegistrationInput 传递，或留空
 			}
 			if createErr := database.DB.Create(&emailAccount).Error; createErr != nil {
+				// 这里的 UNIQUE constraint failed 错误是预期的，如果并发创建或数据库状态不一致
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建邮箱账户失败: "+createErr.Error())
 				return
 			}
-		} else {
+		} else { // 其他查询错误
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败: "+err.Error())
 			return
 		}
+	} else { // 找到了记录
+		if emailAccount.DeletedAt.Valid { // 如果是软删除的记录
+			// 恢复该记录
+			if updateErr := database.DB.Unscoped().Model(&emailAccount).Update("deleted_at", nil).Error; updateErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复邮箱账户失败: "+updateErr.Error())
+				return
+			}
+			// GORM 会自动更新 emailAccount 实例的 DeletedAt 字段为 nil (或使其 .Valid 为 false)
+			// 如果需要确保其他字段也刷新，可以重新查询一次，但通常对于 Update("deleted_at", nil) 是不必要的。
+		}
+		// 如果不是软删除的，或者已成功恢复，则直接使用 emailAccount
 	}
 
 	// 查找或创建 Platform
 	var platform models.Platform
-	// 查找当前用户是否已创建同名平台
-	err = database.DB.Where("name = ? AND user_id = ?", input.PlatformName, currentUserID).First(&platform).Error
+	// 查找当前用户是否已创建同名平台 (包括软删除的)
+	err = database.DB.Unscoped().Where("name = ? AND user_id = ?", input.PlatformName, currentUserID).First(&platform).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			// 平台不存在，为当前用户创建新的
+		if err == gorm.ErrRecordNotFound { // 完全不存在，创建新的
 			platform = models.Platform{
-				UserID: currentUserID, // 关联当前用户
-				Name:   input.PlatformName,
-				// WebsiteURL 和 Notes 可以根据需要从 input 获取或留空
+				UserID:     currentUserID,
+				Name:       input.PlatformName,
+				WebsiteURL: "", // 可以从 input.PlatformWebsiteURL 获取 (如果 CreatePlatformRegistrationInput 有此字段)
+				Notes:      "", // 可以从 input.Notes 获取 (如果 CreatePlatformRegistrationInput 有此字段，但通常notes是registration的)
 			}
 			if createErr := database.DB.Create(&platform).Error; createErr != nil {
-				// 此处不需要检查 IsUniqueConstraintError，因为模型中 (UserID, Name) 是复合唯一键
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台失败: "+createErr.Error())
 				return
 			}
-		} else {
+		} else { // 其他查询错误
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
 			return
 		}
+	} else { // 找到了记录
+		if platform.DeletedAt.Valid { // 如果是软删除的记录
+			// 恢复该记录
+			if updateErr := database.DB.Unscoped().Model(&platform).Update("deleted_at", nil).Error; updateErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复平台失败: "+updateErr.Error())
+				return
+			}
+		}
+		// 如果不是软删除的，或者已成功恢复，则直接使用 platform
 	}
 
 	var hashedPassword string
@@ -211,27 +259,47 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 		}
 	}
 
-	registration := models.PlatformRegistration{
-		UserID:                 currentUserID,
-		EmailAccountID:         emailAccount.ID,
-		PlatformID:             platform.ID,
-		LoginUsername:          input.LoginUsername,
-		LoginPasswordEncrypted: hashedPassword,
-		Notes:                  input.Notes,
-	}
+	// 查找或创建/恢复 PlatformRegistration 记录
+	var registration models.PlatformRegistration
+	err = database.DB.Unscoped().Where(models.PlatformRegistration{
+		UserID:         currentUserID,
+		EmailAccountID: emailAccount.ID, // 使用已确定/创建/恢复的 emailAccount.ID
+		PlatformID:     platform.ID,     // 使用已确定/创建/恢复的 platform.ID
+	}).First(&registration).Error
 
-	if err := database.DB.Create(&registration).Error; err != nil {
-		// 检查是否是唯一约束冲突错误
-		// 对于 SQLite, GORM 可能不会返回一个特定的错误类型，所以我们检查错误字符串。
-		// 更健壮的方法是检查数据库驱动返回的特定错误代码，但这会增加复杂性。
-		if merr, ok := err.(interface{ Error() string }); ok { // 基本的错误接口检查
-			if utils.IsUniqueConstraintError(merr) { // 假设 IsUniqueConstraintError 检查错误字符串
-				utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册。")
+	if err != nil {
+		if err == gorm.ErrRecordNotFound { // 记录不存在，创建新的
+			registration = models.PlatformRegistration{
+				UserID:                 currentUserID,
+				EmailAccountID:         emailAccount.ID,
+				PlatformID:             platform.ID,
+				LoginUsername:          input.LoginUsername,
+				LoginPasswordEncrypted: hashedPassword,
+				Notes:                  input.Notes,
+			}
+			if createErr := database.DB.Create(&registration).Error; createErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
 				return
 			}
+		} else { // 其他查询错误
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
+			return
 		}
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+err.Error())
-		return
+	} else { // 找到了记录
+		if registration.DeletedAt.Valid { // 如果是软删除的记录
+			// 恢复记录并更新字段
+			registration.LoginUsername = input.LoginUsername
+			registration.LoginPasswordEncrypted = hashedPassword
+			registration.Notes = input.Notes
+			registration.DeletedAt = gorm.DeletedAt{} // 重置软删除标记
+			if updateErr := database.DB.Unscoped().Save(&registration).Error; updateErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新平台注册信息失败: "+updateErr.Error())
+				return
+			}
+		} else { // 记录已存在且未被软删除
+			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册。")
+			return
+		}
 	}
 	
 	// 为了返回完整的 PlatformRegistrationResponse，我们需要 emailAccount 和 platform 的信息
@@ -249,6 +317,8 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param email_account_id query int false "按邮箱账户ID筛选"
 // @Param platform_id query int false "按平台ID筛选"
+// @Param orderBy query string false "排序字段 (e.g., login_username, created_at)" default(created_at)
+// @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
 // @Success 200 {object} models.SuccessResponse{data=[]models.PlatformRegistrationResponse,meta=models.PaginationMeta} "获取成功"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
@@ -271,8 +341,54 @@ func GetPlatformRegistrations(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	emailAccountIDFilter, _ := strconv.Atoi(c.Query("email_account_id"))
 	platformIDFilter, _ := strconv.Atoi(c.Query("platform_id"))
+	orderBy := c.DefaultQuery("orderBy", "created_at")
+	sortDirection := c.DefaultQuery("sortDirection", "desc")
 
+	// Validate orderBy parameter
+	// Note: Sorting by EmailAccount.email_address or Platform.name would require joins or subqueries
+	// For now, only allow sorting by PlatformRegistration's own fields.
+	allowedOrderByFields := map[string]string{
+		"login_username": "platform_registrations.login_username",
+		"notes":          "platform_registrations.notes",
+		"created_at":     "platform_registrations.created_at",
+		"updated_at":     "platform_registrations.updated_at",
+		"email_address":  "email_accounts.email_address",
+		"platform_name":  "platforms.name",
+	}
+	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
+	
+	// Initialize query. We will add Joins to this query if needed.
+	query := database.DB.Model(&models.PlatformRegistration{}).Where("platform_registrations.user_id = ?", currentUserID)
+	countQuery := database.DB.Model(&models.PlatformRegistration{}).Where("user_id = ?", currentUserID) // countQuery doesn't need joins for sorting
 
+	if !isValidField {
+		dbOrderByField = "platform_registrations.created_at" // Default to created_at on the main table
+	} else {
+		if orderBy == "email_address" {
+			query = query.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.user_id = ?", currentUserID)
+			// For countQuery, if filtering by email_account properties is ever needed, joins would be added there too.
+			// But for sorting, countQuery remains simple.
+		} else if orderBy == "platform_name" {
+			query = query.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id AND platforms.user_id = ?", currentUserID)
+		}
+		// For other valid fields (login_username, notes, created_at, updated_at), no join is needed beyond what's already handled by allowedOrderByFields.
+	}
+	
+	// Validate sortDirection
+	if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
+		sortDirection = "desc" // Default to desc
+	}
+	orderClause := dbOrderByField + " " + sortDirection
+	
+	// Apply filters (these were originally applied to a query initialized later, moving them up)
+	if emailAccountIDFilter > 0 {
+		query = query.Where("platform_registrations.email_account_id = ?", emailAccountIDFilter)
+		countQuery = countQuery.Where("email_account_id = ?", emailAccountIDFilter)
+	}
+	if platformIDFilter > 0 {
+		query = query.Where("platform_registrations.platform_id = ?", platformIDFilter)
+		countQuery = countQuery.Where("platform_id = ?", platformIDFilter)
+	}
 	if page <= 0 {	page = 1 }
 	if pageSize <= 0 { pageSize = 10	}
 	if pageSize > 100 { pageSize = 100 }
@@ -281,18 +397,8 @@ func GetPlatformRegistrations(c *gin.Context) {
 	var registrations []models.PlatformRegistration
 	var totalRecords int64
 
-	query := database.DB.Model(&models.PlatformRegistration{}).Where("user_id = ?", currentUserID)
-	countQuery := database.DB.Model(&models.PlatformRegistration{}).Where("user_id = ?", currentUserID)
-
-
-	if emailAccountIDFilter > 0 {
-		query = query.Where("email_account_id = ?", emailAccountIDFilter)
-		countQuery = countQuery.Where("email_account_id = ?", emailAccountIDFilter)
-	}
-	if platformIDFilter > 0 {
-		query = query.Where("platform_id = ?", platformIDFilter)
-		countQuery = countQuery.Where("platform_id = ?", platformIDFilter)
-	}
+	// query and countQuery are now initialized and potentially filtered before this point.
+	// The Joins for sorting are applied to 'query', not 'countQuery'.
 
 	if err := countQuery.Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台注册总数失败: "+err.Error())
@@ -300,7 +406,18 @@ func GetPlatformRegistrations(c *gin.Context) {
 	}
 	
 	// Preload related data for the response
-	if err := query.Order("created_at desc").Offset(offset).Limit(pageSize).Preload("EmailAccount").Preload("Platform").Find(&registrations).Error; err != nil {
+	// If sorting by related fields (e.g., email_accounts.email_address), a JOIN would be needed here.
+	// For now, we sort by PlatformRegistration fields and then preload.
+	// Example for JOIN and sort (more complex):
+	// if orderBy == "email_address" {
+	// query = query.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id")
+	// orderClause = "email_accounts.email_address " + sortDirection
+	// } else if orderBy == "platform_name" {
+	// query = query.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id")
+	// orderClause = "platforms.name " + sortDirection
+	// }
+
+	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Preload("EmailAccount").Preload("Platform").Find(&registrations).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台注册列表失败: "+err.Error())
 		return
 	}

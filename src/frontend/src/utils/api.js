@@ -161,6 +161,7 @@ export const platformRegistrationAPI = {
   createByName: (data) => api.post('/platform-registrations/by-name', data), // For creating with names
   update: (id, data) => api.put(`/platform-registrations/${id}`, data),
   delete: (id) => api.delete(`/platform-registrations/${id}`),
+  getAssociatedServiceSubscriptions: (registrationId, params = {}) => api.get(`/platform-registrations/${registrationId}/service-subscriptions`, { params }),
 };
 
 // ServiceSubscription API

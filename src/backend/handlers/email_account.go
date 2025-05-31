@@ -62,17 +62,13 @@ func CreateEmailAccount(c *gin.Context) {
 	}
 
 	// 从 EmailAddress 提取 Provider
-	var provider string
-	parts := strings.Split(input.EmailAddress, "@")
-	if len(parts) == 2 {
-		provider = parts[1]
-	}
+	provider := utils.ExtractProviderFromEmail(input.EmailAddress)
 
 	emailAccount := models.EmailAccount{
 		UserID:            actualUserID,
 		EmailAddress:      input.EmailAddress,
 		PasswordEncrypted: hashedPassword,
-		Provider:          provider, // 使用提取的 Provider
+		Provider:          provider,
 		Notes:             input.Notes,
 	}
 
@@ -95,6 +91,8 @@ func CreateEmailAccount(c *gin.Context) {
 // @Produce json
 // @Param page query int false "页码" default(1)
 // @Param pageSize query int false "每页数量" default(10)
+// @Param orderBy query string false "排序字段 (e.g., email_address, created_at, updated_at)" default(created_at)
+// @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
 // @Success 200 {object} models.SuccessResponse{data=[]models.EmailAccountResponse,meta=models.PaginationMeta} "获取成功"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
@@ -115,6 +113,28 @@ func GetEmailAccounts(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	orderBy := c.DefaultQuery("orderBy", "created_at")
+	sortDirection := c.DefaultQuery("sortDirection", "desc")
+
+	// Validate orderBy parameter to prevent SQL injection
+	allowedOrderByFields := map[string]string{
+		"email_address": "email_address",
+		"provider":      "provider",
+		"notes":         "notes",
+		"created_at":    "created_at",
+		"updated_at":    "updated_at",
+	}
+	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
+	if !isValidField {
+		dbOrderByField = "created_at" // Default to a safe field
+	}
+
+	// Validate sortDirection
+	if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
+		sortDirection = "desc" // Default to desc
+	}
+
+	orderClause := dbOrderByField + " " + sortDirection
 
 	if page <= 0 {
 		page = 1
@@ -132,13 +152,15 @@ func GetEmailAccounts(c *gin.Context) {
 	var totalRecords int64
 
 	// Count total records for pagination meta
-	if err := database.DB.Model(&models.EmailAccount{}).Where("user_id = ?", actualUserID).Count(&totalRecords).Error; err != nil {
+	query := database.DB.Model(&models.EmailAccount{}).Where("user_id = ?", actualUserID)
+
+	if err := query.Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户总数失败: "+err.Error())
 		return
 	}
 
 	// Fetch paginated records
-	if err := database.DB.Where("user_id = ?", actualUserID).Order("created_at desc").Offset(offset).Limit(pageSize).Find(&emailAccounts).Error; err != nil {
+	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Find(&emailAccounts).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户列表失败: "+err.Error())
 		return
 	}
@@ -270,12 +292,7 @@ func UpdateEmailAccount(c *gin.Context) {
 	if input.EmailAddress != "" {
 		emailAccount.EmailAddress = input.EmailAddress
 		// 如果 EmailAddress 更新了，也需要更新 Provider
-		parts := strings.Split(input.EmailAddress, "@")
-		if len(parts) == 2 {
-			emailAccount.Provider = parts[1]
-		} else {
-			emailAccount.Provider = "" // 或者保持旧值，根据业务需求
-		}
+		emailAccount.Provider = utils.ExtractProviderFromEmail(input.EmailAddress)
 	}
 	if input.Password != "" {
 		hashedPassword, err := utils.HashPassword(input.Password)

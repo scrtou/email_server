@@ -25,16 +25,29 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       pageSize: 10,
       totalItems: 0,
     },
+    sort: { // New state for sorting
+      orderBy: 'created_at', // Default sort
+      sortDirection: 'desc',
+    },
   }),
   actions: {
-    async fetchPlatformRegistrations(params = { page: 1, pageSize: 10 }) {
+    async fetchPlatformRegistrations(params = { page: 1, pageSize: 10, orderBy: 'created_at', sortDirection: 'desc' }) {
       this.loading = true;
       this.error = null;
+      
       const page = params.page || this.pagination.currentPage;
       const pageSize = params.pageSize || this.pagination.pageSize;
+      const orderBy = params.orderBy || this.sort.orderBy;
+      const sortDirection = params.sortDirection || this.sort.sortDirection;
+
+      // Update sort state if new options are provided directly in params
+      if (params.orderBy) this.sort.orderBy = params.orderBy;
+      if (params.sortDirection) this.sort.sortDirection = params.sortDirection;
+
+      const apiParams = { ...params, page, pageSize, orderBy, sortDirection };
 
       try {
-        const result = await platformRegistrationAPI.getAll({ params });
+        const result = await platformRegistrationAPI.getAll(apiParams);
         if (result && result.data) {
           this.platformRegistrations = result.data;
           if (result.meta) {
@@ -80,7 +93,12 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         const createdData = await platformRegistrationAPI.create(data);
         ElMessage.success('平台注册信息创建成功');
         // Decide on re-fetch strategy, e.g., based on current view or always re-fetch first page
-        await this.fetchPlatformRegistrations({ page: 1, pageSize: this.pagination.pageSize });
+        await this.fetchPlatformRegistrations({
+          page: 1,
+          pageSize: this.pagination.pageSize,
+          orderBy: this.sort.orderBy,
+          sortDirection: this.sort.sortDirection,
+        });
         return createdData;
       } catch (err) {
         if (err.response && err.response.status === 409) {
@@ -100,9 +118,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       this.error = null;
       try {
         // 假设 platformRegistrationAPI.createByName 将被添加到 api.js
-        const createdData = await platformRegistrationAPI.createByName(data); 
+        const createdData = await platformRegistrationAPI.createByName(data);
         ElMessage.success('平台注册信息创建成功 (by name)');
-        await this.fetchPlatformRegistrations({ page: 1, pageSize: this.pagination.pageSize });
+        await this.fetchPlatformRegistrations({
+          page: 1,
+          pageSize: this.pagination.pageSize,
+          orderBy: this.sort.orderBy,
+          sortDirection: this.sort.sortDirection,
+        });
         return createdData;
       } catch (err) {
         if (err.response && err.response.status === 409) {
@@ -124,8 +147,10 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         const updatedData = await platformRegistrationAPI.update(id, data);
         ElMessage.success('平台注册信息更新成功');
         await this.fetchPlatformRegistrations({
-            page: this.pagination.currentPage, 
-            pageSize: this.pagination.pageSize 
+            page: this.pagination.currentPage,
+            pageSize: this.pagination.pageSize,
+            orderBy: this.sort.orderBy,
+            sortDirection: this.sort.sortDirection,
         });
         if (this.currentPlatformRegistration && this.currentPlatformRegistration.id === id) {
           this.currentPlatformRegistration = updatedData;
@@ -147,11 +172,16 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         ElMessage.success('平台注册信息删除成功');
         // Re-fetch, considering current page might become empty
          const currentPage = (this.platformRegistrations.length === 1 && this.pagination.currentPage > 1) 
-                            ? this.pagination.currentPage - 1 
+                            ? this.pagination.currentPage - 1
                             : this.pagination.currentPage;
-        await this.fetchPlatformRegistrations({ page: currentPage, pageSize: this.pagination.pageSize });
-        return true;
-      } catch (err) {
+       await this.fetchPlatformRegistrations({
+           page: currentPage,
+           pageSize: this.pagination.pageSize,
+           orderBy: this.sort.orderBy,
+           sortDirection: this.sort.sortDirection,
+       });
+       return true;
+     } catch (err) {
         this.error = err.message || '删除平台注册信息失败';
         ElMessage.error(this.error);
         return false;
@@ -161,6 +191,24 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
     },
     setCurrentPlatformRegistration(registration) {
         this.currentPlatformRegistration = registration;
+    },
+    async fetchAssociatedServiceSubscriptions(registrationId, params = { page: 1, pageSize: 5 }) {
+      // This action will call the new backend API to get service subscriptions for a specific platform registration.
+      // It's similar to fetchAssociatedPlatformRegistrations in emailAccount.js
+      this.loading = true;
+      this.error = null;
+      try {
+        // Ensure platformRegistrationAPI has a method for this:
+        // getAssociatedServiceSubscriptions: (registrationId, params) => api.get(`/platform-registrations/${registrationId}/service-subscriptions`, { params }),
+        const result = await platformRegistrationAPI.getAssociatedServiceSubscriptions(registrationId, params);
+        return result || { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } };
+      } catch (err) {
+        this.error = err.message || '获取关联服务订阅失败';
+        ElMessage.error(this.error);
+        return { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } };
+      } finally {
+        this.loading = false;
+      }
     }
   },
 });

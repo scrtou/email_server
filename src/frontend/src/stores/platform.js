@@ -26,13 +26,31 @@ export const usePlatformStore = defineStore('platform', {
       pageSize: 10,
       totalItems: 0,
     },
+    sort: { // New state for sorting
+      orderBy: 'name', // Default sort for platforms
+      sortDirection: 'asc',
+    },
   }),
   actions: {
-    async fetchPlatforms(page = 1, pageSize = 10) {
+    async fetchPlatforms(page = 1, pageSize = 10, sortOptions = {}) {
       this.loading = true;
       this.error = null;
+
+      const orderBy = sortOptions.orderBy || this.sort.orderBy;
+      const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
+
+      // Update sort state if new options are provided
+      if (sortOptions.orderBy) this.sort.orderBy = sortOptions.orderBy;
+      if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
+
       try {
-        const result = await platformAPI.getAll({ params: { page, pageSize } });
+        const params = {
+          page,
+          pageSize,
+          orderBy: orderBy,
+          sortDirection: sortDirection
+        };
+        const result = await platformAPI.getAll(params);
         if (result && result.data) {
           this.platforms = result.data;
           if (result.meta) {
