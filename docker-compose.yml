@@ -1,0 +1,46 @@
+version: '3.8'
+
+# 定义服务
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./src/backend # Dockerfile 路径
+      dockerfile: Dockerfile
+    container_name: email_server_backend # 容器名称
+    ports:
+      - "5555:5555" # 映射端口：宿主机:容器
+    environment:
+      SERVER_PORT: "5555" # 后端服务监听端口
+      SQLITE_FILE: "/data/database.db" # SQLite 数据库文件路径 (容器内)
+      JWT_SECRET: "your-super-secret-jwt-key-change-in-production" # JWT 签名密钥 (请在生产环境中修改)
+      # 根据您的后端应用需求，添加其他必要的环境变量
+      # EXAMPLE_ENV_VAR: "example_value"
+    volumes:
+      - ./data/backend:/data # 持久化数据库文件：宿主机路径:容器内路径
+    restart: unless-stopped # 容器退出时自动重启
+    networks:
+      - email_server_network # 连接到自定义网络
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./src/frontend # Dockerfile 路径
+      dockerfile: Dockerfile
+      args:
+        # 构建时注入环境变量，用于API基础URL
+        # 确保后端服务可以通过 http://backend:5555 访问
+        VUE_APP_API_BASE_URL: "http://localhost:5555/api/v1" # 或者使用服务名: "http://backend:5555/api/v1"
+    container_name: email_server_frontend # 容器名称
+    ports:
+      - "8080:80" # 映射端口：宿主机:容器 (Nginx 默认监听80)
+    restart: unless-stopped # 容器退出时自动重启
+    depends_on: # （可选）依赖后端服务
+      - backend
+    networks:
+      - email_server_network # 连接到自定义网络
+
+# 定义网络
+networks:
+  email_server_network: # 自定义桥接网络
+    driver: bridge
