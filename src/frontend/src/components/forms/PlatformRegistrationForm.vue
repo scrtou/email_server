@@ -76,19 +76,12 @@
       
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item v-if="isEditMode && form.login_password" label="确认新密码" prop="confirm_password">
-            <el-input
-              type="password"
-              v-model="form.confirm_password"
-              placeholder="再次输入新密码"
-              show-password
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="备注" prop="notes">
             <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="填写备注信息" />
           </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="24" :md="12">
+          <!--  确认密码字段已移除，此列保留用于布局对齐，如果不需要可以移除整个el-col -->
         </el-col>
       </el-row>
 
@@ -100,42 +93,7 @@
       </el-form-item>
     </el-form>
 
-    <div v-if="isEditMode && currentPlatformRegistration" class="associated-details-section">
-      <el-divider content-position="left">关联信息</el-divider>
-      <el-descriptions :column="1" border class="associated-descriptions">
-        <el-descriptions-item label="邮箱账户">
-          {{ currentPlatformRegistration.email_account?.email_address || 'N/A' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="平台名称">
-          {{ currentPlatformRegistration.platform?.name || 'N/A' }}
-        </el-descriptions-item>
-      </el-descriptions>
-    </div>
-    
-    <el-divider v-if="isEditMode && currentId" content-position="left">关联的服务订阅</el-divider>
-    <div v-if="isEditMode && currentId" class="associated-info-section">
-      <el-button
-        type="primary"
-        plain
-        @click="showAssociatedServiceSubscriptionsDialog"
-        :disabled="serviceSubscriptionsDialog.loading"
-        class="view-associated-button"
-      >
-        <el-icon><View /></el-icon> 查看此注册信息下的服务订阅
-      </el-button>
-    </div>
   </el-card>
-
-  <AssociatedInfoDialog
-    v-if="isEditMode"
-    v-model:visible="serviceSubscriptionsDialog.visible"
-    :title="serviceSubscriptionsDialog.title"
-    :items="serviceSubscriptionsDialog.items"
-    :item-layout="serviceSubscriptionsDialog.layout"
-    :pagination="serviceSubscriptionsDialog.pagination"
-    :loading="serviceSubscriptionsDialog.loading"
-    @page-change="handleAssociatedServiceSubscriptionsPageChange"
-  />
 </template>
 
 <script setup>
@@ -145,8 +103,6 @@ import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { ElMessage } from 'element-plus';
-import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
-import { View } from '@element-plus/icons-vue';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
@@ -168,47 +124,12 @@ const form = ref({
   platform_id: null,
   login_username: '',
   login_password: '',
-  confirm_password: '',
   notes: '',
 });
 const loading = ref(false);
-const currentPlatformRegistration = computed(() => platformRegistrationStore.currentPlatformRegistration);
-
-const serviceSubscriptionsDialog = reactive({
-  visible: false,
-  title: '',
-  items: [],
-  layout: [
-    { label: '服务名称', prop: 'service_name', minWidth: '180px' },
-    { label: '状态', prop: 'status', width: '100px' },
-    { label: '费用', prop: 'cost', width: '100px', formatter: (row) => row.cost.toFixed(2) },
-    { label: '计费周期', prop: 'billing_cycle', width: '120px' },
-    { label: '下次续费日', prop: 'next_renewal_date', width: '140px' },
-  ],
-  pagination: {
-    currentPage: 1,
-    pageSize: 5,
-    totalItems: 0,
-  },
-  loading: false,
-});
 
 const isEditMode = computed(() => !!props.id || !!route.params.id);
 const currentId = computed(() => props.id || route.params.id);
-
-const validatePassConfirm = (rule, value, callback) => {
-  if (form.value.login_password) {
-    if (value === '') {
-      callback(new Error('请再次输入新密码'));
-    } else if (value !== form.value.login_password) {
-      callback(new Error('两次输入的新密码不一致'));
-    } else {
-      callback();
-    }
-  } else {
-    callback();
-  }
-};
 
 const rules = ref({
   email_account_id: [{ required: true, message: '请选择邮箱账户', trigger: 'change' }],
@@ -218,9 +139,6 @@ const rules = ref({
     // Password is no longer required
     { required: false, message: '请输入登录密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少为6位', trigger: 'blur' },
-  ],
-  confirm_password: [
-    { validator: validatePassConfirm, trigger: 'blur' }
   ],
 });
 
@@ -360,37 +278,6 @@ const handleCancel = () => {
   router.push({ name: 'PlatformRegistrationList' });
 };
 
-const fetchAssociatedServiceSubscriptionsData = async (page = 1, pageSize = 5) => {
-  if (!currentId.value) return;
-  serviceSubscriptionsDialog.loading = true;
-  try {
-    const result = await platformRegistrationStore.fetchAssociatedServiceSubscriptions(currentId.value, { page, pageSize });
-    serviceSubscriptionsDialog.items = result.data;
-    serviceSubscriptionsDialog.pagination.currentPage = result.meta.current_page;
-    serviceSubscriptionsDialog.pagination.pageSize = result.meta.page_size;
-    serviceSubscriptionsDialog.pagination.totalItems = result.meta.total_records;
-  } catch (error) {
-    serviceSubscriptionsDialog.items = [];
-    serviceSubscriptionsDialog.pagination.totalItems = 0;
-  } finally {
-    serviceSubscriptionsDialog.loading = false;
-  }
-};
-
-const showAssociatedServiceSubscriptionsDialog = async () => {
-  if (!currentId.value) return;
-  const regName = currentPlatformRegistration.value
-    ? `${currentPlatformRegistration.value.platform_name} - ${currentPlatformRegistration.value.email_address}`
-    : `注册ID ${currentId.value}`;
-  serviceSubscriptionsDialog.title = `"${regName}" 关联的服务订阅`;
-  serviceSubscriptionsDialog.pagination.currentPage = 1;
-  await fetchAssociatedServiceSubscriptionsData(1, serviceSubscriptionsDialog.pagination.pageSize);
-  serviceSubscriptionsDialog.visible = true;
-};
-
-const handleAssociatedServiceSubscriptionsPageChange = (payload) => {
-  fetchAssociatedServiceSubscriptionsData(payload.currentPage, payload.pageSize);
-};
 
 </script>
 

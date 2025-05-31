@@ -54,40 +54,14 @@
       </el-form-item>
     </el-form>
 
-    <el-divider v-if="isEditMode && form.email_address" content-position="left">
-      <span class="divider-text">关联的平台注册信息</span>
-    </el-divider>
-    <div v-if="isEditMode && form.email_address" class="associated-info-section">
-      <el-button
-        type="primary"
-        plain
-        @click="showAssociatedPlatformsDialog"
-        :disabled="associatedInfoDialog.loading"
-        class="view-associated-button"
-      >
-        查看在此邮箱下注册的平台 ({{ form.platform_count || 0 }})
-      </el-button>
-    </div>
   </el-card>
-
-  <AssociatedInfoDialog
-    v-if="isEditMode"
-    v-model:visible="associatedInfoDialog.visible"
-    :title="associatedInfoDialog.title"
-    :items="associatedInfoDialog.items"
-    :item-layout="associatedInfoDialog.layout"
-    :pagination="associatedInfoDialog.pagination"
-    :loading="associatedInfoDialog.loading"
-    @page-change="handleAssociatedPageChange"
-  />
 </template>
 
 <script setup>
-import { ref, onMounted, computed, reactive } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useEmailAccountStore } from '@/stores/emailAccount';
-import { ElMessage, ElDivider, ElButton } from 'element-plus';
-import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
+import { ElMessage, ElButton } from 'element-plus';
 // import { View as ViewIcon } from '@element-plus/icons-vue';
 
 // eslint-disable-next-line no-undef
@@ -109,27 +83,8 @@ const form = ref({
   confirm_password: '', // Only for edit mode password change confirmation
   // provider: '', // 已移除
   notes: '',
-  platform_count: 0,
 });
 const loading = ref(false);
-
-const associatedInfoDialog = reactive({
-  visible: false,
-  title: '',
-  items: [],
-  layout: [
-    { label: '平台名称', prop: 'platform_name', minWidth: '150px' },
-    { label: '平台网址', prop: 'platform_website_url', type: 'link', minWidth: '200px' },
-    { label: '登录用户名', prop: 'login_username', minWidth: '150px' },
-    { label: '注册备注', prop: 'registration_notes', minWidth: '200px', showOverflowTooltip: true },
-  ],
-  pagination: {
-    currentPage: 1,
-    pageSize: 5,
-    totalItems: 0,
-  },
-  loading: false,
-});
 
 const isEditMode = computed(() => !!props.id || !!route.params.id);
 const currentId = computed(() => props.id || route.params.id);
@@ -179,7 +134,6 @@ onMounted(async () => {
     if (accountData) {
       form.value.email_address = accountData.email_address;
       form.value.notes = accountData.notes;
-      form.value.platform_count = accountData.platform_count || 0;
       // Password is not pre-filled for security
       emailAccountStore.setCurrentEmailAccount(accountData);
     } else {
@@ -230,36 +184,6 @@ const handleSubmit = async () => {
 
 const handleCancel = () => {
   router.push({ name: 'EmailAccountList' });
-};
-
-const fetchAssociatedPlatformsData = async (page = 1, pageSize = 5) => {
-  if (!currentId.value) return;
-  associatedInfoDialog.loading = true;
-  try {
-    const result = await emailAccountStore.fetchAssociatedPlatformRegistrations(currentId.value, { page, pageSize });
-    associatedInfoDialog.items = result.data;
-    associatedInfoDialog.pagination.currentPage = result.meta.current_page;
-    associatedInfoDialog.pagination.pageSize = result.meta.page_size;
-    associatedInfoDialog.pagination.totalItems = result.meta.total_records;
-  } catch (error) {
-    associatedInfoDialog.items = [];
-    associatedInfoDialog.pagination.totalItems = 0;
-    // ElMessage.error('获取关联平台信息失败'); // Already handled in store
-  } finally {
-    associatedInfoDialog.loading = false;
-  }
-};
-
-const showAssociatedPlatformsDialog = async () => {
-  if (!form.value.email_address || !currentId.value) return;
-  associatedInfoDialog.title = `邮箱 "${form.value.email_address}" 关联的平台注册信息`;
-  associatedInfoDialog.pagination.currentPage = 1; // Reset to first page
-  await fetchAssociatedPlatformsData(1, associatedInfoDialog.pagination.pageSize);
-  associatedInfoDialog.visible = true;
-};
-
-const handleAssociatedPageChange = (payload) => {
-  fetchAssociatedPlatformsData(payload.currentPage, payload.pageSize);
 };
 
 </script>
@@ -321,23 +245,6 @@ const handleAssociatedPageChange = (payload) => {
   font-size: 1.1rem;
   font-weight: bold;
   color: #606266;
-}
-
-.associated-info-section {
-  text-align: center; /* Center the button */
-  padding-bottom: 20px; /* Padding at the bottom of the section */
-}
-
-.view-associated-button {
-  padding: 12px 25px;
-  font-size: 1rem;
-  border-radius: 5px;
-  transition: all 0.3s ease; /* Smooth transition for hover effects */
-}
-
-.view-associated-button:hover {
-  transform: translateY(-2px); /* Slight lift effect on hover */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Responsive adjustments */

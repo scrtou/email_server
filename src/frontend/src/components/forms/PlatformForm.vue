@@ -30,42 +30,14 @@
       </el-form-item>
     </el-form>
 
-    <el-divider v-if="isEditMode && form.name" content-position="left">
-      <span class="divider-text">关联的邮箱账户注册信息</span>
-    </el-divider>
-    <div v-if="isEditMode && form.name" class="associated-info-section">
-      <el-button
-        type="info"
-        plain
-        :icon="ViewIcon"
-        @click="showAssociatedEmailsDialog"
-        :disabled="associatedInfoDialog.loading"
-        class="view-associated-button"
-      >
-        查看在此平台上注册的邮箱 ({{ form.email_account_count || 0 }})
-      </el-button>
-    </div>
   </el-card>
-
-  <AssociatedInfoDialog
-    v-if="isEditMode"
-    v-model:visible="associatedInfoDialog.visible"
-    :title="associatedInfoDialog.title"
-    :items="associatedInfoDialog.items"
-    :item-layout="associatedInfoDialog.layout"
-    :pagination="associatedInfoDialog.pagination"
-    :loading="associatedInfoDialog.loading"
-    @page-change="handleAssociatedPageChange"
-  />
 </template>
 
 <script setup>
 import { ref, onMounted, computed, reactive } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { usePlatformStore } from '@/stores/platform';
-import { ElMessage, ElDivider, ElButton, ElCard, ElForm, ElFormItem, ElInput } from 'element-plus';
-import { View as ViewIcon } from '@element-plus/icons-vue';
-import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
+import { ElMessage, ElButton, ElCard, ElForm, ElFormItem, ElInput } from 'element-plus';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
@@ -84,26 +56,8 @@ const form = ref({
   name: '',
   website_url: '',
   notes: '',
-  email_account_count: 0, // To store the count from fetched platform data
 });
 const loading = ref(false);
-
-const associatedInfoDialog = reactive({
-  visible: false,
-  title: '',
-  items: [],
-  layout: [ // Define layout for displaying email registrations
-    { label: '邮箱地址', prop: 'email_address', minWidth: '200px' },
-    { label: '登录用户名', prop: 'login_username', minWidth: '150px' },
-    { label: '注册备注', prop: 'registration_notes', minWidth: '200px', showOverflowTooltip: true },
-  ],
-  pagination: {
-    currentPage: 1,
-    pageSize: 5,
-    totalItems: 0,
-  },
-  loading: false,
-});
 
 const isEditMode = computed(() => !!props.id || !!route.params.id);
 const currentId = computed(() => props.id || route.params.id);
@@ -126,7 +80,6 @@ onMounted(async () => {
       form.value.name = platformData.name;
       form.value.website_url = platformData.website_url;
       form.value.notes = platformData.notes;
-      form.value.email_account_count = platformData.email_account_count || 0;
       platformStore.setCurrentPlatform(platformData);
     } else {
       ElMessage.error('无法加载平台数据，可能ID无效');
@@ -168,36 +121,6 @@ const handleSubmit = async () => {
 
 const handleCancel = () => {
   router.push({ name: 'PlatformList' });
-};
-
-const fetchAssociatedEmailsData = async (page = 1, pageSize = 5) => {
-  if (!currentId.value) return;
-  associatedInfoDialog.loading = true;
-  try {
-    // Assuming platformStore has a method like fetchAssociatedEmailRegistrations
-    const result = await platformStore.fetchAssociatedEmailRegistrations(currentId.value, { page, pageSize });
-    associatedInfoDialog.items = result.data;
-    associatedInfoDialog.pagination.currentPage = result.meta.current_page;
-    associatedInfoDialog.pagination.pageSize = result.meta.page_size;
-    associatedInfoDialog.pagination.totalItems = result.meta.total_records;
-  } catch (error) {
-    associatedInfoDialog.items = [];
-    associatedInfoDialog.pagination.totalItems = 0;
-  } finally {
-    associatedInfoDialog.loading = false;
-  }
-};
-
-const showAssociatedEmailsDialog = async () => {
-  if (!form.value.name || !currentId.value) return;
-  associatedInfoDialog.title = `平台 "${form.value.name}" 关联的邮箱注册信息`;
-  associatedInfoDialog.pagination.currentPage = 1;
-  await fetchAssociatedEmailsData(1, associatedInfoDialog.pagination.pageSize);
-  associatedInfoDialog.visible = true;
-};
-
-const handleAssociatedPageChange = (payload) => {
-  fetchAssociatedEmailsData(payload.currentPage, payload.pageSize);
 };
 
 </script>
@@ -244,29 +167,6 @@ const handleAssociatedPageChange = (payload) => {
   margin-left: 15px; /* Space between buttons */
 }
 
-.el-divider {
-  margin: 30px 0; /* More vertical space for divider */
-}
-
-.divider-text {
-  font-size: 16px;
-  color: #606266;
-  font-weight: bold;
-}
-
-.associated-info-section {
-  text-align: center; /* Center the button */
-  padding-bottom: 10px;
-}
-
-.view-associated-button {
-  width: 80%; /* Make button wider */
-  max-width: 350px; /* Limit max width */
-  padding: 12px 20px; /* Larger padding for a bigger button */
-  font-size: 16px;
-  border-radius: 8px;
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .platform-form-card {
@@ -290,10 +190,6 @@ const handleAssociatedPageChange = (payload) => {
     width: 100%; /* Full width buttons */
     margin-left: 0 !important; /* Remove left margin for stacked buttons */
     margin-bottom: 10px; /* Add bottom margin for stacked buttons */
-  }
-
-  .view-associated-button {
-    width: 100%;
   }
 }
 </style>
