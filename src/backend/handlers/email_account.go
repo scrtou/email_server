@@ -40,10 +40,10 @@ func CreateEmailAccount(c *gin.Context) {
 	actualUserID := uint(userID) // Convert to uint
 
 	var input struct {
-		EmailAddress string `json:"email_address" binding:"required,email"`
-		Password     string `json:"password" binding:"omitempty,min=6"` // 密码可选
+		EmailAddress    string `json:"email_address" binding:"required,email"`
+		Password        string `json:"password" binding:"omitempty,min=6"`       // 密码可选
 		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
-		Notes        string `json:"notes"`
+		Notes           string `json:"notes"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -289,10 +289,10 @@ func UpdateEmailAccount(c *gin.Context) {
 	}
 
 	var input struct {
-		EmailAddress string `json:"email_address" binding:"omitempty,email"` // omitempty 允许部分更新
-		Password     string `json:"password" binding:"omitempty,min=6"`     // 密码可选
+		EmailAddress    string `json:"email_address" binding:"omitempty,email"`    // omitempty 允许部分更新
+		Password        string `json:"password" binding:"omitempty,min=6"`         // 密码可选
 		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
-		Notes        string `json:"notes"`
+		Notes           string `json:"notes"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -314,6 +314,7 @@ func UpdateEmailAccount(c *gin.Context) {
 		}
 		emailAccount.PasswordEncrypted = hashedPassword
 	}
+	// 如果 Password 和 ConfirmPassword 均未提供，则不更新密码
 	// Notes 总是更新，即使是空字符串，允许用户清空这些字段
 	// Provider 的更新已在 EmailAddress 更新时处理
 	emailAccount.Notes = input.Notes

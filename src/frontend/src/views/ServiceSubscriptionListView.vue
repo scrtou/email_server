@@ -81,16 +81,18 @@
         </el-form-item>
       </el-form>
 
-      <el-table
-        :data="serviceSubscriptionStore.serviceSubscriptions"
-        v-loading="serviceSubscriptionStore.loading"
-        style="width: 100%"
-        @sort-change="handleSortChange"
-        :default-sort="{ prop: serviceSubscriptionStore.sort.orderBy, order: serviceSubscriptionStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
-        border
-        stripe
-        resizable
-      >
+      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+        <el-table
+          :data="serviceSubscriptionStore.serviceSubscriptions"
+          v-loading="serviceSubscriptionStore.loading"
+          style="width: 100%"
+          height="100%"
+          @sort-change="handleSortChange"
+          :default-sort="{ prop: serviceSubscriptionStore.sort.orderBy, order: serviceSubscriptionStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+          border
+          stripe
+          resizable
+        >
         <el-table-column prop="service_name" label="服务名称" min-width="180" sortable="custom" />
         <!-- <el-table-column prop="id" label="ID" width="60" /> -->
         <el-table-column prop="platform_name" label="所属平台" min-width="150" sortable="custom" />
@@ -125,48 +127,75 @@
             </el-popconfirm>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
 
       <el-pagination
         v-if="serviceSubscriptionStore.pagination.totalItems > 0"
-        class="mt-4"
         background
         layout="total, sizes, prev, pager, next, jumper"
         :total="serviceSubscriptionStore.pagination.totalItems"
         :page-sizes="[10, 20, 50, 100]"
         :current-page="serviceSubscriptionStore.pagination.currentPage"
-        :page-size="serviceSubscriptionStore.pagination.pageSize"
+        :page-size="pageSize.value"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
     </el-card>
+
+    <ModalDialog
+      :visible="isModalVisible"
+      :title="modalTitle"
+      @confirm="() => serviceSubscriptionFormRef?.triggerSubmit()"
+      @cancel="closeModal"
+      width="60%"
+      :confirm-button-text="isEditMode ? '保存更新' : '立即创建'"
+    >
+      <ServiceSubscriptionForm
+        ref="serviceSubscriptionFormRef"
+        v-if="isModalVisible"
+        :id="isEditMode && currentSubscription ? currentSubscription.id : null"
+        :initial-data="currentSubscription"
+        @submit-form="handleFormSubmit"
+        @cancel="handleFormCancel"
+      />
+    </ModalDialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'; // Removed reactive, using ref for local renewalDateRange if needed
-import { useRouter } from 'vue-router';
+import { onMounted, ref, computed } from 'vue';
+// import { useRouter } from 'vue-router'; // Removed useRouter
 import { useServiceSubscriptionStore } from '@/stores/serviceSubscription';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
-import { ElIcon } from 'element-plus';
+import { ElIcon, ElMessage } from 'element-plus';
 import { Plus, Edit, Delete } from '@element-plus/icons-vue';
+import ModalDialog from '@/components/ui/ModalDialog.vue';
+import ServiceSubscriptionForm from '@/components/forms/ServiceSubscriptionForm.vue';
 
-const router = useRouter();
+// const router = useRouter(); // Removed router
 const serviceSubscriptionStore = useServiceSubscriptionStore();
 const platformRegistrationStore = usePlatformRegistrationStore();
+const pageSize = ref(serviceSubscriptionStore.pagination.pageSize || 10);
 
-// const filters = reactive({...}); // Removed, use store directly
+const isModalVisible = ref(false);
+const modalTitle = ref('');
+const currentSubscription = ref(null);
+const formMode = ref('add'); // 'add' or 'edit' // This determines isEditMode
+const serviceSubscriptionFormRef = ref(null); // Ref for the form
+
+const isEditMode = computed(() => formMode.value === 'edit');
 
 onMounted(async () => {
-  // Fetch options for platform registration dropdown
   if (platformRegistrationStore.platformRegistrations.length === 0) {
-    await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 10, orderBy: 'platform_name', sortDirection: 'asc' });
+    await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 1000, orderBy: 'platform_name', sortDirection: 'asc' });
   }
-  // Initial data fetch for the table using current store state
-  serviceSubscriptionStore.fetchServiceSubscriptions();
+  serviceSubscriptionStore.fetchServiceSubscriptions(
+    serviceSubscriptionStore.pagination.currentPage,
+    pageSize.value,
+    serviceSubscriptionStore.sort
+  );
 });
-
-// Removed local fetchData, applyFilters, resetFilters
 
 const handlePlatformRegistrationFilterChange = (value) => {
   serviceSubscriptionStore.setFilter('platform_registration_id', value);
@@ -183,38 +212,45 @@ const handleBillingCycleFilterChange = (value) => {
 const handleRenewalDateChange = (dateRange) => {
   const start = dateRange && dateRange.length > 0 ? dateRange[0] : '';
   const end = dateRange && dateRange.length > 1 ? dateRange[1] : '';
-  // Update store filters separately then fetch, or enhance setFilter to handle multiple
   serviceSubscriptionStore.filters.renewal_date_start = start;
   serviceSubscriptionStore.filters.renewal_date_end = end;
-  serviceSubscriptionStore.pagination.currentPage = 1; // Reset page
-  serviceSubscriptionStore.fetchServiceSubscriptions(); // Fetch with updated dates
+  serviceSubscriptionStore.pagination.currentPage = 1;
+  serviceSubscriptionStore.fetchServiceSubscriptions(
+    serviceSubscriptionStore.pagination.currentPage,
+    pageSize.value,
+    serviceSubscriptionStore.sort
+  );
 };
 
 const triggerFetchWithCurrentFilters = () => {
-  // v-models have updated the store's filters (except date range which is handled by handleRenewalDateChange)
-  // fetchServiceSubscriptions will use them. Reset to page 1.
-  serviceSubscriptionStore.fetchServiceSubscriptions(1);
+  serviceSubscriptionStore.fetchServiceSubscriptions(1, pageSize.value);
 };
 
 const triggerClearFilters = () => {
-  serviceSubscriptionStore.clearFilters(); // This clears all filters in store and fetches
+  serviceSubscriptionStore.clearFilters();
 };
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
   serviceSubscriptionStore.fetchServiceSubscriptions(
-    1, // Reset to page 1 on sort change
-    serviceSubscriptionStore.pagination.pageSize,
+    1,
+    pageSize.value,
     { orderBy: prop, sortDirection }
   );
 };
 
 const handleAdd = () => {
-  router.push({ name: 'ServiceSubscriptionCreate' }); 
+  formMode.value = 'add';
+  modalTitle.value = '添加服务订阅';
+  currentSubscription.value = null; // Or some default object if your form expects it
+  isModalVisible.value = true;
 };
 
 const handleEdit = (row) => {
-  router.push({ name: 'ServiceSubscriptionEdit', params: { id: row.id } });
+  formMode.value = 'edit';
+  modalTitle.value = '编辑服务订阅';
+  currentSubscription.value = { ...row }; // Pass a copy to avoid direct mutation
+  isModalVisible.value = true;
 };
 
 const handleDelete = async (id) => {
@@ -223,23 +259,69 @@ const handleDelete = async (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  serviceSubscriptionStore.fetchServiceSubscriptions(1, newSize);
+  pageSize.value = newSize;
+  serviceSubscriptionStore.fetchServiceSubscriptions(1, pageSize.value);
 };
 
 const handleCurrentChange = (newPage) => {
-  serviceSubscriptionStore.fetchServiceSubscriptions(newPage, serviceSubscriptionStore.pagination.pageSize);
+  serviceSubscriptionStore.fetchServiceSubscriptions(newPage, pageSize.value);
 };
+
+const closeModal = () => {
+  isModalVisible.value = false;
+  currentSubscription.value = null;
+};
+
+const handleFormSubmit = async (eventData) => {
+  // eventData is { payload, id, isEdit }
+  const { payload, id, isEdit: formIsEdit } = eventData;
+  let success = false;
+
+  if (formIsEdit) { // This should align with isEditMode.value
+    if (!id) {
+      ElMessage.error('编辑错误：缺少订阅ID');
+      return;
+    }
+    success = await serviceSubscriptionStore.updateServiceSubscription(id, payload);
+  } else { // Create mode
+    success = await serviceSubscriptionStore.createServiceSubscription(payload);
+  }
+
+  if (success) {
+    closeModal();
+    // ElMessage is handled by store actions
+    // Store actions should also handle re-fetching the list.
+    // If not, call fetch here:
+    // serviceSubscriptionStore.fetchServiceSubscriptions(
+    //   serviceSubscriptionStore.pagination.currentPage,
+    //   pageSize.value,
+    //   serviceSubscriptionStore.sort
+    // );
+  }
+};
+
+const handleFormCancel = () => {
+  closeModal();
+};
+
 </script>
 
 <style scoped>
 .service-subscription-list-view {
   padding: 20px;
   background-color: #f0f2f5; /* Light grey background for the whole view */
-
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
 }
 .box-card {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
 }
 .card-header {
   display: flex;
@@ -338,7 +420,5 @@ const handleCurrentChange = (newPage) => {
   padding: 8px 4px !important;
   white-space: nowrap !important;
 }
-.mt-4 {
-  margin-top: 1.5rem;
-}
+/* Pagination styles moved to utilities.css */
 </style>

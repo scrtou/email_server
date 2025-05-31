@@ -42,13 +42,15 @@
     </el-card>
 
     <!-- 关联列表 -->
-    <el-card>
-      <el-table 
-        :data="emailServices" 
-        style="width: 100%" 
-        v-loading="loading"
-        empty-text="暂无关联数据"
-      >
+    <el-card style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden;">
+      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+        <el-table
+          :data="emailServices"
+          style="width: 100%"
+          height="100%"
+          v-loading="loading"
+          empty-text="暂无关联数据"
+        >
         <el-table-column prop="email_addr" label="邮箱地址" min-width="200" />
         <el-table-column prop="service_name" label="服务名称" min-width="150" />
         <el-table-column prop="username" label="用户名" min-width="120" />
@@ -78,7 +80,8 @@
             <el-button size="small" type="danger" @click="deleteEmailService(scope.row)">删除</el-button>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
 
       <!-- 分页 -->
       <el-pagination
@@ -90,7 +93,6 @@
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
-        style="margin-top: 20px; text-align: right"
       />
     </el-card>
 
@@ -495,6 +497,10 @@ export default {
 <style scoped>
 .email-service-list {
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
@@ -517,4 +523,6 @@ export default {
 .el-table .el-button + .el-button {
   margin-left: 5px;
 }
+
+/* Pagination styles moved to utilities.css */
 </style>

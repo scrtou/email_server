@@ -1,10 +1,6 @@
 <template>
-  <el-card class="platform-form-card">
-    <template #header>
-      <div class="card-header">
-        <span class="card-title">{{ isEditMode ? '编辑平台' : '添加平台' }}</span>
-      </div>
-    </template>
+  <div class="platform-form-container">
+    <!-- Card header content can be moved here if needed, or handled by ModalDialog -->
     <el-form
       ref="platformFormRef"
       :model="form"
@@ -14,7 +10,7 @@
       class="platform-form"
     >
       <el-form-item label="平台名称" prop="name">
-        <el-input v-model="form.name" placeholder="例如：Google, GitHub, Steam" clearable />
+        <el-input v-model="form.name" placeholder="例如：Google, GitHub, Steam" clearable :disabled="isEditMode" />
       </el-form-item>
       <el-form-item label="平台网址" prop="website_url">
         <el-input v-model="form.website_url" placeholder="例如：https://www.google.com" clearable />
@@ -22,33 +18,33 @@
       <el-form-item label="备注" prop="notes">
         <el-input type="textarea" v-model="form.notes" :rows="4" resize="vertical" show-word-limit maxlength="500" />
       </el-form-item>
-      <el-form-item class="form-actions">
-        <el-button type="primary" @click="handleSubmit" :loading="loading">
-          {{ isEditMode ? '保存更新' : '立即创建' }}
-        </el-button>
-        <el-button @click="handleCancel">取消</el-button>
-      </el-form-item>
     </el-form>
-
-  </el-card>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, reactive } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, onMounted, computed, watch } from 'vue'; // 引入 watch
+// import { useRouter, useRoute } from 'vue-router'; // 移除 useRouter 和 useRoute
 import { usePlatformStore } from '@/stores/platform';
-import { ElMessage, ElButton, ElCard, ElForm, ElFormItem, ElInput } from 'element-plus';
+import { ElMessage, ElForm, ElFormItem, ElInput } from 'element-plus';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
-  id: {
+  id: { // 用于编辑模式，传入平台ID
     type: [String, Number],
     default: null,
   },
+  initialData: { // 用于接收初始数据，编辑模式下为平台对象，新增模式下可为空对象
+    type: Object,
+    default: () => ({}),
+  }
 });
 
-const router = useRouter();
-const route = useRoute();
+// eslint-disable-next-line no-undef
+const emit = defineEmits(['submit-form', 'cancel']); // 定义 emit
+
+// const router = useRouter(); // 移除 router
+// const route = useRoute(); // 移除 route
 const platformStore = usePlatformStore();
 
 const platformFormRef = ref(null);
@@ -59,8 +55,8 @@ const form = ref({
 });
 const loading = ref(false);
 
-const isEditMode = computed(() => !!props.id || !!route.params.id);
-const currentId = computed(() => props.id || route.params.id);
+const isEditMode = computed(() => !!props.id); // 编辑模式判断简化为只依赖 props.id
+// const currentId = computed(() => props.id || route.params.id); // currentId 直接使用 props.id
 
 const rules = ref({
   name: [
@@ -72,20 +68,47 @@ const rules = ref({
   ],
 });
 
+const resetForm = () => {
+  form.value = {
+    name: '',
+    website_url: '',
+    notes: '',
+  };
+  if (platformFormRef.value) {
+    platformFormRef.value.clearValidate();
+  }
+};
+
+watch(() => props.initialData, (newData) => {
+  resetForm(); // 每次 initialData 变化时重置表单
+  if (newData && Object.keys(newData).length > 0) {
+    form.value.name = newData.name || '';
+    form.value.website_url = newData.website_url || '';
+    form.value.notes = newData.notes || '';
+  }
+}, { immediate: true, deep: true });
+
+
 onMounted(async () => {
-  if (isEditMode.value && currentId.value) {
-    loading.value = true;
-    const platformData = await platformStore.fetchPlatformById(currentId.value);
-    if (platformData) {
-      form.value.name = platformData.name;
-      form.value.website_url = platformData.website_url;
-      form.value.notes = platformData.notes;
-      platformStore.setCurrentPlatform(platformData);
-    } else {
-      ElMessage.error('无法加载平台数据，可能ID无效');
-      router.push({ name: 'PlatformList' });
+  // onMounted 中不再需要根据 route.params.id 加载数据，依赖 props.initialData
+  if (isEditMode.value && props.id) {
+    // 如果 initialData 为空但有 id，理论上父组件应该已经获取并传入
+    // 但作为备用，可以考虑是否需要再次 fetch，当前假设 initialData 会被正确填充
+    if (!props.initialData || Object.keys(props.initialData).length === 0) {
+        loading.value = true;
+        const platformData = await platformStore.fetchPlatformById(props.id);
+        if (platformData) {
+          form.value.name = platformData.name;
+          form.value.website_url = platformData.website_url;
+          form.value.notes = platformData.notes;
+        } else {
+          ElMessage.error('无法加载平台数据，ID可能无效');
+          // 此处不再进行路由跳转，由父组件处理弹窗关闭
+        }
+        loading.value = false;
     }
-    loading.value = false;
+  } else {
+    resetForm(); // 新增模式，确保表单清空
   }
 });
 
@@ -100,18 +123,11 @@ const handleSubmit = async () => {
       };
       if (form.value.website_url && form.value.website_url.trim() !== '') {
         payload.website_url = form.value.website_url;
-      }
-
-      let success = false;
-      if (isEditMode.value) {
-        success = await platformStore.updatePlatform(currentId.value, payload);
       } else {
-        success = await platformStore.createPlatform(payload);
+        payload.website_url = ''; // 确保如果为空字符串也提交
       }
+      emit('submit-form', payload);
       loading.value = false;
-      if (success) {
-        router.push({ name: 'PlatformList' });
-      }
     } else {
       ElMessage.error('请检查表单输入');
       return false;
@@ -119,10 +135,13 @@ const handleSubmit = async () => {
   });
 };
 
-const handleCancel = () => {
-  router.push({ name: 'PlatformList' });
-};
 
+// eslint-disable-next-line no-undef
+defineExpose({
+  triggerSubmit: handleSubmit,
+  resetForm,
+  platformFormRef
+});
 </script>
 
 <style scoped>

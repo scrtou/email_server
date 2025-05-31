@@ -14,13 +14,9 @@ import ServiceList from '../views/ServiceList.vue'
 import EmailServiceList from '../views/EmailServiceList.vue'
 import Profile from '../views/Profile.vue'
 import EmailAccountListView from '../views/EmailAccountListView.vue'
-import EmailAccountForm from '../components/forms/EmailAccountForm.vue'
 import PlatformListView from '../views/PlatformListView.vue'
-import PlatformForm from '../components/forms/PlatformForm.vue'
 import PlatformRegistrationListView from '../views/PlatformRegistrationListView.vue'
-import PlatformRegistrationForm from '../components/forms/PlatformRegistrationForm.vue'
 import ServiceSubscriptionListView from '../views/ServiceSubscriptionListView.vue'
-import ServiceSubscriptionForm from '../components/forms/ServiceSubscriptionForm.vue'
 import SearchResultView from '../views/SearchResultView.vue' // Import SearchResultView
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
@@ -87,72 +83,72 @@ const routes = [
         name: 'EmailAccountList',
         component: EmailAccountListView,
       },
-      {
-        path: 'email-accounts/create',
-        name: 'EmailAccountCreate',
-        component: EmailAccountForm,
-        props: true // Allows route.params to be passed as props
-      },
-      {
-        path: 'email-accounts/edit/:id',
-        name: 'EmailAccountEdit',
-        component: EmailAccountForm,
-        props: true // Allows route.params.id to be passed as prop 'id'
-      },
+      // { // Commented out as EmailAccount create is now a modal
+      //   path: 'email-accounts/create',
+      //   name: 'EmailAccountCreate',
+      //   component: EmailAccountForm,
+      //   props: true // Allows route.params to be passed as props
+      // },
+      // { // Commented out as EmailAccount edit is now a modal
+      //   path: 'email-accounts/edit/:id',
+      //   name: 'EmailAccountEdit',
+      //   component: EmailAccountForm,
+      //   props: true // Allows route.params.id to be passed as prop 'id'
+      // },
       // Platform Management Routes
       {
         path: 'platforms',
         name: 'PlatformList',
         component: PlatformListView,
       },
-      {
-        path: 'platforms/create',
-        name: 'PlatformCreate',
-        component: PlatformForm,
-        props: true
-      },
-      {
-        path: 'platforms/edit/:id',
-        name: 'PlatformEdit',
-        component: PlatformForm,
-        props: true
-      },
+      // { // Commented out as Platform create is now a modal
+      //   path: 'platforms/create',
+      //   name: 'PlatformCreate',
+      //   component: PlatformForm,
+      //   props: true
+      // },
+      // { // Commented out as Platform edit is now a modal
+      //   path: 'platforms/edit/:id',
+      //   name: 'PlatformEdit',
+      //   component: PlatformForm,
+      //   props: true
+      // },
       // Platform Registration Management Routes
       {
         path: 'platform-registrations',
         name: 'PlatformRegistrationList',
         component: PlatformRegistrationListView,
       },
-      {
-        path: 'platform-registrations/create',
-        name: 'PlatformRegistrationCreate',
-        component: PlatformRegistrationForm,
-        props: true
-      },
-      {
-        path: 'platform-registrations/edit/:id',
-        name: 'PlatformRegistrationEdit',
-        component: PlatformRegistrationForm,
-        props: true
-      },
+      // { // Commented out as PlatformRegistration create is now a modal
+      //   path: 'platform-registrations/create',
+      //   name: 'PlatformRegistrationCreate',
+      //   component: PlatformRegistrationForm,
+      //   props: true
+      // },
+      // { // Commented out as PlatformRegistration edit is now a modal
+      //   path: 'platform-registrations/edit/:id',
+      //   name: 'PlatformRegistrationEdit',
+      //   component: PlatformRegistrationForm,
+      //   props: true
+      // },
       // Service Subscription Management Routes
       {
         path: 'service-subscriptions',
         name: 'ServiceSubscriptionList',
         component: ServiceSubscriptionListView,
       },
-      {
-        path: 'service-subscriptions/create',
-        name: 'ServiceSubscriptionCreate',
-        component: ServiceSubscriptionForm,
-        props: true
-      },
-      {
-        path: 'service-subscriptions/edit/:id',
-        name: 'ServiceSubscriptionEdit',
-        component: ServiceSubscriptionForm,
-        props: true
-      },
+      // { // Commented out as ServiceSubscription create is now a modal
+      //   path: 'service-subscriptions/create',
+      //   name: 'ServiceSubscriptionCreate',
+      //   component: ServiceSubscriptionForm,
+      //   props: true
+      // },
+      // { // Commented out as ServiceSubscription edit is now a modal
+      //   path: 'service-subscriptions/edit/:id',
+      //   name: 'ServiceSubscriptionEdit',
+      //   component: ServiceSubscriptionForm,
+      //   props: true
+      // },
       // Search Results Route
       {
         path: 'search-results',

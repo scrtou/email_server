@@ -59,16 +59,18 @@
         </el-row>
       </el-form>
 
-      <el-table
-        :data="platformRegistrationStore.platformRegistrations"
-        v-loading="platformRegistrationStore.loading"
-        style="width: 100%"
-        @sort-change="handleSortChange"
-        :default-sort="{ prop: platformRegistrationStore.sort.orderBy, order: platformRegistrationStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
-        border
-        stripe
-        resizable
-      >
+      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+        <el-table
+          :data="platformRegistrationStore.platformRegistrations"
+          v-loading="platformRegistrationStore.loading"
+          style="width: 100%"
+          height="100%"
+          @sort-change="handleSortChange"
+          :default-sort="{ prop: platformRegistrationStore.sort.orderBy, order: platformRegistrationStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+          border
+          stripe
+          resizable
+        >
         <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="platform_name" label="平台" min-width="120" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="login_username" label="登录用户名/ID" min-width="170" sortable="custom" show-overflow-tooltip />
@@ -81,7 +83,8 @@
             <el-button link type="danger" :icon="Delete" @click="confirmDeleteRegistration(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
 
       <el-pagination
         v-if="platformRegistrationStore.pagination.totalItems > 0"
@@ -91,27 +94,56 @@
         :total="platformRegistrationStore.pagination.totalItems"
         :page-sizes="[10, 20, 50, 100]"
         :current-page="platformRegistrationStore.pagination.currentPage"
-        :page-size="platformRegistrationStore.pagination.pageSize"
+        :page-size="pageSize.value"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
     </el-card>
+
+    <ModalDialog
+      :visible="showModal"
+      :title="modalTitle"
+      @confirm="() => platformRegistrationFormRef?.triggerSubmit()"
+      @cancel="closeModal"
+      width="60%"
+      :confirm-button-text="isEditMode ? '保存更新' : '立即创建'"
+    >
+      <PlatformRegistrationForm
+        ref="platformRegistrationFormRef"
+        v-if="showModal"
+        :platform-registration="currentRegistration"
+        :is-edit="isEditMode"
+        @submit-form="handleFormSubmit"
+        @cancel="closeModal"
+      />
+    </ModalDialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref } from 'vue';
+// import { useRouter } from 'vue-router'; // Removed
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
-import { ElMessageBox } from 'element-plus';
-import { Plus, Edit, Delete } from '@element-plus/icons-vue'; // 移除 ElIcon 导入，直接在模板中使用图标组件
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { Plus, Edit, Delete } from '@element-plus/icons-vue';
+import ModalDialog from '@/components/ui/ModalDialog.vue';
+import PlatformRegistrationForm from '@/components/forms/PlatformRegistrationForm.vue';
 
-const router = useRouter();
+// const router = useRouter(); // Removed
 const platformRegistrationStore = usePlatformRegistrationStore();
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
+const pageSize = ref(platformRegistrationStore.pagination.pageSize || 10);
+
+// Modal state
+const showModal = ref(false);
+const modalTitle = ref('');
+const currentRegistration = ref(null);
+const isEditMode = ref(false); // This is already used for the form's :is-edit prop
+const platformRegistrationFormRef = ref(null); // Ref for the form component
+
 
 // const filters = reactive({ // Removed, use store directly
 //   emailAccountId: null,
@@ -134,7 +166,11 @@ onMounted(async () => {
   }
   
   // Initial data fetch for the table, using current store state for filters, sort, pagination
-  platformRegistrationStore.fetchPlatformRegistrations();
+  platformRegistrationStore.fetchPlatformRegistrations(
+    platformRegistrationStore.pagination.currentPage,
+    pageSize.value, // Use the local pageSize ref
+    platformRegistrationStore.sort
+  );
 });
 
 // Removed local fetchData, applyFilters, resetFilters as store handles this.
@@ -150,7 +186,7 @@ const handlePlatformFilterChange = (value) => {
 const triggerFetchWithCurrentFilters = () => {
   // v-model has updated the store's filters.
   // fetchPlatformRegistrations will use them. Reset to page 1.
-  platformRegistrationStore.fetchPlatformRegistrations(1);
+  platformRegistrationStore.fetchPlatformRegistrations(1, pageSize.value);
 };
 
 const triggerClearFilters = () => {
@@ -163,19 +199,74 @@ const handleSortChange = ({ prop, order }) => {
   // Store's fetchPlatformRegistrations will use current filters
   platformRegistrationStore.fetchPlatformRegistrations(
     1, // Reset to page 1 on sort change
-    platformRegistrationStore.pagination.pageSize,
+    pageSize.value,
     { orderBy: prop, sortDirection }
   );
 };
 
 // handleFilterChange is now split into specific handlers above
 
+const openModalForCreate = () => {
+  isEditMode.value = false;
+  modalTitle.value = '添加平台注册信息';
+  currentRegistration.value = null; // Or an empty object with default structure if your form expects it
+  showModal.value = true;
+};
+
+const openModalForEdit = (registration) => {
+  isEditMode.value = true;
+  modalTitle.value = '编辑平台注册信息';
+  currentRegistration.value = { ...registration }; // Pass a copy to avoid direct mutation
+  showModal.value = true;
+};
+
+const closeModal = () => {
+  showModal.value = false;
+  currentRegistration.value = null;
+};
+
+const handleFormSubmit = async (eventData) => {
+  // eventData is { payload, id?, isEdit, useByNameApi? }
+  const { payload, id, isEdit: formIsEdit, useByNameApi } = eventData;
+  let success = false;
+
+  if (formIsEdit) { // Corresponds to isEditMode.value when the form was opened
+    if (!id) {
+      ElMessage.error('编辑错误：缺少注册信息ID');
+      return;
+    }
+    success = await platformRegistrationStore.updatePlatformRegistration(id, payload);
+  } else { // Create mode
+    if (useByNameApi) {
+      success = await platformRegistrationStore.createPlatformRegistrationByName(payload);
+    } else {
+      success = await platformRegistrationStore.createPlatformRegistration(payload);
+    }
+  }
+
+  if (success) {
+    closeModal();
+    // ElMessage is handled by store actions now
+    // Refresh data
+    await platformRegistrationStore.fetchPlatformRegistrations(
+      platformRegistrationStore.pagination.currentPage,
+      pageSize.value,
+      platformRegistrationStore.sort,
+      platformRegistrationStore.filters
+    );
+  }
+};
+
+
+// Original handleAdd and handleEdit are replaced by openModalForCreate and openModalForEdit
 const handleAdd = () => {
-  router.push({ name: 'PlatformRegistrationCreate' }); 
+  // router.push({ name: 'PlatformRegistrationCreate' });
+  openModalForCreate();
 };
 
 const handleEdit = (row) => {
-  router.push({ name: 'PlatformRegistrationEdit', params: { id: row.id } });
+  // router.push({ name: 'PlatformRegistrationEdit', params: { id: row.id } });
+  openModalForEdit(row);
 };
 
 const confirmDeleteRegistration = (id) => {
@@ -199,12 +290,13 @@ const confirmDeleteRegistration = (id) => {
 
 const handleSizeChange = (newSize) => {
   // Store's fetchPlatformRegistrations will use current filters and sort
-  platformRegistrationStore.fetchPlatformRegistrations(1, newSize);
+  pageSize.value = newSize;
+  platformRegistrationStore.fetchPlatformRegistrations(1, pageSize.value);
 };
 
 const handleCurrentChange = (newPage) => {
   // Store's fetchPlatformRegistrations will use current filters and sort
-  platformRegistrationStore.fetchPlatformRegistrations(newPage, platformRegistrationStore.pagination.pageSize);
+  platformRegistrationStore.fetchPlatformRegistrations(newPage, pageSize.value);
 };
 </script>
 
@@ -212,11 +304,19 @@ const handleCurrentChange = (newPage) => {
 .platform-registration-list-view {
   padding: 20px; /* 增加整体内边距 */
   background-color: #f0f2f5; /* Light grey background for the whole view */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .box-card {
   border-radius: 8px; /* 卡片圆角 */
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05); /* 增加阴影效果 */
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
 }
 
 .card-header {
@@ -313,11 +413,8 @@ const handleCurrentChange = (newPage) => {
   white-space: nowrap !important;
 }
 
-.pagination-container {
-  margin-top: 20px; /* 分页器顶部间距 */
-  display: flex;
-  justify-content: flex-end; /* 分页器右对齐 */
-}
+/* Pagination styles moved to utilities.css */
+/* .pagination-container class is still used in the template, but styled globally now */
 
 /* 响应式调整 */
 @media (max-width: 768px) {
