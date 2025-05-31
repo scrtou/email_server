@@ -33,7 +33,7 @@ services:
         VUE_APP_API_BASE_URL: "http://localhost:5555/api/v1" # 或者使用服务名: "http://backend:5555/api/v1"
     container_name: email_server_frontend # 容器名称
     ports:
-      - "8080:80" # 映射端口：宿主机:容器 (Nginx 默认监听80)
+      - "8081:80" # 映射端口：宿主机:容器 (Nginx 默认监听80)
     restart: unless-stopped # 容器退出时自动重启
     depends_on: # （可选）依赖后端服务
       - backend
