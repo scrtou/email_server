@@ -13,14 +13,32 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       pageSize: 10,
       totalItems: 0,
     },
+    sort: { // New state for sorting
+      orderBy: 'created_at',
+      sortDirection: 'desc',
+    },
   }),
   actions: {
-    async fetchEmailAccounts(page = 1, pageSize = 10) {
+    async fetchEmailAccounts(page = 1, pageSize = 10, sortOptions = {}) {
       this.loading = true;
       this.error = null;
+
+      const orderBy = sortOptions.orderBy || this.sort.orderBy;
+      const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
+
+      // Update sort state if new options are provided
+      if (sortOptions.orderBy) this.sort.orderBy = sortOptions.orderBy;
+      if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
+      
       try {
+        const params = {
+          page,
+          pageSize,
+          orderBy: orderBy,
+          sortDirection: sortDirection
+        };
         // api.js interceptor returns { data: [...], meta: {...} } for paginated responses
-        const result = await emailAccountAPI.getAll({ params: { page, pageSize } });
+        const result = await emailAccountAPI.getAll(params);
         if (result && result.data) {
           this.emailAccounts = result.data;
           if (result.meta) {

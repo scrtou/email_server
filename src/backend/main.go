@@ -87,6 +87,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			platformRegistrations.GET("/:id", handlers.GetPlatformRegistrationByID)
 			platformRegistrations.PUT("/:id", handlers.UpdatePlatformRegistration)
 			platformRegistrations.DELETE("/:id", handlers.DeletePlatformRegistration)
+			platformRegistrations.GET("/:id/service-subscriptions", handlers.GetServiceSubscriptionsByPlatformRegistrationID)
 		}
 
 		// ServiceSubscription 模块

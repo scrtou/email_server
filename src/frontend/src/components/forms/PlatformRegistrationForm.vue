@@ -80,11 +80,47 @@
         <el-button @click="handleCancel">取消</el-button>
       </el-form-item>
     </el-form>
+
+    <div v-if="isEditMode && currentPlatformRegistration" class="associated-details mt-4">
+      <el-descriptions title="关联信息" :column="1" border>
+        <el-descriptions-item label="邮箱账户">
+          {{ currentPlatformRegistration.email_account?.email_address || 'N/A' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="平台名称">
+          {{ currentPlatformRegistration.platform?.name || 'N/A' }}
+        </el-descriptions-item>
+      </el-descriptions>
+    </div>
+    
+    <el-divider v-if="isEditMode && currentId" content-position="left" class="mt-4">关联的服务订阅</el-divider>
+    <div v-if="isEditMode && currentId" class="associated-info-section">
+      <el-button
+        type="primary"
+        plain
+        @click="showAssociatedServiceSubscriptionsDialog"
+        :disabled="serviceSubscriptionsDialog.loading"
+        class="view-associated-button"
+      >
+        查看此注册信息下的服务订阅
+      </el-button>
+    </div>
+
   </el-card>
+
+  <AssociatedInfoDialog
+    v-if="isEditMode"
+    v-model:visible="serviceSubscriptionsDialog.visible"
+    :title="serviceSubscriptionsDialog.title"
+    :items="serviceSubscriptionsDialog.items"
+    :item-layout="serviceSubscriptionsDialog.layout"
+    :pagination="serviceSubscriptionsDialog.pagination"
+    :loading="serviceSubscriptionsDialog.loading"
+    @page-change="handleAssociatedServiceSubscriptionsPageChange"
+  />
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'; // Removed watch
+import { ref, onMounted, computed, reactive } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
@@ -115,6 +151,26 @@ const form = ref({
   notes: '',
 });
 const loading = ref(false);
+const currentPlatformRegistration = computed(() => platformRegistrationStore.currentPlatformRegistration);
+
+const serviceSubscriptionsDialog = reactive({
+  visible: false,
+  title: '',
+  items: [],
+  layout: [
+    { label: '服务名称', prop: 'service_name', minWidth: '180px' },
+    { label: '状态', prop: 'status', width: '100px' },
+    { label: '费用', prop: 'cost', width: '100px', formatter: (row) => row.cost.toFixed(2) },
+    { label: '计费周期', prop: 'billing_cycle', width: '120px' },
+    { label: '下次续费日', prop: 'next_renewal_date', width: '140px' },
+  ],
+  pagination: {
+    currentPage: 1,
+    pageSize: 5,
+    totalItems: 0,
+  },
+  loading: false,
+});
 
 const isEditMode = computed(() => !!props.id || !!route.params.id);
 const currentId = computed(() => props.id || route.params.id);
@@ -175,6 +231,7 @@ onMounted(async () => {
       form.value.platform_id = regData.platform_id;
       form.value.login_username = regData.login_username;
       form.value.notes = regData.notes;
+      // platformRegistrationStore.currentPlatformRegistration is already set by fetchPlatformRegistrationById
     } else {
       ElMessage.error('无法加载平台注册信息，可能ID无效');
       router.push({ name: 'PlatformRegistrationList' });
@@ -221,38 +278,50 @@ const handleSubmit = async () => {
           payload.login_password = form.value.login_password;
         }
 
-        if (isEmailNew || isPlatformNew) {
-          // 调用新的 by-name 接口
-          if (isEmailNew) {
-            payload.email_address = form.value.email_account_id;
-          } else {
+        if (isEmailNew || isPlatformNew) { // One or both are new, use by-name API
+            if (isEmailNew) {
+                if (!form.value.email_account_id || String(form.value.email_account_id).trim() === '') {
+                    ElMessage.error('新邮箱地址不能为空');
+                    loading.value = false;
+                    return;
+                }
+                payload.email_address = String(form.value.email_account_id).trim();
+            } else { // Existing email
+                const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
+                if (!selectedEmail) {
+                    ElMessage.error('选择的邮箱账户无效');
+                    loading.value = false;
+                    return;
+                }
+                payload.email_address = selectedEmail.email_address; // Use address for by-name API
+            }
+
+            if (isPlatformNew) {
+                if (!form.value.platform_id || String(form.value.platform_id).trim() === '') {
+                    ElMessage.error('新平台名称不能为空');
+                    loading.value = false;
+                    return;
+                }
+                payload.platform_name = String(form.value.platform_id).trim();
+            } else { // Existing platform
+                const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
+                if (!selectedPlatform) {
+                    ElMessage.error('选择的平台无效');
+                    loading.value = false;
+                    return;
+                }
+                payload.platform_name = selectedPlatform.name; // Use name for by-name API
+            }
+            success = await platformRegistrationStore.createPlatformRegistrationByName(payload);
+        } else { // Both are existing, use by-id API
             payload.email_account_id = form.value.email_account_id;
-          }
-
-          if (isPlatformNew) {
-            payload.platform_name = form.value.platform_id;
-          } else {
             payload.platform_id = form.value.platform_id;
-          }
-          // 确保至少有一个是 name，或者两个都是 name
-          if (!isEmailNew && !payload.email_account_id) {
-            ElMessage.error('请选择或输入邮箱账户');
-            loading.value = false;
-            return;
-          }
-           if (!isPlatformNew && !payload.platform_id) {
-            ElMessage.error('请选择或输入平台');
-            loading.value = false;
-            return;
-          }
-
-
-          success = await platformRegistrationStore.createPlatformRegistrationByName(payload);
-        } else {
-          // 调用旧的 by-id 接口
-          payload.email_account_id = form.value.email_account_id;
-          payload.platform_id = form.value.platform_id;
-          success = await platformRegistrationStore.createPlatformRegistration(payload);
+            if (!payload.email_account_id || !payload.platform_id) { // Ensure IDs are present
+                 ElMessage.error('请选择有效的邮箱账户和平台');
+                 loading.value = false;
+                 return;
+            }
+            success = await platformRegistrationStore.createPlatformRegistration(payload);
         }
       }
       loading.value = false;
@@ -269,11 +338,57 @@ const handleSubmit = async () => {
 const handleCancel = () => {
   router.push({ name: 'PlatformRegistrationList' });
 };
+
+const fetchAssociatedServiceSubscriptionsData = async (page = 1, pageSize = 5) => {
+  if (!currentId.value) return;
+  serviceSubscriptionsDialog.loading = true;
+  try {
+    const result = await platformRegistrationStore.fetchAssociatedServiceSubscriptions(currentId.value, { page, pageSize });
+    serviceSubscriptionsDialog.items = result.data;
+    serviceSubscriptionsDialog.pagination.currentPage = result.meta.current_page;
+    serviceSubscriptionsDialog.pagination.pageSize = result.meta.page_size;
+    serviceSubscriptionsDialog.pagination.totalItems = result.meta.total_records;
+  } catch (error) {
+    serviceSubscriptionsDialog.items = [];
+    serviceSubscriptionsDialog.pagination.totalItems = 0;
+  } finally {
+    serviceSubscriptionsDialog.loading = false;
+  }
+};
+
+const showAssociatedServiceSubscriptionsDialog = async () => {
+  if (!currentId.value) return;
+  const regName = currentPlatformRegistration.value
+    ? `${currentPlatformRegistration.value.platform_name} - ${currentPlatformRegistration.value.email_address}`
+    : `注册ID ${currentId.value}`;
+  serviceSubscriptionsDialog.title = `"${regName}" 关联的服务订阅`;
+  serviceSubscriptionsDialog.pagination.currentPage = 1;
+  await fetchAssociatedServiceSubscriptionsData(1, serviceSubscriptionsDialog.pagination.pageSize);
+  serviceSubscriptionsDialog.visible = true;
+};
+
+const handleAssociatedServiceSubscriptionsPageChange = (payload) => {
+  fetchAssociatedServiceSubscriptionsData(payload.currentPage, payload.pageSize);
+};
+
 </script>
 
 <style scoped>
 .platform-registration-form-card {
   max-width: 700px;
   margin: 20px auto;
+}
+.associated-details {
+  margin-bottom: 20px;
+}
+.associated-info-section {
+  margin-top: 20px;
+  padding-top: 20px;
+}
+.view-associated-button {
+  margin-bottom: 10px;
+}
+.mt-4 {
+  margin-top: 1.5rem;
 }
 </style>

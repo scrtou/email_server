@@ -42,23 +42,29 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="serviceSubscriptionStore.serviceSubscriptions" v-loading="serviceSubscriptionStore.loading" style="width: 100%">
-        <el-table-column prop="service_name" label="服务名称" min-width="180" />
+      <el-table
+        :data="serviceSubscriptionStore.serviceSubscriptions"
+        v-loading="serviceSubscriptionStore.loading"
+        style="width: 100%"
+        @sort-change="handleSortChange"
+        :default-sort="{ prop: serviceSubscriptionStore.sort.orderBy, order: serviceSubscriptionStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+      >
+        <el-table-column prop="service_name" label="服务名称" min-width="180" sortable="custom" />
         <!-- <el-table-column prop="id" label="ID" width="60" /> -->
-        <el-table-column prop="platform_name" label="所属平台" min-width="150" />
-        <el-table-column label="平台邮箱" min-width="200">
+        <el-table-column prop="platform_name" label="所属平台" min-width="150" sortable="custom" />
+        <el-table-column label="平台邮箱" min-width="200" prop="email_address" sortable="custom">
           <template #default="scope">
             <span>{{ scope.row.email_address }}</span>
             <span v-if="scope.row.login_username" style="color: #909399; margin-left: 5px;">({{ scope.row.login_username }})</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" />
-        <el-table-column prop="cost" label="费用" width="100" />
-        <el-table-column prop="billing_cycle" label="计费周期" width="120" />
-        <el-table-column prop="next_renewal_date" label="下次续费日" width="140" />
-        <el-table-column prop="notes" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="170" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="status" label="状态" width="100" sortable="custom" />
+        <el-table-column prop="cost" label="费用" width="100" sortable="custom" />
+        <el-table-column prop="billing_cycle" label="计费周期" width="120" sortable="custom" />
+        <el-table-column prop="next_renewal_date" label="下次续费日" width="140" sortable="custom" />
+        <el-table-column prop="notes" label="备注" min-width="150" :sortable="false" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="170" sortable="custom" />
+        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
           <template #default="scope">
             <el-button size="small" @click="handleEdit(scope.row)">
               <el-icon><Edit /></el-icon> 编辑
@@ -119,8 +125,17 @@ onMounted(async () => {
   fetchData();
 });
 
-const fetchData = (page = serviceSubscriptionStore.pagination.currentPage, pageSize = serviceSubscriptionStore.pagination.pageSize) => {
-  const params = { page, pageSize };
+const fetchData = (
+  page = serviceSubscriptionStore.pagination.currentPage,
+  pageSize = serviceSubscriptionStore.pagination.pageSize,
+  sortOptions = { orderBy: serviceSubscriptionStore.sort.orderBy, sortDirection: serviceSubscriptionStore.sort.sortDirection }
+) => {
+  const params = {
+    page,
+    pageSize,
+    orderBy: sortOptions.orderBy,
+    sortDirection: sortOptions.sortDirection
+  };
   if (filters.platformRegistrationId) {
     params.platform_registration_id = filters.platformRegistrationId;
   }
@@ -128,6 +143,13 @@ const fetchData = (page = serviceSubscriptionStore.pagination.currentPage, pageS
     params.status = filters.status;
   }
   serviceSubscriptionStore.fetchServiceSubscriptions(params);
+};
+
+const handleSortChange = ({ prop, order }) => {
+  const sortDirection = order === 'descending' ? 'desc' : 'asc';
+  // Note: Backend currently only supports sorting by ServiceSubscription's own fields.
+  // If prop is 'platform_name' or 'email_address', it will default to 'created_at' on backend.
+  fetchData(1, serviceSubscriptionStore.pagination.pageSize, { orderBy: prop, sortDirection });
 };
 
 const applyFilters = () => {

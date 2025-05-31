@@ -10,11 +10,17 @@
         </div>
       </template>
 
-      <el-table :data="emailAccountStore.emailAccounts" v-loading="emailAccountStore.loading" style="width: 100%">
-        <el-table-column prop="email_address" label="邮箱地址" min-width="200" />
+      <el-table
+        :data="emailAccountStore.emailAccounts"
+        v-loading="emailAccountStore.loading"
+        style="width: 100%"
+        @sort-change="handleSortChange"
+        :default-sort="{ prop: emailAccountStore.sort.orderBy, order: emailAccountStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+      >
+        <el-table-column prop="email_address" label="邮箱地址" min-width="200" sortable="custom" />
         <!-- 服务商列已移除，服务商信息由后端自动提取和管理 -->
         <!-- <el-table-column prop="id" label="ID" width="80" /> -->
-        <el-table-column label="关联平台" width="120">
+        <el-table-column label="关联平台" width="120" :sortable="false">
           <template #default="scope">
             <span>{{ scope.row.platform_count }}</span>
             <el-button
@@ -28,10 +34,10 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="notes" label="备注" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column prop="updated_at" label="更新时间" width="180" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="180" sortable="custom" />
+        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
           <template #default="scope">
             <el-button size="small" @click="handleEdit(scope.row)">
               <el-icon><Edit /></el-icon> 编辑
@@ -103,8 +109,17 @@ onMounted(() => {
   fetchData();
 });
 
-const fetchData = (page = emailAccountStore.pagination.currentPage, pageSize = emailAccountStore.pagination.pageSize) => {
-  emailAccountStore.fetchEmailAccounts(page, pageSize);
+const fetchData = (
+  page = emailAccountStore.pagination.currentPage,
+  pageSize = emailAccountStore.pagination.pageSize,
+  sortOptions = { orderBy: emailAccountStore.sort.orderBy, sortDirection: emailAccountStore.sort.sortDirection }
+) => {
+  emailAccountStore.fetchEmailAccounts(page, pageSize, sortOptions);
+};
+
+const handleSortChange = ({ prop, order }) => {
+  const sortDirection = order === 'descending' ? 'desc' : 'asc';
+  fetchData(1, emailAccountStore.pagination.pageSize, { orderBy: prop, sortDirection });
 };
 
 const handleAddEmailAccount = () => {

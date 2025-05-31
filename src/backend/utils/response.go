@@ -85,3 +85,12 @@ import (
    // func содержит(s, substr string) bool { // <-- 移除错误的函数
    // 	return strings.Contains(s, substr)
    // }
+  
+  // ExtractProviderFromEmail extracts the domain part as the provider from an email address.
+  func ExtractProviderFromEmail(email string) string {
+   parts := strings.Split(email, "@")
+   if len(parts) == 2 {
+   	return parts[1]
+   }
+   return "" // Return empty if not a valid email format or no domain part
+  }
