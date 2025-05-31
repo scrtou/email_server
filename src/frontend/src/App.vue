@@ -188,67 +188,90 @@ export default {
 </script>
 
 <style>
-/* 样式保持不变 */
+/* 定义全局颜色变量，以便在各组件中统一使用 */
+:root {
+  --app-bg-color-light: #f4f6f9; /* 与 Dashboard 一致的背景色 */
+  --app-text-color-primary: #2c3e50;
+  --app-primary-color: #4A90E2; /* 主题蓝 */
+  --app-sidebar-bg: #304156;
+  --app-sidebar-text: #bfcbd9;
+  --app-sidebar-active-text: #ffffff;
+  --app-sidebar-hover-bg: #434a50;
+  --app-header-bg: #ffffff;
+  --app-header-border: #e6e6e6;
+  --app-header-shadow: rgba(0,21,41,.08);
+}
+
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* 与 Dashboard 一致的字体 */
   height: 100vh;
   overflow: hidden;
+  color: var(--app-text-color-primary);
 }
 
 /* 侧边栏样式 */
+.el-aside {
+  background-color: var(--app-sidebar-bg) !important; /* 确保覆盖 */
+}
 .logo-section {
   padding: 20px;
   text-align: center;
-  border-bottom: 1px solid #434a50;
+  border-bottom: 1px solid var(--app-sidebar-hover-bg); /* 使用变量 */
 }
 
 .logo-section h3 {
-  color: #bfcbd9;
+  color: var(--app-sidebar-text);
   margin: 0;
   font-size: 16px;
-  font-weight: normal;
+  font-weight: 600; /* 略微加粗 */
 }
 
 .sidebar-menu {
   border: none;
 }
-
 .sidebar-menu .el-menu-item {
   border-radius: 0;
   margin: 0;
+  color: var(--app-sidebar-text); /* 确保文字颜色应用 */
+}
+.sidebar-menu .el-menu-item .el-icon {
+  color: var(--app-sidebar-text); /* 图标颜色 */
 }
 
 .sidebar-menu .el-menu-item:hover {
-  background-color: #434a50 !important;
+  background-color: var(--app-sidebar-hover-bg) !important;
+}
+.sidebar-menu .el-menu-item.is-active {
+  background-color: var(--app-primary-color) !important;
+  color: var(--app-sidebar-active-text) !important;
+}
+.sidebar-menu .el-menu-item.is-active .el-icon {
+  color: var(--app-sidebar-active-text) !important; /* 激活状态图标颜色 */
 }
 
-.sidebar-menu .el-menu-item.is-active {
-  background-color: #409EFF !important;
-  color: #fff !important;
-}
 
 /* 头部样式 */
 .main-header {
-  background-color: #fff;
-  border-bottom: 1px solid #e6e6e6;
+  background-color: var(--app-header-bg);
+  border-bottom: 1px solid var(--app-header-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  box-shadow: 0 1px 4px rgba(0,21,41,.08);
+  box-shadow: 0 1px 4px var(--app-header-shadow);
 }
 
-.header-left { /* Adjusted to allow SearchBar to take space */
+.header-left {
   flex-grow: 1;
   display: flex;
   align-items: center;
 }
 
-.header-left h2 { /* If you decide to keep the title alongside search bar */
+.header-left h2 {
   margin: 0;
-  margin-right: 20px; /* Add some space if title is kept */
-  line-height: 60px;
-  color: #303133;
+  margin-right: 20px;
+  line-height: 60px; /* el-header 默认高度 */
+  color: var(--app-text-color-primary);
   font-size: 18px;
   font-weight: 500;
 }
@@ -268,28 +291,28 @@ export default {
   align-items: center;
   padding: 8px 12px;
   border-radius: 4px;
-  transition: all 0.3s;
+  transition: background-color 0.3s;
 }
 
 .user-info:hover {
-  background-color: #f5f7fa;
+  background-color: #f5f7fa; /* 保持一个轻微的悬停效果 */
 }
 
 .user-avatar {
   margin-right: 8px;
-  background-color: #409EFF;
+  background-color: var(--app-primary-color);
   color: white;
   font-weight: bold;
 }
 
 .username {
   margin-right: 4px;
-  color: #606266;
+  color: var(--app-text-color-primary); /* 使用全局文字颜色 */
   font-size: 14px;
 }
 
 .dropdown-icon {
-  color: #C0C4CC;
+  color: #C0C4CC; /* Element Plus 默认图标颜色 */
   font-size: 12px;
   transition: transform 0.3s;
 }
@@ -300,9 +323,9 @@ export default {
 
 /* 主内容区域样式 */
 .main-content {
-  background-color: #f0f2f5;
+  background-color: var(--app-bg-color-light); /* 使用变量 */
   overflow-y: auto;
-  padding: 20px;
+  padding: 20px; /* 与 Dashboard 的 padding 保持一致或按需调整 */
 }
 
 /* 下拉菜单项样式 */
@@ -310,21 +333,26 @@ export default {
   display: flex;
   align-items: center;
   padding: 8px 16px;
+  font-size: 14px; /* 统一字体大小 */
 }
 
 .el-dropdown-menu__item .el-icon {
   margin-right: 8px;
-  color: #909399;
+  color: #909399; /* Element Plus 默认图标颜色 */
 }
 
+.el-dropdown-menu__item:hover {
+  background-color: #ecf5ff; /* Element Plus 风格的悬停 */
+  color: var(--app-primary-color);
+}
 .el-dropdown-menu__item:hover .el-icon {
-  color: #409EFF;
+  color: var(--app-primary-color);
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .el-aside {
-    width: 64px !important;
+    width: 64px !important; /* Element Plus 默认折叠宽度 */
   }
   
   .logo-section {
@@ -338,6 +366,9 @@ export default {
   .sidebar-menu .el-menu-item span {
     display: none;
   }
+  .sidebar-menu .el-menu-item .el-icon {
+    margin-left: 0; /* 调整图标位置 */
+  }
   
   .header-left h2 {
     font-size: 16px;
@@ -346,32 +377,38 @@ export default {
   .username {
     display: none;
   }
+  .main-content {
+    padding: 16px; /* 移动端减小内边距 */
+  }
 }
 
-/* 滚动条样式 */
+/* 滚动条样式 (保持不变或按需调整) */
 .main-content::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
-
 .main-content::-webkit-scrollbar-track {
   background: #f1f1f1;
+  border-radius: 3px;
 }
-
 .main-content::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
-
 .main-content::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 
-/* 加载状态样式 */
+/* 全局加载状态样式 (如果需要一个非常通用的加载样式) */
+/* 注意：Dashboard.vue 中有其局部的 loading-container 样式，会优先应用 */
 .loading-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  background-color: #f0f2f5;
+  height: 100vh; /* 或具体父容器高度 */
+  background-color: var(--app-bg-color-light); /* 使用统一背景色 */
+}
+.loading-container .el-loading-text {
+  color: var(--app-primary-color) !important;
 }
 </style>

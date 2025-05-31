@@ -102,7 +102,8 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		}
  
 		// 仪表板
-		protected.GET("/dashboard", handlers.GetDashboard)
+		protected.GET("/dashboard", handlers.GetDashboard) // 旧的仪表盘API，已在handler中标记为弃用
+		protected.GET("/dashboard/summary", handlers.GetDashboardSummary) // 新的仪表盘摘要API
 
 		// 全局搜索
 		protected.GET("/search", handlers.SearchHandler)

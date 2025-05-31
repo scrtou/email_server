@@ -77,14 +77,14 @@ const submitSearch = () => {
 
 // Initialize searchTerm and searchType from route query if present on component mount
 // This is useful if the user navigates directly to a search URL or refreshes the page
-if (route.query.term) {
-  searchTerm.value = route.query.term;
+if (route.query.q) { // Changed from term to q
+  searchTerm.value = route.query.q;
 }
 if (route.query.type) {
   searchType.value = route.query.type;
 }
 // If on search results page and store is empty, populate from query
-if (route.name === 'search-results' && !searchStore.searchTerm && (route.query.term || route.query.type)) {
+if (route.name === 'search-results' && !searchStore.searchTerm && (route.query.q || route.query.type)) { // Changed from term to q
     searchStore.loadSearchTermFromQuery(route.query);
 }
 

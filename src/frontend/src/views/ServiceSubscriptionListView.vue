@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>服务订阅管理</span>
-          <el-button type="primary" @click="handleAdd">
+  <el-button type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon> 添加订阅
           </el-button>
         </div>
@@ -18,7 +18,7 @@
             clearable
             filterable
             @change="handlePlatformRegistrationFilterChange"
-            style="width: 300px;"
+            style="width: 220px;"
           >
             <el-option
               v-for="item in platformRegistrationStore.platformRegistrations"
@@ -236,9 +236,17 @@ const handleCurrentChange = (newPage) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 10px; /* Add some padding below the header */
 }
 .filter-form {
   margin-bottom: 20px;
+  display: flex; /* Use flexbox for better alignment */
+  flex-wrap: wrap; /* Allow items to wrap to the next line */
+  gap: 15px; /* Add gap between form items */
+}
+.filter-form .el-form-item {
+  margin-right: 0; /* Remove default margin-right from el-form-item */
+  margin-bottom: 0; /* Remove default margin-bottom from el-form-item */
 }
 .mt-4 {
   margin-top: 1.5rem;
