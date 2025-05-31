@@ -29,22 +29,68 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       orderBy: 'created_at', // Default sort
       sortDirection: 'desc',
     },
+    filters: { // New state for filters
+      status: '',
+      billing_cycle: '',
+      renewal_date_start: '',
+      renewal_date_end: '',
+      platform_registration_id: null, // Added platform_registration_id
+    }
   }),
   actions: {
-    async fetchServiceSubscriptions(params = { page: 1, pageSize: 10, orderBy: 'created_at', sortDirection: 'desc' }) {
+    // Action to update filter values
+    setFilter(filterName, value) {
+      if (Object.prototype.hasOwnProperty.call(this.filters, filterName)) {
+        this.filters[filterName] = value;
+        this.pagination.currentPage = 1; // Reset to first page
+        // Re-fetch data with all current filters, sort, and pagination
+        this.fetchServiceSubscriptions(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters);
+      }
+    },
+    // Action to clear all filters
+    clearFilters() {
+      this.filters.status = '';
+      this.filters.billing_cycle = '';
+      this.filters.renewal_date_start = '';
+      this.filters.renewal_date_end = '';
+      this.filters.platform_registration_id = null; // Clear platform_registration_id
+      this.pagination.currentPage = 1;
+      this.fetchServiceSubscriptions(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters);
+    },
+    async fetchServiceSubscriptions(
+        page = this.pagination.currentPage,
+        pageSize = this.pagination.pageSize,
+        sortOptions = {},
+        filterOptions = {}
+    ) {
       this.loading = true;
       this.error = null;
 
-      const page = params.page || this.pagination.currentPage;
-      const pageSize = params.pageSize || this.pagination.pageSize;
-      const orderBy = params.orderBy || this.sort.orderBy;
-      const sortDirection = params.sortDirection || this.sort.sortDirection;
+      const orderBy = sortOptions.orderBy || this.sort.orderBy;
+      const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
 
-      // Update sort state if new options are provided directly in params
-      if (params.orderBy) this.sort.orderBy = params.orderBy;
-      if (params.sortDirection) this.sort.sortDirection = params.sortDirection;
+      // Update sort state
+      if (sortOptions.orderBy) this.sort.orderBy = sortOptions.orderBy;
+      if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
       
-      const apiParams = { ...params, page, pageSize, orderBy, sortDirection };
+      // Update filter state if new options are provided
+      if (filterOptions.status !== undefined) this.filters.status = filterOptions.status;
+      if (filterOptions.billing_cycle !== undefined) this.filters.billing_cycle = filterOptions.billing_cycle;
+      if (filterOptions.renewal_date_start !== undefined) this.filters.renewal_date_start = filterOptions.renewal_date_start;
+      if (filterOptions.renewal_date_end !== undefined) this.filters.renewal_date_end = filterOptions.renewal_date_end;
+      if (filterOptions.platform_registration_id !== undefined) this.filters.platform_registration_id = filterOptions.platform_registration_id; // Handle platform_registration_id
+      
+      const apiParams = {
+        page,
+        pageSize,
+        orderBy,
+        sortDirection,
+        status: this.filters.status || undefined,
+        billing_cycle: this.filters.billing_cycle || undefined,
+        renewal_date_start: this.filters.renewal_date_start || undefined,
+        renewal_date_end: this.filters.renewal_date_end || undefined,
+        platform_registration_id: this.filters.platform_registration_id || undefined, // Add platform_registration_id to API params
+      };
       
       try {
         const result = await serviceSubscriptionAPI.getAll(apiParams);
@@ -92,12 +138,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       try {
         const createdData = await serviceSubscriptionAPI.create(data);
         ElMessage.success('服务订阅创建成功');
-        await this.fetchServiceSubscriptions({
-          page: 1,
-          pageSize: this.pagination.pageSize,
-          orderBy: this.sort.orderBy,
-          sortDirection: this.sort.sortDirection,
-        });
+        await this.fetchServiceSubscriptions(1, this.pagination.pageSize, this.sort, this.filters);
         return createdData;
       } catch (err) {
         this.error = err.message || '创建服务订阅失败';
@@ -113,12 +154,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       try {
         const updatedData = await serviceSubscriptionAPI.update(id, data);
         ElMessage.success('服务订阅更新成功');
-        await this.fetchServiceSubscriptions({
-            page: this.pagination.currentPage,
-            pageSize: this.pagination.pageSize,
-            orderBy: this.sort.orderBy,
-            sortDirection: this.sort.sortDirection,
-        });
+        await this.fetchServiceSubscriptions(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters);
         if (this.currentServiceSubscription && this.currentServiceSubscription.id === id) {
           this.currentServiceSubscription = updatedData;
         }
@@ -140,12 +176,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
         const currentPage = (this.serviceSubscriptions.length === 1 && this.pagination.currentPage > 1)
                             ? this.pagination.currentPage - 1
                             : this.pagination.currentPage;
-       await this.fetchServiceSubscriptions({
-         page: currentPage,
-         pageSize: this.pagination.pageSize,
-         orderBy: this.sort.orderBy,
-         sortDirection: this.sort.sortDirection,
-       });
+       await this.fetchServiceSubscriptions(currentPage, this.pagination.pageSize, this.sort, this.filters);
        return true;
      } catch (err) {
         this.error = err.message || '删除服务订阅失败';

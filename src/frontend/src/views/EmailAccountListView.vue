@@ -10,6 +10,35 @@
         </div>
       </template>
 
+      <!-- Filters -->
+      <div class="filters-section" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <el-input
+          v-model="emailAccountStore.filters.emailAddressSearch"
+          placeholder="按邮箱地址搜索"
+          clearable
+          @keyup.enter="handleEmailAddressSearchChange(emailAccountStore.filters.emailAddressSearch)"
+          @clear="handleEmailAddressSearchChange('')"
+          style="width: 240px;"
+        />
+        <el-select
+          v-model="emailAccountStore.filters.provider"
+          placeholder="按服务商筛选"
+          clearable
+          filterable
+          @change="handleProviderFilterChange"
+          style="width: 240px;"
+        >
+          <el-option
+            v-for="item in emailAccountStore.uniqueProviders"
+            :key="item"
+            :label="item"
+            :value="item"
+          />
+        </el-select>
+        <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
+        <el-button @click="triggerClearAllFilters">重置所有</el-button>
+      </div>
+
       <el-table
         :data="emailAccountStore.emailAccounts"
         v-loading="emailAccountStore.loading"
@@ -86,6 +115,8 @@ import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 const router = useRouter();
 const emailAccountStore = useEmailAccountStore();
 
+// const providerFilter = ref(emailAccountStore.filters.provider || ''); // Removed, use store directly
+
 const currentEmailAccountForDialog = ref(null); // To store the email account context for pagination
 
 const associatedInfoDialog = reactive({
@@ -106,20 +137,76 @@ const associatedInfoDialog = reactive({
 });
 
 onMounted(() => {
-  fetchData();
+  // emailAccountStore.fetchEmailAccounts(); // Fetch with current store state (page, size, sort, filters)
+  // If filters might be pre-populated from elsewhere (e.g. URL params in future), ensure they are set before first fetch
+  // For now, direct call is fine as store initializes filters.
+  // If store's filters.provider is already set (e.g. from a previous session if persisted),
+  // this will use it.
+  emailAccountStore.fetchEmailAccounts(
+    emailAccountStore.pagination.currentPage,
+    emailAccountStore.pagination.pageSize,
+    { orderBy: emailAccountStore.sort.orderBy, sortDirection: emailAccountStore.sort.sortDirection }
+    // Filters are now part of the store's fetchEmailAccounts internal logic
+  );
+  emailAccountStore.fetchUniqueProviders(); // Fetch providers for the dropdown
 });
 
-const fetchData = (
-  page = emailAccountStore.pagination.currentPage,
-  pageSize = emailAccountStore.pagination.pageSize,
-  sortOptions = { orderBy: emailAccountStore.sort.orderBy, sortDirection: emailAccountStore.sort.sortDirection }
-) => {
-  emailAccountStore.fetchEmailAccounts(page, pageSize, sortOptions);
+// Removed local fetchData, applyFilters, clearFilters as store handles this now.
+
+// const triggerSetFilter = () => { // Replaced by handleProviderFilterChange
+//   emailAccountStore.setFilter('provider', emailAccountStore.filters.provider);
+// };
+
+// const triggerClearFilterAndFetch = () => { // Handled by el-select clearable and change
+//   emailAccountStore.setFilter('provider', '');
+// }
+
+const handleProviderFilterChange = (value) => {
+  // The v-model on el-select updates emailAccountStore.filters.provider directly.
+  // The setFilter action in the store will handle fetching.
+  emailAccountStore.setFilter('provider', value || ''); // Ensure empty string if null/undefined from clearable
+  // Also trigger a general fetch if other filters might be active
+  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
 };
+
+const handleEmailAddressSearchChange = (value) => {
+  emailAccountStore.setFilter('emailAddressSearch', value || '');
+  // Also trigger a general fetch
+  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+};
+
+const triggerApplyAllFilters = () => {
+  // This is for a dedicated "Query/Search" button if present
+  // It ensures that the current state of all filters in the store is used to fetch.
+  // The individual filter handlers already call setFilter which then calls fetch.
+  // So this button might be redundant if instant filtering on change is preferred.
+  // If used, it should fetch with all current filters.
+  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+};
+
+const triggerClearAllFilters = () => {
+  emailAccountStore.clearFilters(); // This will clear all filters and fetch
+  // After clearing, explicitly call fetch to ensure UI updates if clearFilters doesn't auto-fetch
+  // (though the current store's clearFilters doesn't auto-fetch, setFilter does)
+  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+};
+
+// Watch for external changes to store filters (e.g. if they were persisted and reloaded)
+// This might not be strictly necessary if all filter changes go through setFilter/clearFilters actions
+// and v-model directly binds to store.filters.provider.
+// However, keeping it can be a safeguard or useful if store.filters.provider could be changed externally
+// without calling setFilter (which would be an anti-pattern).
+// For now, let's assume direct v-model binding and action calls are sufficient.
+// watch(() => emailAccountStore.filters.provider, (newProvider) => {
+//   // This watcher might cause a loop if not handled carefully with setFilter
+//   // Let's rely on explicit calls to setFilter / clearFilters for now.
+// });
+
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
-  fetchData(1, emailAccountStore.pagination.pageSize, { orderBy: prop, sortDirection });
+  // Store's fetchEmailAccounts will use current filters
+  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, { orderBy: prop, sortDirection });
 };
 
 const handleAddEmailAccount = () => {
@@ -147,11 +234,13 @@ const confirmDeleteEmailAccount = (id) => {
     .then(async () => {
       const success = await emailAccountStore.deleteEmailAccount(id);
       if (success) {
-        // Data is re-fetched by the store action on success
-        // Check if the current page becomes empty after deletion
-        if (emailAccountStore.emailAccounts.length === 0 && emailAccountStore.pagination.currentPage > 1) {
-          fetchData(emailAccountStore.pagination.currentPage - 1);
-        }
+        // Data is re-fetched by the store action on success.
+        // The store's deleteEmailAccount should ideally handle fetching the correct page.
+        // If not, we might need to call fetchEmailAccounts here.
+        // The store's fetchEmailAccounts will use current filters.
+        // Let's assume the store's delete action correctly refreshes.
+        // If current page becomes empty, the store's fetch in delete should handle it or we adjust here.
+        // For now, relying on store's delete action to call fetchEmailAccounts appropriately.
       }
     })
     .catch(() => {
@@ -160,11 +249,13 @@ const confirmDeleteEmailAccount = (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  fetchData(1, newSize); // Reset to page 1 when size changes
+  // Store's fetchEmailAccounts will use current filters and sort
+  emailAccountStore.fetchEmailAccounts(1, newSize); // Reset to page 1 when size changes
 };
 
 const handleCurrentChange = (newPage) => {
-  fetchData(newPage, emailAccountStore.pagination.pageSize);
+  // Store's fetchEmailAccounts will use current filters and sort
+  emailAccountStore.fetchEmailAccounts(newPage, emailAccountStore.pagination.pageSize);
 };
 
 const fetchAssociatedPlatformsData = async (emailAccountId, page = 1, pageSize = 5) => {

@@ -30,11 +30,36 @@ export const usePlatformStore = defineStore('platform', {
       orderBy: 'name', // Default sort for platforms
       sortDirection: 'asc',
     },
+    filters: { // New state for filters
+      nameSearch: '',
+    },
   }),
   actions: {
-    async fetchPlatforms(page = 1, pageSize = 10, sortOptions = {}) {
+    setFilter(filterName, value) {
+      if (Object.prototype.hasOwnProperty.call(this.filters, filterName)) {
+        this.filters[filterName] = value;
+        this.pagination.currentPage = 1; // Reset to first page
+        // Trigger fetch, assuming the component will call it or we call it here
+        // For now, let component trigger fetch or call directly if store manages all fetches
+        // this.fetchPlatforms(); // Example: if store should auto-fetch
+      }
+    },
+    clearFilters() {
+      this.filters.nameSearch = '';
+      this.pagination.currentPage = 1;
+      // this.fetchPlatforms(); // Example: if store should auto-fetch
+    },
+    async fetchPlatforms(page = this.pagination.currentPage, pageSize = this.pagination.pageSize, sortOptions = {}, filterOptions = {}) {
       this.loading = true;
       this.error = null;
+
+      // Update store's filter state if new filters are passed and different
+      if (filterOptions.nameSearch !== undefined && this.filters.nameSearch !== filterOptions.nameSearch) {
+        this.filters.nameSearch = filterOptions.nameSearch;
+        // If filters are externally updated, reset to page 1
+        if (page !== 1) page = 1;
+        this.pagination.currentPage = page;
+      }
 
       const orderBy = sortOptions.orderBy || this.sort.orderBy;
       const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
@@ -48,7 +73,8 @@ export const usePlatformStore = defineStore('platform', {
           page,
           pageSize,
           orderBy: orderBy,
-          sortDirection: sortDirection
+          sortDirection: sortDirection,
+          name: this.filters.nameSearch || undefined, // Add name search filter
         };
         const result = await platformAPI.getAll(params);
         if (result && result.data) {

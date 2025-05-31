@@ -17,11 +17,47 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       orderBy: 'created_at',
       sortDirection: 'desc',
     },
+    filters: { // New state for filters
+      provider: '',
+      emailAddressSearch: '', // For email address fuzzy search
+    },
+    uniqueProviders: [], // For provider filter dropdown
   }),
   actions: {
-    async fetchEmailAccounts(page = 1, pageSize = 10, sortOptions = {}) {
+    // Action to update filter values
+    setFilter(filterName, value) {
+      if (Object.prototype.hasOwnProperty.call(this.filters, filterName)) {
+        this.filters[filterName] = value;
+        // Reset to first page when filters change
+        this.pagination.currentPage = 1;
+        // fetchEmailAccounts will be called by the component after filter change
+        // or if we want the store to be self-contained for this, then call:
+        // this.fetchEmailAccounts(1, this.pagination.pageSize, this.sort, this.filters);
+      }
+    },
+    // Action to clear all filters
+    clearFilters() {
+      this.filters.provider = '';
+      this.filters.emailAddressSearch = '';
+      this.pagination.currentPage = 1;
+      // this.fetchEmailAccounts(1, this.pagination.pageSize, this.sort, this.filters);
+    },
+    async fetchEmailAccounts(page = this.pagination.currentPage, pageSize = this.pagination.pageSize, sortOptions = {}, filters = {}) {
       this.loading = true;
       this.error = null;
+
+      // Update store's filter state if new filters are passed and different
+      if (filters.provider !== undefined && this.filters.provider !== filters.provider) {
+        this.filters.provider = filters.provider;
+        // If filters are externally updated, reset to page 1
+        if (page !== 1) page = 1;
+        this.pagination.currentPage = page;
+      }
+      if (filters.emailAddressSearch !== undefined && this.filters.emailAddressSearch !== filters.emailAddressSearch) {
+        this.filters.emailAddressSearch = filters.emailAddressSearch;
+        if (page !== 1) page = 1;
+        this.pagination.currentPage = page;
+      }
 
       const orderBy = sortOptions.orderBy || this.sort.orderBy;
       const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
@@ -35,7 +71,9 @@ export const useEmailAccountStore = defineStore('emailAccount', {
           page,
           pageSize,
           orderBy: orderBy,
-          sortDirection: sortDirection
+          sortDirection: sortDirection,
+          provider: this.filters.provider || undefined, // Use the potentially updated store filter
+          email_address: this.filters.emailAddressSearch || undefined, // Add email address search
         };
         // api.js interceptor returns { data: [...], meta: {...} } for paginated responses
         const result = await emailAccountAPI.getAll(params);
@@ -153,6 +191,18 @@ export const useEmailAccountStore = defineStore('emailAccount', {
         return { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } }; // Return empty structure on error
       } finally {
         this.loading = false;
+      }
+    },
+    async fetchUniqueProviders() {
+      // this.loading = true; // Optional: manage loading state for this specific fetch
+      try {
+        const providers = await emailAccountAPI.getUniqueProviders(); // Assumes this method will be added to api.js
+        this.uniqueProviders = providers || [];
+      } catch (err) {
+        // ElMessage.error(err.message || '获取服务商列表失败'); // Optional: show error
+        this.uniqueProviders = []; // Ensure it's an array on error
+      } finally {
+        // this.loading = false; // Optional: manage loading state
       }
     }
   },

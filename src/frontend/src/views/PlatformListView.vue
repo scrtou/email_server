@@ -10,6 +10,20 @@
         </div>
       </template>
 
+      <!-- Filters -->
+      <div class="filters-section" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+        <el-input
+          v-model="platformStore.filters.nameSearch"
+          placeholder="按平台名称搜索"
+          clearable
+          @keyup.enter="handleNameSearchChange(platformStore.filters.nameSearch)"
+          @clear="handleNameSearchChange('')"
+          style="width: 240px;"
+        />
+        <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
+        <el-button @click="triggerClearAllFilters">重置</el-button>
+      </div>
+
       <el-table
         :data="platformStore.platforms"
         v-loading="platformStore.loading"
@@ -115,9 +129,24 @@ onMounted(() => {
 const fetchData = (
   page = platformStore.pagination.currentPage,
   pageSize = platformStore.pagination.pageSize,
-  sortOptions = { orderBy: platformStore.sort.orderBy, sortDirection: platformStore.sort.sortDirection }
+  sortOptions = { orderBy: platformStore.sort.orderBy, sortDirection: platformStore.sort.sortDirection },
+  filterOptions = { nameSearch: platformStore.filters.nameSearch } // Pass current nameSearch filter
 ) => {
-  platformStore.fetchPlatforms(page, pageSize, sortOptions);
+  platformStore.fetchPlatforms(page, pageSize, sortOptions, filterOptions);
+};
+
+const handleNameSearchChange = (value) => {
+  platformStore.setFilter('nameSearch', value || '');
+  fetchData(1); // Reset to page 1 and fetch with new filter
+};
+
+const triggerApplyAllFilters = () => {
+  fetchData(1); // Fetch with all current filters from store, reset to page 1
+};
+
+const triggerClearAllFilters = () => {
+  platformStore.clearFilters(); // Clears nameSearch in store
+  fetchData(1); // Fetch with cleared filters, reset to page 1
 };
 
 const handleSortChange = ({ prop, order }) => {

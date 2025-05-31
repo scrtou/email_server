@@ -220,8 +220,8 @@ const rules = ref({
 onMounted(async () => {
   loading.value = true;
   await Promise.all([
-    emailAccountStore.fetchEmailAccounts(1, 10000), // Fetch all for dropdown
-    platformStore.fetchPlatforms(1, 10000) // Fetch all for dropdown
+    emailAccountStore.fetchEmailAccounts(1, 10000, { orderBy: 'email_address', sortDirection: 'asc' }, { provider: '', emailAddressSearch: '' }), // Fetch all for dropdown, clear filters
+    platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' }, { nameSearch: '' }) // Fetch all for dropdown, clear filters
   ]);
 
   if (isEditMode.value && currentId.value) {

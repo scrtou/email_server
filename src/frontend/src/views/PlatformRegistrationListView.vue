@@ -10,9 +10,16 @@
         </div>
       </template>
 
-      <el-form :inline="true" :model="filters" class="filter-form">
+      <el-form :inline="true" class="filter-form">
         <el-form-item label="邮箱账户">
-          <el-select v-model="filters.emailAccountId" placeholder="选择邮箱账户" clearable @change="handleFilterChange" style="width: 240px;">
+          <el-select
+            v-model="platformRegistrationStore.filters.email_account_id"
+            placeholder="选择邮箱账户"
+            clearable
+            filterable
+            @change="handleEmailAccountFilterChange"
+            style="width: 240px;"
+          >
             <el-option
               v-for="item in emailAccountStore.emailAccounts"
               :key="item.id"
@@ -22,7 +29,14 @@
           </el-select>
         </el-form-item>
         <el-form-item label="平台">
-          <el-select v-model="filters.platformId" placeholder="选择平台" clearable @change="handleFilterChange" style="width: 240px;">
+          <el-select
+            v-model="platformRegistrationStore.filters.platform_id"
+            placeholder="选择平台"
+            clearable
+            filterable
+            @change="handlePlatformFilterChange"
+            style="width: 240px;"
+          >
             <el-option
               v-for="item in platformStore.platforms"
               :key="item.id"
@@ -32,8 +46,8 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="applyFilters">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button type="primary" @click="triggerFetchWithCurrentFilters">查询</el-button>
+          <el-button @click="triggerClearFilters">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -80,7 +94,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive } from 'vue';
+import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
@@ -93,59 +107,62 @@ const platformRegistrationStore = usePlatformRegistrationStore();
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
 
-const filters = reactive({
-  emailAccountId: null,
-  platformId: null,
-});
+// const filters = reactive({ // Removed, use store directly
+//   emailAccountId: null,
+//   platformId: null,
+// });
 
 onMounted(async () => {
-  await emailAccountStore.fetchEmailAccounts(1, 1000); // Fetch all for dropdown, or implement paginated select
-  await platformStore.fetchPlatforms(1, 1000); // Fetch all for dropdown
-  fetchData();
+  // Fetch options for select dropdowns
+  // Consider if these lists are large, might need a paginated/searchable select component later
+  if (emailAccountStore.emailAccounts.length === 0) { // Fetch only if not already populated
+    await emailAccountStore.fetchEmailAccounts(
+      1,
+      10000,
+      { orderBy: 'email_address', sortDirection: 'asc' },
+      { provider: '', emailAddressSearch: '' } // Explicitly pass empty filters
+    );
+  }
+  if (platformStore.platforms.length === 0) { // Fetch only if not already populated
+    await platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' }); // Fetch a large number for dropdown
+  }
+  
+  // Initial data fetch for the table, using current store state for filters, sort, pagination
+  platformRegistrationStore.fetchPlatformRegistrations();
 });
 
-const fetchData = (
-  page = platformRegistrationStore.pagination.currentPage,
-  pageSize = platformRegistrationStore.pagination.pageSize,
-  sortOptions = { orderBy: platformRegistrationStore.sort.orderBy, sortDirection: platformRegistrationStore.sort.sortDirection }
-) => {
-  const params = {
-    page,
-    pageSize,
-    orderBy: sortOptions.orderBy,
-    sortDirection: sortOptions.sortDirection
-  };
-  if (filters.emailAccountId) {
-    params.email_account_id = filters.emailAccountId;
-  }
-  if (filters.platformId) {
-    params.platform_id = filters.platformId;
-  }
-  platformRegistrationStore.fetchPlatformRegistrations(params);
+// Removed local fetchData, applyFilters, resetFilters as store handles this.
+
+const handleEmailAccountFilterChange = (value) => {
+  platformRegistrationStore.setFilter('email_account_id', value);
 };
+
+const handlePlatformFilterChange = (value) => {
+  platformRegistrationStore.setFilter('platform_id', value);
+};
+
+const triggerFetchWithCurrentFilters = () => {
+  // v-model has updated the store's filters.
+  // fetchPlatformRegistrations will use them. Reset to page 1.
+  platformRegistrationStore.fetchPlatformRegistrations(1);
+};
+
+const triggerClearFilters = () => {
+  platformRegistrationStore.clearFilters(); // This clears filters in store and fetches
+};
+
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
-  // Note: Backend currently only supports sorting by PlatformRegistration's own fields.
-  // If prop is 'email_address' or 'platform_name', it will default to 'created_at' on backend.
-  // For a better UX, we might disable sorting on these columns or adjust backend.
-  // For now, we pass the prop as is.
-  fetchData(1, platformRegistrationStore.pagination.pageSize, { orderBy: prop, sortDirection });
+  // Store's fetchPlatformRegistrations will use current filters
+  platformRegistrationStore.fetchPlatformRegistrations(
+    1, // Reset to page 1 on sort change
+    platformRegistrationStore.pagination.pageSize,
+    { orderBy: prop, sortDirection }
+  );
 };
 
-const handleFilterChange = () => {
- // fetchData(1, platformRegistrationStore.pagination.pageSize); // Optionally auto-filter on change
-};
-
-const applyFilters = () => {
-    fetchData(1, platformRegistrationStore.pagination.pageSize);
-}
-
-const resetFilters = () => {
-    filters.emailAccountId = null;
-    filters.platformId = null;
-    fetchData(1, platformRegistrationStore.pagination.pageSize);
-}
+// handleFilterChange is now split into specific handlers above
 
 const handleAdd = () => {
   router.push({ name: 'PlatformRegistrationCreate' }); 
@@ -175,11 +192,13 @@ const confirmDeleteRegistration = (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  fetchData(1, newSize); 
+  // Store's fetchPlatformRegistrations will use current filters and sort
+  platformRegistrationStore.fetchPlatformRegistrations(1, newSize);
 };
 
 const handleCurrentChange = (newPage) => {
-  fetchData(newPage, platformRegistrationStore.pagination.pageSize);
+  // Store's fetchPlatformRegistrations will use current filters and sort
+  platformRegistrationStore.fetchPlatformRegistrations(newPage, platformRegistrationStore.pagination.pageSize);
 };
 </script>
 

@@ -47,7 +47,8 @@
         <!-- 头部 -->
         <el-header class="main-header">
           <div class="header-left">
-            <h2>{{ getPageTitle() }}</h2>
+            <!-- <h2>{{ getPageTitle() }}</h2> --> <!-- Replaced by SearchBar or keep if needed alongside -->
+            <SearchBar />
           </div>
           
           <div class="header-right">
@@ -94,6 +95,7 @@ import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessageBox, ElMessage } from 'element-plus'
+import SearchBar from '@/components/ui/SearchBar.vue' // Import SearchBar
 import {
   House,
   Message,
@@ -103,7 +105,8 @@ import {
   ArrowDown,
   SwitchButton,
   Platform, // Added for Platform Management
-  Tickets // Added for Service Subscriptions
+  Tickets, // Added for Service Subscriptions
+  Setting // Keep Setting for user dropdown
 } from '@element-plus/icons-vue'
 
 export default {
@@ -111,13 +114,15 @@ export default {
   components: {
     House,
     Message,
-    // Setting,
+    // Setting, // This was for sidebar, keep the import for dropdown
     Link,
     User,
     ArrowDown,
     SwitchButton,
     Platform,
-    Tickets
+    Tickets,
+    SearchBar, // Register SearchBar
+    Setting // Register Setting for user dropdown
   },
   setup() {
     const route = useRoute()
@@ -233,8 +238,15 @@ export default {
   box-shadow: 0 1px 4px rgba(0,21,41,.08);
 }
 
-.header-left h2 {
+.header-left { /* Adjusted to allow SearchBar to take space */
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.header-left h2 { /* If you decide to keep the title alongside search bar */
   margin: 0;
+  margin-right: 20px; /* Add some space if title is kept */
   line-height: 60px;
   color: #303133;
   font-size: 18px;

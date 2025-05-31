@@ -339,8 +339,19 @@ func GetPlatformRegistrations(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	emailAccountIDFilter, _ := strconv.Atoi(c.Query("email_account_id"))
-	platformIDFilter, _ := strconv.Atoi(c.Query("platform_id"))
+
+	// Get filter parameters
+	emailAccountIDQuery := c.Query("email_account_id")
+	platformIDQuery := c.Query("platform_id")
+	var emailAccountIDFilter uint64
+	if emailAccountIDQuery != "" {
+		emailAccountIDFilter, _ = strconv.ParseUint(emailAccountIDQuery, 10, 32)
+	}
+	var platformIDFilter uint64
+	if platformIDQuery != "" {
+		platformIDFilter, _ = strconv.ParseUint(platformIDQuery, 10, 32)
+	}
+
 	orderBy := c.DefaultQuery("orderBy", "created_at")
 	sortDirection := c.DefaultQuery("sortDirection", "desc")
 
@@ -382,12 +393,12 @@ func GetPlatformRegistrations(c *gin.Context) {
 	
 	// Apply filters (these were originally applied to a query initialized later, moving them up)
 	if emailAccountIDFilter > 0 {
-		query = query.Where("platform_registrations.email_account_id = ?", emailAccountIDFilter)
-		countQuery = countQuery.Where("email_account_id = ?", emailAccountIDFilter)
+		query = query.Where("platform_registrations.email_account_id = ?", uint(emailAccountIDFilter))
+		countQuery = countQuery.Where("email_account_id = ?", uint(emailAccountIDFilter))
 	}
 	if platformIDFilter > 0 {
-		query = query.Where("platform_registrations.platform_id = ?", platformIDFilter)
-		countQuery = countQuery.Where("platform_id = ?", platformIDFilter)
+		query = query.Where("platform_registrations.platform_id = ?", uint(platformIDFilter))
+		countQuery = countQuery.Where("platform_id = ?", uint(platformIDFilter))
 	}
 	if page <= 0 {	page = 1 }
 	if pageSize <= 0 { pageSize = 10	}
