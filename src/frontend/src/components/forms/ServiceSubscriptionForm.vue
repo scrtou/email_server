@@ -7,7 +7,7 @@
       ref="formRef"
       :model="form"
       :rules="rules"
-      label-width="140px"
+      label-width="160px"
       v-loading="loading"
     >
       <el-form-item label="平台注册信息" prop="platform_registration_id">
@@ -76,10 +76,14 @@
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" @click="handleSubmit">
-          {{ isEditMode ? '保存更新' : '立即创建' }}
-        </el-button>
-        <el-button @click="handleCancel">取消</el-button>
+        <el-row :gutter="20" style="width: 100%; margin-top: 20px;">
+          <el-col :span="24" style="text-align: right;">
+            <el-button type="primary" @click="handleSubmit">
+              {{ isEditMode ? '保存更新' : '立即创建' }}
+            </el-button>
+            <el-button @click="handleCancel">取消</el-button>
+          </el-col>
+        </el-row>
       </el-form-item>
     </el-form>
   </el-card>
@@ -198,7 +202,7 @@ const handleCancel = () => {
 
 <style scoped>
 .service-subscription-form-card {
-  max-width: 700px;
+  max-width: 800px; /* Increased max-width for a more spacious layout */
   margin: 20px auto;
 }
 </style>

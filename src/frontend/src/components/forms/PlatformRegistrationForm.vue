@@ -1,7 +1,9 @@
 <template>
   <el-card class="platform-registration-form-card">
     <template #header>
-      <span>{{ isEditMode ? '编辑平台注册信息' : '添加平台注册信息' }}</span>
+      <div class="card-header">
+        <span class="card-title">{{ isEditMode ? '编辑平台注册信息' : '添加平台注册信息' }}</span>
+      </div>
     </template>
     <el-form
       ref="formRef"
@@ -9,71 +11,88 @@
       :rules="rules"
       label-width="140px"
       v-loading="loading"
+      class="platform-registration-form"
     >
-      <el-form-item label="邮箱账户" prop="email_account_id">
-        <el-select 
-          v-model="form.email_account_id" 
-          placeholder="选择或输入邮箱账户"
-          filterable
-          allow-create
-          default-first-option
-          :disabled="isEditMode"
-          style="width: 100%;"
-        >
-          <el-option
-            v-for="item in emailAccountStore.emailAccounts"
-            :key="item.id"
-            :label="item.email_address"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item label="邮箱账户" prop="email_account_id">
+            <el-select
+              v-model="form.email_account_id"
+              placeholder="选择或输入邮箱账户"
+              filterable
+              allow-create
+              default-first-option
+              :disabled="isEditMode"
+              class="full-width-select"
+            >
+              <el-option
+                v-for="item in emailAccountStore.emailAccounts"
+                :key="item.id"
+                :label="item.email_address"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item label="平台" prop="platform_id">
+            <el-select
+              v-model="form.platform_id"
+              placeholder="选择或输入平台名称"
+              filterable
+              allow-create
+              default-first-option
+              :disabled="isEditMode"
+              class="full-width-select"
+            >
+              <el-option
+                v-for="item in platformStore.platforms"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
 
-      <el-form-item label="平台" prop="platform_id">
-        <el-select 
-          v-model="form.platform_id" 
-          placeholder="选择或输入平台名称"
-          filterable
-          allow-create
-          default-first-option
-          :disabled="isEditMode"
-          style="width: 100%;"
-        >
-          <el-option
-            v-for="item in platformStore.platforms"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item label="登录用户名/ID" prop="login_username">
+            <el-input v-model="form.login_username" placeholder="在该平台的登录名或ID" />
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item label="登录密码" prop="login_password">
+            <el-input
+              type="password"
+              v-model="form.login_password"
+              :placeholder="isEditMode ? '留空则不修改密码' : '请输入登录密码'"
+              show-password
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item v-if="isEditMode && form.login_password" label="确认新密码" prop="confirm_password">
+            <el-input
+              type="password"
+              v-model="form.confirm_password"
+              placeholder="再次输入新密码"
+              show-password
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item label="备注" prop="notes">
+            <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="填写备注信息" />
+          </el-form-item>
+        </el-col>
+      </el-row>
 
-      <el-form-item label="登录用户名/ID" prop="login_username">
-        <el-input v-model="form.login_username" placeholder="在该平台的登录名或ID" />
-      </el-form-item>
-
-      <el-form-item label="登录密码" prop="login_password">
-        <el-input
-          type="password"
-          v-model="form.login_password"
-          :placeholder="isEditMode ? '留空则不修改密码' : '请输入登录密码'"
-          show-password
-        />
-      </el-form-item>
-      <el-form-item v-if="isEditMode && form.login_password" label="确认新密码" prop="confirm_password">
-        <el-input
-          type="password"
-          v-model="form.confirm_password"
-          placeholder="再次输入新密码"
-          show-password
-        />
-      </el-form-item>
-
-      <el-form-item label="备注" prop="notes">
-        <el-input type="textarea" v-model="form.notes" :rows="3" />
-      </el-form-item>
-
-      <el-form-item>
+      <el-form-item class="form-actions">
         <el-button type="primary" @click="handleSubmit">
           {{ isEditMode ? '保存更新' : '立即创建' }}
         </el-button>
@@ -81,8 +100,9 @@
       </el-form-item>
     </el-form>
 
-    <div v-if="isEditMode && currentPlatformRegistration" class="associated-details mt-4">
-      <el-descriptions title="关联信息" :column="1" border>
+    <div v-if="isEditMode && currentPlatformRegistration" class="associated-details-section">
+      <el-divider content-position="left">关联信息</el-divider>
+      <el-descriptions :column="1" border class="associated-descriptions">
         <el-descriptions-item label="邮箱账户">
           {{ currentPlatformRegistration.email_account?.email_address || 'N/A' }}
         </el-descriptions-item>
@@ -92,7 +112,7 @@
       </el-descriptions>
     </div>
     
-    <el-divider v-if="isEditMode && currentId" content-position="left" class="mt-4">关联的服务订阅</el-divider>
+    <el-divider v-if="isEditMode && currentId" content-position="left">关联的服务订阅</el-divider>
     <div v-if="isEditMode && currentId" class="associated-info-section">
       <el-button
         type="primary"
@@ -101,10 +121,9 @@
         :disabled="serviceSubscriptionsDialog.loading"
         class="view-associated-button"
       >
-        查看此注册信息下的服务订阅
+        <el-icon><View /></el-icon> 查看此注册信息下的服务订阅
       </el-button>
     </div>
-
   </el-card>
 
   <AssociatedInfoDialog
@@ -126,6 +145,8 @@ import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { ElMessage } from 'element-plus';
+import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
+import { View } from '@element-plus/icons-vue';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
@@ -375,20 +396,79 @@ const handleAssociatedServiceSubscriptionsPageChange = (payload) => {
 
 <style scoped>
 .platform-registration-form-card {
-  max-width: 700px;
-  margin: 20px auto;
+  max-width: 800px; /* 增加最大宽度 */
+  margin: 30px auto; /* 增加上下边距 */
+  padding: 20px; /* 增加内边距 */
+  border-radius: 8px; /* 圆角 */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); /* 更明显的阴影 */
 }
-.associated-details {
+
+.card-header {
+  padding-bottom: 15px;
+  border-bottom: 1px solid #ebeef5;
   margin-bottom: 20px;
 }
+
+.card-title {
+  font-size: 22px; /* 标题字体大小 */
+  font-weight: bold;
+  color: #303133;
+}
+
+.platform-registration-form .el-form-item {
+  margin-bottom: 22px; /* 增加表单项间距 */
+}
+
+.full-width-select {
+  width: 100%; /* 确保选择器占满宽度 */
+}
+
+.form-actions {
+  margin-top: 30px; /* 按钮组顶部间距 */
+  text-align: right; /* 按钮右对齐 */
+}
+
+.associated-details-section {
+  margin-top: 30px; /* 关联信息部分顶部间距 */
+  padding-top: 20px;
+  border-top: 1px dashed #ebeef5; /* 虚线分隔 */
+}
+
+.associated-descriptions {
+  margin-top: 15px; /* 描述列表顶部间距 */
+}
+
 .associated-info-section {
   margin-top: 20px;
-  padding-top: 20px;
+  padding-top: 15px;
 }
+
 .view-associated-button {
-  margin-bottom: 10px;
+  width: 100%; /* 按钮占满宽度 */
+  padding: 12px 20px; /* 增加按钮内边距 */
+  font-size: 16px; /* 按钮字体大小 */
 }
-.mt-4 {
-  margin-top: 1.5rem;
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .platform-registration-form-card {
+    margin: 15px; /* 移动端左右边距 */
+    padding: 15px;
+  }
+  .card-title {
+    font-size: 20px;
+  }
+  .platform-registration-form .el-form-item {
+    margin-bottom: 18px;
+  }
+  .form-actions {
+    text-align: center; /* 移动端按钮居中 */
+  }
+  .form-actions .el-button {
+    width: 100%;
+    margin-bottom: 10px;
+    margin-left: 0 !important; /* 覆盖默认左边距 */
+    margin-right: 0;
+  }
 }
 </style>

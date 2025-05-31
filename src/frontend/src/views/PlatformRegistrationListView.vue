@@ -1,54 +1,62 @@
 <template>
   <div class="platform-registration-list-view">
-    <el-card>
+    <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <span>平台注册信息管理</span>
-          <el-button type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon> 添加注册信息
+          <span class="card-title">平台注册信息管理</span>
+          <el-button type="primary" :icon="Plus" @click="handleAdd">
+            添加注册信息
           </el-button>
         </div>
       </template>
 
-      <el-form :inline="true" class="filter-form">
-        <el-form-item label="邮箱账户">
-          <el-select
-            v-model="platformRegistrationStore.filters.email_account_id"
-            placeholder="选择邮箱账户"
-            clearable
-            filterable
-            @change="handleEmailAccountFilterChange"
-            style="width: 240px;"
-          >
-            <el-option
-              v-for="item in emailAccountStore.emailAccounts"
-              :key="item.id"
-              :label="item.email_address"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="平台">
-          <el-select
-            v-model="platformRegistrationStore.filters.platform_id"
-            placeholder="选择平台"
-            clearable
-            filterable
-            @change="handlePlatformFilterChange"
-            style="width: 240px;"
-          >
-            <el-option
-              v-for="item in platformStore.platforms"
-              :key="item.id"
-              :label="item.name"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="triggerFetchWithCurrentFilters">查询</el-button>
-          <el-button @click="triggerClearFilters">重置</el-button>
-        </el-form-item>
+      <el-form :inline="true" :model="platformRegistrationStore.filters" class="filter-form">
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-form-item label="邮箱账户">
+              <el-select
+                v-model="platformRegistrationStore.filters.email_account_id"
+                placeholder="选择邮箱账户"
+                clearable
+                filterable
+                @change="handleEmailAccountFilterChange"
+                class="full-width-select"
+              >
+                <el-option
+                  v-for="item in emailAccountStore.emailAccounts"
+                  :key="item.id"
+                  :label="item.email_address"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-form-item label="平台">
+              <el-select
+                v-model="platformRegistrationStore.filters.platform_id"
+                placeholder="选择平台"
+                clearable
+                filterable
+                @change="handlePlatformFilterChange"
+                class="full-width-select"
+              >
+                <el-option
+                  v-for="item in platformStore.platforms"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="24" :md="8" :lg="6">
+            <el-form-item>
+              <el-button type="primary" @click="triggerFetchWithCurrentFilters">查询</el-button>
+              <el-button @click="triggerClearFilters">重置</el-button>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
 
       <el-table
@@ -57,29 +65,26 @@
         style="width: 100%"
         @sort-change="handleSortChange"
         :default-sort="{ prop: platformRegistrationStore.sort.orderBy, order: platformRegistrationStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+        border
+        stripe
       >
-        <el-table-column prop="email_address" label="邮箱账户" min-width="200" sortable="custom" />
-        <!-- <el-table-column prop="id" label="ID" width="80" /> -->
-        <el-table-column prop="platform_name" label="平台" min-width="150" sortable="custom" />
-        <el-table-column prop="login_username" label="登录用户名/ID" min-width="180" sortable="custom" />
+        <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="platform_name" label="平台" min-width="120" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="login_username" label="登录用户名/ID" min-width="150" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom" />
-        <el-table-column prop="updated_at" label="更新时间" width="180" sortable="custom" />
-        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
+        <el-table-column prop="created_at" label="创建时间" width="160" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="160" sortable="custom" />
+        <el-table-column label="操作" width="160" fixed="right" :sortable="false">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.row)">
-              <el-icon><Edit /></el-icon> 编辑
-            </el-button>
-            <el-button size="small" type="danger" @click="confirmDeleteRegistration(scope.row.id)">
-              <el-icon><Delete /></el-icon> 删除
-            </el-button>
+            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">编辑</el-button>
+            <el-button link type="danger" :icon="Delete" @click="confirmDeleteRegistration(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <el-pagination
         v-if="platformRegistrationStore.pagination.totalItems > 0"
-        class="mt-4"
+        class="pagination-container"
         background
         layout="total, sizes, prev, pager, next, jumper"
         :total="platformRegistrationStore.pagination.totalItems"
@@ -99,8 +104,8 @@ import { useRouter } from 'vue-router';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
-import { ElIcon, ElMessageBox } from 'element-plus';
-import { Plus, Edit, Delete } from '@element-plus/icons-vue';
+import { ElMessageBox } from 'element-plus';
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'; // 移除 ElIcon 导入，直接在模板中使用图标组件
 
 const router = useRouter();
 const platformRegistrationStore = usePlatformRegistrationStore();
@@ -204,17 +209,73 @@ const handleCurrentChange = (newPage) => {
 
 <style scoped>
 .platform-registration-list-view {
-  padding: 20px;
+  padding: 24px; /* 增加整体内边距 */
 }
+
+.box-card {
+  border-radius: 8px; /* 卡片圆角 */
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05); /* 增加阴影效果 */
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 16px; /* 标题和按钮底部间距 */
+  border-bottom: 1px solid #ebeef5; /* 底部边框 */
+  margin-bottom: 16px; /* 边框和内容间距 */
 }
+
+.card-title {
+  font-size: 20px; /* 标题字体大小 */
+  font-weight: bold; /* 标题加粗 */
+  color: #303133; /* 标题颜色 */
+}
+
 .filter-form {
-  margin-bottom: 20px;
+  margin-bottom: 20px; /* 筛选表单底部间距 */
+  padding: 16px; /* 筛选表单内边距 */
+  background-color: #f9fafc; /* 筛选表单背景色 */
+  border-radius: 4px; /* 筛选表单圆角 */
 }
-.mt-4 {
-  margin-top: 1.5rem;
+
+.filter-form .el-form-item {
+  margin-bottom: 16px; /* 表单项底部间距 */
+  margin-right: 0; /* 移除默认右边距 */
+  width: 100%; /* 确保表单项在col中占满宽度 */
+}
+
+.full-width-select {
+  width: 100%; /* 下拉选择框占满宽度 */
+}
+
+.el-table {
+  margin-top: 20px; /* 表格顶部间距 */
+  border-radius: 4px; /* 表格圆角 */
+  overflow: hidden; /* 确保圆角生效 */
+}
+
+.pagination-container {
+  margin-top: 20px; /* 分页器顶部间距 */
+  display: flex;
+  justify-content: flex-end; /* 分页器右对齐 */
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .filter-form .el-form-item {
+    margin-bottom: 10px; /* 移动端表单项间距 */
+  }
+  .card-header {
+    flex-direction: column; /* 移动端标题和按钮垂直堆叠 */
+    align-items: flex-start;
+  }
+  .card-header .el-button {
+    margin-top: 10px; /* 移动端按钮顶部间距 */
+    width: 100%; /* 按钮占满宽度 */
+  }
+  .pagination-container {
+    justify-content: center; /* 移动端分页器居中 */
+  }
 }
 </style>

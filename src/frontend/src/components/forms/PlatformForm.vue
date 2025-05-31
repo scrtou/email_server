@@ -1,37 +1,43 @@
 <template>
   <el-card class="platform-form-card">
     <template #header>
-      <span>{{ isEditMode ? '编辑平台' : '添加平台' }}</span>
+      <div class="card-header">
+        <span class="card-title">{{ isEditMode ? '编辑平台' : '添加平台' }}</span>
+      </div>
     </template>
     <el-form
       ref="platformFormRef"
       :model="form"
       :rules="rules"
-      label-width="100px"
+      label-width="120px"
       v-loading="loading"
+      class="platform-form"
     >
       <el-form-item label="平台名称" prop="name">
-        <el-input v-model="form.name" placeholder="例如：Google, GitHub, Steam" />
+        <el-input v-model="form.name" placeholder="例如：Google, GitHub, Steam" clearable />
       </el-form-item>
       <el-form-item label="平台网址" prop="website_url">
-        <el-input v-model="form.website_url" placeholder="例如：https://www.google.com" />
+        <el-input v-model="form.website_url" placeholder="例如：https://www.google.com" clearable />
       </el-form-item>
       <el-form-item label="备注" prop="notes">
-        <el-input type="textarea" v-model="form.notes" :rows="3" />
+        <el-input type="textarea" v-model="form.notes" :rows="4" resize="vertical" show-word-limit maxlength="500" />
       </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="handleSubmit">
+      <el-form-item class="form-actions">
+        <el-button type="primary" @click="handleSubmit" :loading="loading">
           {{ isEditMode ? '保存更新' : '立即创建' }}
         </el-button>
         <el-button @click="handleCancel">取消</el-button>
       </el-form-item>
     </el-form>
 
-    <el-divider v-if="isEditMode && form.name" content-position="left">关联的邮箱账户注册信息</el-divider>
+    <el-divider v-if="isEditMode && form.name" content-position="left">
+      <span class="divider-text">关联的邮箱账户注册信息</span>
+    </el-divider>
     <div v-if="isEditMode && form.name" class="associated-info-section">
       <el-button
-        type="primary"
+        type="info"
         plain
+        :icon="ViewIcon"
         @click="showAssociatedEmailsDialog"
         :disabled="associatedInfoDialog.loading"
         class="view-associated-button"
@@ -57,7 +63,8 @@
 import { ref, onMounted, computed, reactive } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { usePlatformStore } from '@/stores/platform';
-import { ElMessage, ElDivider, ElButton } from 'element-plus';
+import { ElMessage, ElDivider, ElButton, ElCard, ElForm, ElFormItem, ElInput } from 'element-plus';
+import { View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 
 // eslint-disable-next-line no-undef
@@ -198,13 +205,95 @@ const handleAssociatedPageChange = (payload) => {
 <style scoped>
 .platform-form-card {
   max-width: 700px;
-  margin: 20px auto;
+  margin: 40px auto; /* Increased margin for better visual separation */
+  padding: 20px; /* Add some internal padding */
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); /* More pronounced shadow */
+  background-color: #ffffff;
 }
+
+.card-header {
+  display: flex;
+  justify-content: center; /* Center the title */
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #ebeef5; /* Subtle separator */
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 24px; /* Larger title */
+  font-weight: bold;
+  color: #303133;
+}
+
+.platform-form {
+  padding: 0 20px; /* Padding for the form content */
+}
+
+.el-form-item {
+  margin-bottom: 22px; /* Standardized spacing between form items */
+}
+
+.form-actions {
+  margin-top: 30px; /* Space above action buttons */
+  text-align: right; /* Align buttons to the right */
+}
+
+.el-button + .el-button {
+  margin-left: 15px; /* Space between buttons */
+}
+
+.el-divider {
+  margin: 30px 0; /* More vertical space for divider */
+}
+
+.divider-text {
+  font-size: 16px;
+  color: #606266;
+  font-weight: bold;
+}
+
 .associated-info-section {
-  margin-top: 20px;
-  padding-top: 20px;
+  text-align: center; /* Center the button */
+  padding-bottom: 10px;
 }
+
 .view-associated-button {
-  margin-bottom: 10px;
+  width: 80%; /* Make button wider */
+  max-width: 350px; /* Limit max width */
+  padding: 12px 20px; /* Larger padding for a bigger button */
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .platform-form-card {
+    margin: 20px 10px; /* Smaller margins on small screens */
+    padding: 15px;
+  }
+
+  .platform-form {
+    padding: 0;
+  }
+
+  .el-form-item {
+    margin-bottom: 18px;
+  }
+
+  .form-actions {
+    text-align: center; /* Center buttons on small screens */
+  }
+
+  .el-button {
+    width: 100%; /* Full width buttons */
+    margin-left: 0 !important; /* Remove left margin for stacked buttons */
+    margin-bottom: 10px; /* Add bottom margin for stacked buttons */
+  }
+
+  .view-associated-button {
+    width: 100%;
+  }
 }
 </style>

@@ -29,13 +29,16 @@ export const useSearchStore = defineStore('search', {
       this.searchType = type;
 
       try {
-        const response = await api.searchAPI.search({ term, type });
-        this.results = response.data;
+        // Ensure the query parameter name matches backend expectation ('q' instead of 'term')
+        const response = await api.searchAPI.search({ q: term, type });
+        // The response from api.searchAPI.search, after interceptor, should be the actual data object
+        // which is { results: [...] } as defined by models.GlobalSearchResponse
+        this.results = response.results || []; // Access .results property
         if (router.currentRoute.value.name !== 'search-results') {
-          router.push({ name: 'search-results', query: { term: this.searchTerm, type: this.searchType } });
+          router.push({ name: 'search-results', query: { q: this.searchTerm, type: this.searchType } });
         } else {
           // Update query params if already on the search results page
-          router.replace({ query: { term: this.searchTerm, type: this.searchType } });
+          router.replace({ query: { q: this.searchTerm, type: this.searchType } });
         }
       } catch (error) {
         console.error('Error performing search:', error);
@@ -57,8 +60,8 @@ export const useSearchStore = defineStore('search', {
     },
     // Action to update search term from URL query on page load/refresh
     loadSearchTermFromQuery(query) {
-      if (query.term) {
-        this.searchTerm = query.term;
+      if (query.q) { // Changed from term to q
+        this.searchTerm = query.q;
       }
       if (query.type) {
         this.searchType = query.type;

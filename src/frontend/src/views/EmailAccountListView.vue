@@ -11,32 +11,38 @@
       </template>
 
       <!-- Filters -->
-      <div class="filters-section" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-        <el-input
-          v-model="emailAccountStore.filters.emailAddressSearch"
-          placeholder="按邮箱地址搜索"
-          clearable
-          @keyup.enter="handleEmailAddressSearchChange(emailAccountStore.filters.emailAddressSearch)"
-          @clear="handleEmailAddressSearchChange('')"
-          style="width: 240px;"
-        />
-        <el-select
-          v-model="emailAccountStore.filters.provider"
-          placeholder="按服务商筛选"
-          clearable
-          filterable
-          @change="handleProviderFilterChange"
-          style="width: 240px;"
-        >
-          <el-option
-            v-for="item in emailAccountStore.uniqueProviders"
-            :key="item"
-            :label="item"
-            :value="item"
-          />
-        </el-select>
-        <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
-        <el-button @click="triggerClearAllFilters">重置所有</el-button>
+      <div class="filters-section">
+        <el-row :gutter="10" class="filter-row">
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-input
+              v-model="emailAccountStore.filters.emailAddressSearch"
+              placeholder="按邮箱地址搜索"
+              clearable
+              @keyup.enter="handleEmailAddressSearchChange(emailAccountStore.filters.emailAddressSearch)"
+              @clear="handleEmailAddressSearchChange('')"
+            />
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-select
+              v-model="emailAccountStore.filters.provider"
+              placeholder="按服务商筛选"
+              clearable
+              filterable
+              @change="handleProviderFilterChange"
+            >
+              <el-option
+                v-for="item in emailAccountStore.uniqueProviders"
+                :key="item"
+                :label="item"
+                :value="item"
+              />
+            </el-select>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
+            <el-button @click="triggerClearAllFilters">重置所有</el-button>
+          </el-col>
+        </el-row>
       </div>
 
       <el-table
@@ -294,13 +300,96 @@ const handleAssociatedPageChange = (payload) => {
 <style scoped>
 .email-account-list-view {
   padding: 20px;
+  background-color: #f0f2f5; /* Light grey background for the whole view */
 }
+
+.el-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+  margin-bottom: 20px;
 }
-.mt-4 {
-  margin-top: 1.5rem;
+
+.card-header span {
+  font-size: 1.25rem; /* Larger font size for title */
+  font-weight: bold;
+  color: #303133;
+}
+
+.card-header .el-button {
+  padding: 8px 15px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+}
+
+.filters-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px; /* Gap between filter items */
+  align-items: center;
+}
+
+.filter-row .el-col {
+  margin-bottom: 10px; /* Add some bottom margin for columns on smaller screens */
+}
+
+.filter-row .el-input,
+.filter-row .el-select {
+  width: 100%; /* Ensure inputs/selects take full width of their column */
+}
+
+.el-table {
+  margin-top: 20px;
+  border-radius: 8px;
+  overflow: hidden; /* Ensures rounded corners apply to table borders */
+}
+
+.el-table::before {
+  height: 0; /* Remove default bottom border */
+}
+
+.el-table th.el-table__cell {
+  background-color: #f5f7fa; /* Light background for table headers */
+  color: #606266;
+  font-weight: bold;
+}
+
+.el-table .el-button {
+  margin-right: 5px;
+}
+
+.el-pagination {
+  margin-top: 20px;
+  justify-content: flex-end; /* Align pagination to the right */
+  padding: 10px 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card-header span {
+    margin-bottom: 10px;
+  }
+  .filter-row .el-col {
+    flex-basis: 100%; /* Stack columns on very small screens */
+  }
 }
 </style>

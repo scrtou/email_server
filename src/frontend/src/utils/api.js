@@ -10,8 +10,10 @@ const getBaseURL = () => {
   if (process.env.VUE_APP_API_BASE_URL) {
     return process.env.VUE_APP_API_BASE_URL;
   }
+  // In development, with proxy, use a relative path that the proxy will catch.
+  // The proxy is configured for '/api/v1'.
   if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:5555/api/v1'; // Default for development
+    return '/api/v1'; // Proxy will forward this to target e.g. http://localhost:5555/api/v1
   }
   // Fallback for production if VUE_APP_API_BASE_URL is not set (should be configured in deployment)
   return '/api/v1'; // Example: relative path for production if served on same domain
@@ -130,7 +132,8 @@ export const emailServiceAPI = {
 }
 
 export const dashboardAPI = {
-  getDashboard: () => api.get('/dashboard')
+  getDashboard: () => api.get('/dashboard'), // This points to the old, now deprecated endpoint
+  getSummary: () => api.get('/dashboard/summary') // New endpoint for dashboard summary
 }
 
 // EmailAccount API (New as per plan)

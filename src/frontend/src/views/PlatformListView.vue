@@ -1,24 +1,24 @@
 <template>
   <div class="platform-list-view">
-    <el-card>
+    <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <span>平台管理</span>
-          <el-button type="primary" @click="handleAddPlatform">
-            <el-icon><Plus /></el-icon> 添加平台
+          <span class="card-title">平台管理</span>
+          <el-button type="primary" :icon="Plus" @click="handleAddPlatform">
+            添加平台
           </el-button>
         </div>
       </template>
 
       <!-- Filters -->
-      <div class="filters-section" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+      <div class="filters-section">
         <el-input
           v-model="platformStore.filters.nameSearch"
           placeholder="按平台名称搜索"
           clearable
           @keyup.enter="handleNameSearchChange(platformStore.filters.nameSearch)"
           @clear="handleNameSearchChange('')"
-          style="width: 240px;"
+          class="filter-input"
         />
         <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
         <el-button @click="triggerClearAllFilters">重置</el-button>
@@ -30,17 +30,21 @@
         style="width: 100%"
         @sort-change="handleSortChange"
         :default-sort="{ prop: platformStore.sort.orderBy, order: platformStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+        border
+        stripe
       >
-        <el-table-column prop="name" label="平台名称" min-width="200" sortable="custom" />
-        <!-- <el-table-column prop="id" label="ID" width="80" /> -->
-        <el-table-column prop="website_url" label="平台网址" min-width="250" sortable="custom">
+        <el-table-column prop="name" label="平台名称" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="website_url" label="平台网址" min-width="220" sortable="custom" show-overflow-tooltip>
           <template #default="scope">
-            <a :href="scope.row.website_url" target="_blank" rel="noopener noreferrer">{{ scope.row.website_url }}</a>
+            <el-link :href="scope.row.website_url" target="_blank" type="primary">{{ scope.row.website_url }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column label="关联邮箱" width="120" :sortable="false">
+        <el-table-column label="关联邮箱" width="120" align="center">
           <template #default="scope">
-            <span>{{ scope.row.email_account_count }}</span>
+            <el-tag v-if="scope.row.email_account_count > 0" type="info" size="small">
+              {{ scope.row.email_account_count }}
+            </el-tag>
+            <span v-else>0</span>
             <el-button
               v-if="scope.row.email_account_count > 0"
               type="primary"
@@ -52,16 +56,16 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom" />
-        <el-table-column prop="updated_at" label="更新时间" width="180" sortable="custom" />
-        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
+        <el-table-column prop="notes" label="备注" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="160" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="160" sortable="custom" />
+        <el-table-column label="操作" width="160" fixed="right" align="center">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.row)">
-              <el-icon><Edit /></el-icon> 编辑
+            <el-button size="small" :icon="Edit" @click="handleEdit(scope.row)">
+              编辑
             </el-button>
-            <el-button size="small" type="danger" @click="confirmDeletePlatform(scope.row.id)">
-              <el-icon><Delete /></el-icon> 删除
+            <el-button size="small" type="danger" :icon="Delete" @click="confirmDeletePlatform(scope.row.id)">
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -69,7 +73,7 @@
 
       <el-pagination
         v-if="platformStore.pagination.totalItems > 0"
-        class="mt-4"
+        class="pagination-container"
         background
         layout="total, sizes, prev, pager, next, jumper"
         :total="platformStore.pagination.totalItems"
@@ -94,10 +98,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref, reactive } from 'vue'; // Added reactive
+import { onMounted, ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePlatformStore } from '@/stores/platform';
-import { ElIcon, ElButton, ElMessageBox } from 'element-plus';
+import { ElCard, ElButton, ElInput, ElTable, ElTableColumn, ElPagination, ElMessageBox, ElLink, ElTag } from 'element-plus';
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 
@@ -227,13 +231,72 @@ const handleAssociatedPageChange = (payload) => {
 <style scoped>
 .platform-list-view {
   padding: 20px;
+  background-color: #f0f2f5; /* Light grey background for the whole view */
+  min-height: calc(100vh - 80px); /* Adjust based on your AppLayout header/footer */
 }
+
+.box-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 10px 0;
 }
-.mt-4 {
-  margin-top: 1.5rem;
+
+.card-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+}
+
+.filters-section {
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 15px; /* Increased gap for better spacing */
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+}
+
+.filter-input {
+  width: 220px; /* Slightly wider input */
+}
+
+/* Table specific styles */
+.el-table {
+  margin-top: 20px; /* Space above the table */
+  border-radius: 8px;
+  overflow: hidden; /* Ensures border-radius applies to table corners */
+}
+
+/* Pagination styles */
+.pagination-container {
+  margin-top: 25px; /* More space above pagination */
+  display: flex;
+  justify-content: flex-end; /* Align pagination to the right */
+  padding: 10px 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .filters-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-input {
+    width: 100%; /* Full width on small screens */
+  }
+
+  .el-button {
+    width: 100%; /* Full width buttons */
+  }
 }
 </style>
