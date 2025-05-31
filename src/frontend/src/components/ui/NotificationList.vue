@@ -57,7 +57,7 @@
   
   // 组件挂载时获取提醒数据
   onMounted(() => {
-    if (notificationStore.reminders.length === 0) {
+    if (!notificationStore.remindersLoaded) {
       notificationStore.fetchReminders();
     }
   });
@@ -83,6 +83,10 @@
   padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
   margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  background-color: #fff; /* 确保背景不透明 */
+  z-index: 1; /* 确保在其他内容之上 */
 }
 
 .unread-count-header span {
@@ -150,6 +154,7 @@
   font-size: 0.95em;
   color: #555;
   line-height: 1.4;
+  word-break: break-word; /* 防止长文本溢出导致横向滚动 */
 }
 
 .notification-item.unread .notification-message {

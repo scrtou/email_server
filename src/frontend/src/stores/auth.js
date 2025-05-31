@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { authAPI } from '@/utils/api'
 import { ElMessage } from 'element-plus'
+import { useNotificationStore } from './notification' // 导入 notification store
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -71,6 +72,11 @@ export const useAuthStore = defineStore('auth', {
         this.user = null
         this.token = null
         localStorage.removeItem('token')
+
+        // 重置 remindersLoaded 状态
+        const notificationStore = useNotificationStore()
+        notificationStore.resetRemindersLoaded()
+        
         ElMessage.success('已退出登录')
       }
     },

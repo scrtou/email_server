@@ -6,6 +6,7 @@ export const useNotificationStore = defineStore('notification', {
     reminders: [],
     isLoading: false,
     error: null,
+    remindersLoaded: false, // 新增状态
   }),
   getters: {
     unreadCount: (state) => {
@@ -16,7 +17,11 @@ export const useNotificationStore = defineStore('notification', {
     }
   },
   actions: {
-    async fetchReminders() {
+    async fetchReminders(forceRefresh = false) { // 添加 forceRefresh 参数
+      if (this.remindersLoaded && !forceRefresh) {
+        console.log('Reminders already loaded and no force refresh requested. Skipping fetch.');
+        return; // 如果已加载且非强制刷新，则不执行
+      }
       console.log('Attempting to fetch reminders in notificationStore...');
       this.isLoading = true;
       this.error = null;
@@ -40,6 +45,7 @@ export const useNotificationStore = defineStore('notification', {
             
           console.log('Transformed reminders:', transformedReminders);
         this.reminders = transformedReminders;
+        this.remindersLoaded = true; // 设置 remindersLoaded 为 true
       } catch (error) {
         console.error('Failed to fetch reminders:', error);
         this.error = error.response?.data?.message || '获取提醒失败';
@@ -51,6 +57,11 @@ export const useNotificationStore = defineStore('notification', {
     clearReminders() {
       this.reminders = [];
       this.error = null;
+      //  如果获取失败，也应该标记为已加载，以避免无限循环
+      //  但如果希望在出错时重试，则不应在此处设置 remindersLoaded = true
+      //  根据需求，当前逻辑是获取成功后标记，失败则不标记，下次还会尝试
+      //  为了修复循环问题，即使失败也应该标记为 loaded
+      this.remindersLoaded = true;
     },
     async markAsRead(id) {
       try {
@@ -76,6 +87,12 @@ export const useNotificationStore = defineStore('notification', {
       // } catch (error) {
       //   console.error('Failed to mark all reminders as read:', error);
       // }
+    },
+    resetRemindersLoaded() { // 新增 action
+      this.remindersLoaded = false;
+      // 可选择是否清除 reminders 数据
+      // this.reminders = [];
+      console.log('Reminders loaded state has been reset.');
     }
   },
 });
