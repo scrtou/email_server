@@ -12,7 +12,10 @@ import (
 func AuthRequired() gin.HandlerFunc {
     return gin.HandlerFunc(func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
+        log.Printf("[AuthMiddleware] Path: %s, Received Authorization Header: %s", c.Request.URL.Path, authHeader)
+
         if authHeader == "" {
+            log.Printf("[AuthMiddleware] Path: %s, Authorization Header is missing", c.Request.URL.Path)
             utils.SendErrorResponse(c, 401, "请先登录")
             c.Abort()
             return
@@ -21,18 +24,22 @@ func AuthRequired() gin.HandlerFunc {
         // Bearer token格式
         parts := strings.SplitN(authHeader, " ", 2)
         if !(len(parts) == 2 && parts[0] == "Bearer") {
+            log.Printf("[AuthMiddleware] Path: %s, Authorization Header format is incorrect: %s", c.Request.URL.Path, authHeader)
             utils.SendErrorResponse(c, 401, "认证格式错误")
             c.Abort()
             return
         }
 
-        claims, err := utils.ParseToken(parts[1])
+        tokenString := parts[1]
+        log.Printf("[AuthMiddleware] Path: %s, Token to parse: %s", c.Request.URL.Path, tokenString)
+        claims, err := utils.ParseToken(tokenString)
         if err != nil {
-            log.Printf("Token解析失败: %v", err)
+            log.Printf("[AuthMiddleware] Path: %s, Token parsing failed. Error: %v. Token: %s", c.Request.URL.Path, err, tokenString)
             utils.SendErrorResponse(c, 401, "登录已过期，请重新登录")
             c.Abort()
             return
         }
+        log.Printf("[AuthMiddleware] Path: %s, Token parsed successfully. Claims: UserID=%d, Username=%s, Role=%s", c.Request.URL.Path, claims.UserID, claims.Username, claims.Role)
 
         // 将用户信息存储到context中
         c.Set("user_id", claims.UserID)
