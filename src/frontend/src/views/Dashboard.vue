@@ -81,7 +81,7 @@
                 <span>即将到期订阅 (未来30天)</span>
               </div>
             </template>
-            <el-table :data="upcomingRenewalsData" style="width: 100%" height="300px" empty-text="暂无即将到期的订阅">
+            <el-table :data="upcomingRenewalsData" style="width: 100%" height="380px" empty-text="暂无即将到期的订阅">
               <el-table-column prop="service_name" label="服务名称" sortable />
               <el-table-column prop="platform_name" label="平台" sortable />
               <el-table-column prop="next_renewal_date" label="到期日" sortable>
@@ -273,212 +273,311 @@ onMounted(() => {
 
 <style scoped>
 .dashboard {
-  --primary-color: #4A90E2; /* 活力蓝 */
-  --secondary-color: #50E3C2; /* 清新绿 */
-  --accent-color: #F5A623; /* 强调橙 */
-  --text-color-primary: #2c3e50; /* 深灰蓝 - 主要文字 */
-  --text-color-secondary: #57606f; /* 次要文字 - 稍浅灰 */
-  --text-color-light: #8a94a6; /* 辅助文字 - 更浅灰 */
-  --bg-color: #f4f6f9; /* 更柔和的背景 */
-  --card-bg-color: #ffffff;
-  --border-color: #e6eaf0; /* 边框颜色 */
-  --shadow-color-light: rgba(0, 0, 0, 0.05);
-  --shadow-color-medium: rgba(0, 0, 0, 0.08);
-
-  --font-family-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-size-xl: 28px; /* 用于主要统计数值 */
-  --font-size-large: 20px; /* 用于卡片标题或重要数字 */
-  --font-size-medium: 16px; /* 用于副标题、标签 */
-  --font-size-normal: 14px; /* 正文、表格内容 */
-  --font-size-small: 12px; /* 辅助性小字 */
-
-  --card-border-radius: 12px; /* 更圆润的卡片 */
-  --card-padding: 24px; /* 统一卡片内边距 */
-  --card-shadow: 0 4px 12px var(--shadow-color-light);
-  --card-hover-shadow: 0 6px 18px var(--shadow-color-medium);
-  --el-card-padding: var(--card-padding); /* 覆盖 Element Plus 默认内边距 */
-
-  font-family: var(--font-family-main);
-  background-color: var(--bg-color);
-  padding: 24px;
-  color: var(--text-color-primary);
+  /* Use global design tokens */
+  font-family: var(--font-family-sans);
+  background: transparent;
+  padding: var(--space-4); /* 减小四周内边距 */
+  color: var(--color-gray-800);
+  position: relative;
+  max-height: 100vh; /* 限制最大高度为视口高度 */
+  overflow-y: auto; /* 超出时垂直滚动 */
 }
 
-/* 统一 el-card 样式 */
+/* === Enhanced Card Styles === */
 :deep(.el-card) {
-  border-radius: var(--card-border-radius) !important;
-  border: 1px solid var(--border-color) !important;
-  box-shadow: var(--card-shadow) !important;
-  transition: box-shadow 0.3s ease-in-out, transform 0.3s ease-in-out !important;
-  background-color: var(--card-bg-color) !important;
+  border-radius: var(--radius-xl) !important;
+  border: 1px solid var(--color-gray-200) !important;
+  box-shadow: var(--shadow-base) !important;
+  transition: all var(--transition-base) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.el-card::before) {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-success-500), var(--color-warning-500));
+  opacity: 0;
+  transition: opacity var(--transition-base);
 }
 
 :deep(.el-card:hover) {
-  box-shadow: var(--card-hover-shadow) !important;
-  transform: translateY(-3px);
+  box-shadow: var(--shadow-xl) !important;
+  transform: translateY(-2px) scale(1.01); /* 减小hover效果 */
+  border-color: var(--color-primary-200) !important;
+}
+
+:deep(.el-card:hover::before) {
+  opacity: 1;
 }
 
 :deep(.el-card__header) {
-  font-size: var(--font-size-medium);
-  font-weight: 600;
-  color: var(--text-color-primary);
-  border-bottom: 1px solid var(--border-color);
-  padding: 16px var(--card-padding); /* 调整头部内边距 */
+  font-size: var(--text-base); /* 减小标题字体 */
+  font-weight: var(--font-semibold);
+  color: var(--color-gray-800);
+  border-bottom: 1px solid var(--color-gray-200);
+  padding: var(--space-3) var(--space-4); /* 减小header内边距 */
+  background: rgba(249, 250, 251, 0.5);
 }
 
 :deep(.el-card__body) {
-  padding: var(--card-padding)  !important; /* 确保内边距应用 */
+  padding: var(--space-4) !important; /* 减小卡片内边距 */
 }
 
-/* 顶部统计卡片 - 四个总数 */
+/* === Enhanced Statistics Styles === */
 .stat-row .el-card {
   text-align: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(249, 250, 251, 0.8)) !important;
 }
+
 .stat-label {
-  font-size: var(--font-size-normal);
-  color: var(--text-color-secondary);
-  margin-bottom: 8px;
+  font-size: var(--text-xs); /* 保持小字体 */
+  color: var(--color-gray-600);
+  margin-bottom: var(--space-1); /* 减小底部间距 */
+  font-weight: var(--font-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
+
 .stat-value {
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  color: var(--primary-color);
-  line-height: 1.2;
+  font-size: var(--text-xl); /* 减小数值字体 */
+  font-weight: var(--font-bold);
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-500));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: var(--leading-tight);
+  margin-bottom: 0; /* 移除底部间距 */
 }
 
-/* Element Plus Statistic 组件样式调整 */
+.stat-row .el-card > :deep(.el-card__body) {
+  padding: var(--space-3) var(--space-2) !important; /* 进一步减小统计卡片的内边距 */
+}
+
+/* Enhanced Element Plus Statistic Styles */
 :deep(.el-statistic__head) {
-  font-size: var(--font-size-normal);
-  color: var(--text-color-secondary) !important;
-  margin-bottom: 8px !important;
+  font-size: var(--text-xs) !important;
+  color: var(--color-gray-600) !important;
+  margin-bottom: var(--space-1) !important; /* 减小间距 */
+  font-weight: var(--font-medium) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
+
 :deep(.el-statistic__content) {
-  font-size: var(--font-size-large) !important;
-  font-weight: 600 !important;
-  color: var(--text-color-primary) !important;
+  font-size: var(--text-lg) !important; /* 减小字体 */
+  font-weight: var(--font-bold) !important;
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-success-500)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
 }
+
 :deep(.el-statistic__content .el-statistic__formatter) {
-  font-size: var(--font-size-large) !important;
-  font-weight: 600 !important;
-  color: var(--text-color-primary) !important;
+  font-size: var(--text-lg) !important; /* 减小字体 */
+  font-weight: var(--font-bold) !important;
 }
 
-
-/* 分割线 */
+/* === Enhanced Divider Styles === */
 :deep(.el-divider--horizontal) {
-  margin: 24px 0; /* 增加上下间距 */
-  border-top: 1px solid var(--border-color);
+  margin: var(--space-4) 0; /* 大幅减小分隔线间距 */
+  border-top: 2px solid transparent;
+  background: linear-gradient(90deg, transparent, var(--color-gray-200), transparent);
+  height: 2px;
+  border: none;
 }
 
-/* 卡片头部自定义 */
+/* === Enhanced Card Header Styles === */
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* 字体已在 el-card__header 中定义 */
 }
 
-/* 表格样式 */
+/* === Enhanced Table Styles === */
 :deep(.el-table) {
-  border-radius: 8px; /* 给表格本身也加圆角 */
-  overflow: hidden; /* 配合圆角 */
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-gray-200);
 }
+
 :deep(.el-table th.el-table__cell) {
-  background-color: var(--bg-color) !important; /* 表头背景 */
-  color: var(--text-color-primary) !important;
-  font-weight: 600;
-  font-size: var(--font-size-normal);
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100)) !important;
+  color: var(--color-gray-700) !important;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--color-gray-200);
+  padding: var(--space-2) var(--space-3); /* 减小表格header内边距 */
 }
-:deep(.el-table td.el-table__cell),
-:deep(.el-table th.el-table__cell.is-leaf) {
-  border-bottom: 1px solid var(--border-color);
+
+:deep(.el-table td.el-table__cell) {
+  border-bottom: 1px solid var(--color-gray-100);
+  font-size: var(--text-sm);
+  color: var(--color-gray-700);
+  padding: var(--space-2) var(--space-3); /* 减小表格cell内边距 */
 }
+
 :deep(.el-table .el-table__row:hover > td) {
-  background-color: #eef2f7 !important; /* 行悬停颜色 */
+  background: linear-gradient(135deg, var(--color-primary-50), rgba(59, 130, 246, 0.05)) !important;
+  transform: scale(1.005); /* 减小hover效果 */
+  transition: all var(--transition-base);
 }
+
 :deep(.el-table__empty-text) {
-  color: var(--text-color-light);
-  font-size: var(--font-size-normal);
+  color: var(--color-gray-500);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
 }
 
-/* 标签样式 */
+/* === Enhanced Tag Styles === */
 :deep(.el-tag) {
-  border-radius: 4px;
-  font-weight: 500;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-medium);
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2); /* 减小tag内边距 */
+  border: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
-:deep(.el-tag--success) { background-color: #e1f5ec; color: #00796b; border-color: #b2dfdb;}
-:deep(.el-tag--info) { background-color: #e3f2fd; color: #1565c0; border-color: #bbdefb;}
-:deep(.el-tag--warning) { background-color: #fff8e1; color: #f57f17; border-color: #ffecb3;}
-:deep(.el-tag--danger) { background-color: #ffebee; color: #c62828; border-color: #ffcdd2;}
 
+:deep(.el-tag--success) {
+  background: linear-gradient(135deg, var(--color-success-100), var(--color-success-200));
+  color: var(--color-success-700);
+}
 
-/* 加载和错误状态 */
+:deep(.el-tag--info) {
+  background: linear-gradient(135deg, var(--color-info-100), var(--color-info-200));
+  color: var(--color-info-700);
+}
+
+:deep(.el-tag--warning) {
+  background: linear-gradient(135deg, var(--color-warning-100), var(--color-warning-200));
+  color: var(--color-warning-700);
+}
+
+:deep(.el-tag--danger) {
+  background: linear-gradient(135deg, var(--color-error-100), var(--color-error-200));
+  color: var(--color-error-700);
+}
+
+/* === Enhanced Loading and Error States === */
 .loading-container,
 .error-container,
 .no-data-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 300px; /* 确保有一定高度 */
-  padding: 20px;
+  min-height: 200px; /* 减小最小高度 */
+  padding: var(--space-4); /* 减小内边距 */
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
 }
+
 :deep(.el-loading-text) {
-  color: var(--primary-color) !important;
+  color: var(--color-primary-600) !important;
+  font-weight: var(--font-medium) !important;
 }
+
 :deep(.el-empty__description p) {
-  color: var(--text-color-secondary) !important;
-  font-size: var(--font-size-medium);
-}
-.no-data-table .el-empty, .no-data-chart .el-empty {
-  padding: 20px 0; /* 调整卡片内无数据提示的间距 */
+  color: var(--color-gray-600) !important;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
 }
 
+.no-data-table .el-empty,
+.no-data-chart .el-empty {
+  padding: var(--space-4) 0; /* 减小内边距 */
+}
 
-/* 图表容器 */
+/* === Enhanced Chart Styles === */
 .chart {
   width: 100%;
-  height: 300px; /* 确保图表有固定高度 */
+  height: 380px; /* 减小图表高度 */
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
-/* 列表卡片特定样式 */
+/* === Enhanced Card Layout Styles === */
 .dashboard-list-card {
   height: 100%;
   display: flex;
   flex-direction: column;
+  max-height: 400px; /* 限制卡片最大高度 */
 }
+
 .dashboard-list-card > :deep(.el-card__body) {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 0 !important; /* 表格通常不需要卡片body的内边距 */
-}
-.dashboard-list-card > :deep(.el-card__body .el-table) {
-  border-radius: 0 0 var(--card-border-radius) var(--card-border-radius); /* 底部圆角与卡片一致 */
+  padding: 0 !important;
 }
 
-/* 图表卡片特定样式 */
+.dashboard-list-card > :deep(.el-card__body .el-table) {
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  border: none;
+}
+
+.dashboard-chart-card {
+  height: 100%;
+  max-height: 400px; /* 限制图表卡片最大高度 */
+}
+
 .dashboard-chart-card > :deep(.el-card__body) {
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: var(--space-3) !important; /* 减小图表卡片内边距 */
 }
 
-/* 响应式调整 */
+/* === 额外的行间距优化 === */
+.stat-row {
+  margin-bottom: var(--space-2); /* 减小统计行的底部间距 */
+}
+
+/* === 表格高度优化 === */
+.dashboard-list-card .el-table {
+  max-height: 400px; /* 限制表格最大高度 */
+}
+
+/* === Enhanced Responsive Design === */
 @media (max-width: 768px) {
   .dashboard {
-    padding: 16px;
+    padding: var(--space-3); /* 移动端进一步减小内边距 */
   }
-  :deep(.el-card) {
-    --card-padding: 16px; /* 移动端减小内边距 */
+
+  :deep(.el-card__body) {
+    padding: var(--space-3) !important;
   }
+
   .stat-value {
-    font-size: calc(var(--font-size-xl) * 0.85); /* 缩小统计数字 */
+    font-size: var(--text-lg); /* 移动端减小字体 */
   }
+
   :deep(.el-statistic__content),
   :deep(.el-statistic__content .el-statistic__formatter) {
-    font-size: calc(var(--font-size-large) * 0.9) !important;
+    font-size: var(--text-base) !important; /* 移动端减小字体 */
   }
+
   .chart {
-    height: 250px; /* 移动端图表高度 */
+    height: 200px; /* 移动端进一步减小图表高度 */
+  }
+
+  .dashboard-list-card,
+  .dashboard-chart-card {
+    max-height: 280px; /* 移动端减小卡片高度 */
+  }
+
+  :deep(.el-divider--horizontal) {
+    margin: var(--space-3) 0; /* 移动端减小分隔线间距 */
   }
 }
 </style>

@@ -3,7 +3,7 @@
       <el-card class="login-card">
         <template #header>
           <div class="login-header">
-            <h2>邮箱管理系统</h2>
+            <h2>账号管理系统</h2>
             <p>请登录您的账户</p>
           </div>
         </template>
@@ -118,55 +118,185 @@
   <style scoped>
   .login-container {
     min-height: 100vh;
-    width: 1920px;
-    margin: 0 auto; /* Add this to center the container if viewport is wider than 1920px */
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 20px;
+    background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-800) 50%, var(--color-gray-800) 100%);
+    padding: var(--space-6);
+    position: relative;
+    overflow: hidden;
   }
-  
+
+  .login-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
   .login-card {
-    width: 100%; /* Occupy full width of parent until max-width is reached */
-    max-width: 400px; /* As per user's working example */
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    /* margin-left and margin-right auto are not needed as .login-container uses flex to center */
+    width: 100%;
+    max-width: 420px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
   }
-  
+
+  .login-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-primary-500), var(--color-success-500), var(--color-warning-500));
+  }
+
   .login-header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: var(--space-6);
+    padding-top: var(--space-4);
   }
-  
+
   .login-header h2 {
-    color: #303133;
-    margin-bottom: 8px;
+    color: var(--color-gray-800);
+    margin-bottom: var(--space-2);
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-500));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
-  
+
   .login-header p {
-    color: #606266;
+    color: var(--color-gray-600);
     margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
   }
-  
+
   .login-form {
-    padding: 0 10px;
+    padding: 0 var(--space-6);
   }
-  
+
+  /* Enhanced form input styling */
+  :deep(.el-form-item) {
+    margin-bottom: var(--space-5);
+  }
+
+  :deep(.el-input__wrapper) {
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--color-gray-200);
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-sm);
+  }
+
+  :deep(.el-input__wrapper:hover) {
+    border-color: var(--color-primary-300);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: var(--shadow-md);
+  }
+
+  :deep(.el-input__wrapper.is-focus) {
+    border-color: var(--color-primary-500);
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  :deep(.el-input__inner) {
+    font-weight: var(--font-medium);
+    color: var(--color-gray-700);
+  }
+
+  :deep(.el-input__prefix-inner) {
+    color: var(--color-gray-500);
+  }
+
+  /* Enhanced button styling */
+  :deep(.el-button--primary) {
+    background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+    border: none;
+    border-radius: var(--radius-lg);
+    font-weight: var(--font-semibold);
+    font-size: var(--text-base);
+    padding: var(--space-4) var(--space-6);
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-base);
+  }
+
+  :deep(.el-button--primary:hover) {
+    background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-700));
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+
+  :deep(.el-button--primary:active) {
+    transform: translateY(0);
+  }
+
   .login-footer {
     text-align: center;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #EBEEF5;
+    margin-top: var(--space-6);
+    padding: var(--space-5) var(--space-6) var(--space-6);
+    border-top: 1px solid var(--color-gray-200);
+    background: rgba(249, 250, 251, 0.5);
   }
-  
+
+  .login-footer p {
+    color: var(--color-gray-600);
+    font-size: var(--text-sm);
+    margin: 0;
+  }
+
   .register-link {
-    color: #409EFF;
+    color: var(--color-primary-600);
     text-decoration: none;
+    font-weight: var(--font-semibold);
+    transition: all var(--transition-base);
   }
-  
+
   .register-link:hover {
+    color: var(--color-primary-700);
     text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .login-container {
+      padding: var(--space-4);
+    }
+
+    .login-card {
+      max-width: 100%;
+    }
+
+    .login-form {
+      padding: 0 var(--space-4);
+    }
+
+    .login-footer {
+      padding: var(--space-4);
+    }
   }
   </style>

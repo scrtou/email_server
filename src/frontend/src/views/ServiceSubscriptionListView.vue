@@ -1,9 +1,9 @@
 <template>
   <div class="service-subscription-list-view">
-    <el-card>
+    <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <span>服务订阅管理</span>
+          <span class="card-title">服务订阅管理</span>
   <el-button type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon> 添加订阅
           </el-button>
@@ -87,6 +87,9 @@
         style="width: 100%"
         @sort-change="handleSortChange"
         :default-sort="{ prop: serviceSubscriptionStore.sort.orderBy, order: serviceSubscriptionStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+        border
+        stripe
+        resizable
       >
         <el-table-column prop="service_name" label="服务名称" min-width="180" sortable="custom" />
         <!-- <el-table-column prop="id" label="ID" width="60" /> -->
@@ -99,14 +102,14 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100" sortable="custom" />
         <el-table-column prop="cost" label="费用" width="100" sortable="custom" />
-        <el-table-column prop="billing_cycle" label="计费周期" width="120" sortable="custom" />
+        <el-table-column prop="billing_cycle" label="计费周期" width="140" sortable="custom" />
         <el-table-column prop="next_renewal_date" label="下次续费日" width="140" sortable="custom" />
         <el-table-column prop="notes" label="备注" min-width="150" :sortable="false" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="170" sortable="custom" />
-        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
+        <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
+        <el-table-column label="操作" width="120" fixed="right" :sortable="false">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.row)">
-              <el-icon><Edit /></el-icon> 编辑
+            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">
+               编辑
             </el-button>
             <el-popconfirm
               title="确定要删除此订阅吗？"
@@ -115,8 +118,8 @@
               @confirm="handleDelete(scope.row.id)"
             >
               <template #reference>
-                <el-button size="small" type="danger">
-                  <el-icon><Delete /></el-icon> 删除
+                <el-button link type="danger" :icon="Delete">
+                  删除
                 </el-button>
               </template>
             </el-popconfirm>
@@ -157,7 +160,7 @@ const platformRegistrationStore = usePlatformRegistrationStore();
 onMounted(async () => {
   // Fetch options for platform registration dropdown
   if (platformRegistrationStore.platformRegistrations.length === 0) {
-    await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 10000, orderBy: 'platform_name', sortDirection: 'asc' });
+    await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 10, orderBy: 'platform_name', sortDirection: 'asc' });
   }
   // Initial data fetch for the table using current store state
   serviceSubscriptionStore.fetchServiceSubscriptions();
@@ -231,22 +234,109 @@ const handleCurrentChange = (newPage) => {
 <style scoped>
 .service-subscription-list-view {
   padding: 20px;
+  background-color: #f0f2f5; /* Light grey background for the whole view */
+
+}
+.box-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 10px; /* Add some padding below the header */
+  padding: 10px 0;
 }
+.card-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+}
+/* 统一搜索栏背景样式 */
 .filter-form {
   margin-bottom: 20px;
-  display: flex; /* Use flexbox for better alignment */
-  flex-wrap: wrap; /* Allow items to wrap to the next line */
-  gap: 15px; /* Add gap between form items */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
 }
+
 .filter-form .el-form-item {
-  margin-right: 0; /* Remove default margin-right from el-form-item */
-  margin-bottom: 0; /* Remove default margin-bottom from el-form-item */
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+/* 表格样式 - 移除竖线和修复多余竖线 */
+:deep(.el-table) {
+  margin-top: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: none;
+}
+
+:deep(.el-table::before) {
+  height: 0; /* Remove default bottom border */
+}
+
+
+
+:deep(.el-table .el-table__row:hover > td) {
+  background: linear-gradient(135deg, var(--color-primary-50), rgba(59, 130, 246, 0.05));
+}
+
+/* 统一表格行高 - 更紧凑样式 */
+:deep(.el-table td.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  border-bottom: 1px solid var(--color-gray-100);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4; /* 紧凑的行高 */
+  /* 移除全局的 white-space: nowrap */
+}
+
+:deep(.el-table th.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+  color: var(--color-gray-700);
+  font-weight: var(--font-semibold);
+  border-bottom: 2px solid var(--color-gray-200);
+  border-right: none; /* 移除竖线 */
+  white-space: nowrap; /* 防止文字换行 */
+  line-height: 1.4; /* 紧凑的行高 */
+}
+
+/* 操作按钮样式优化 */
+/* 用于操作列单元格内的按钮容器 (div.cell) */
+/* 按钮容器 */
+:deep(.el-table .el-table__cell:last-child .cell) {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+/* 按钮本身 */
+:deep(.el-table td.el-table__cell .el-button) {
+  margin-right: 0px !important;
+  margin-bottom: 0 !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  height: 28px !important;
+  line-height: 1.2 !important;
+  display: inline-block !important;
+}
+
+/* 最后一个按钮 */
+:deep(.el-table td.el-table__cell .el-button:last-child) {
+  margin-right: 0 !important;
+}
+
+/* 操作列单元格 */
+:deep(.el-table td.el-table__cell:last-child) {
+  padding: 8px 4px !important;
+  white-space: nowrap !important;
 }
 .mt-4 {
   margin-top: 1.5rem;

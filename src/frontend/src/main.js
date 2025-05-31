@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 import ElementPlus from 'element-plus'// 引入 Element Plus 组件库
 import { createPinia } from 'pinia'
 import 'element-plus/dist/index.css'// 引入 Element Plus 样式
+import '@/assets/styles/utilities.css'// 引入自定义工具样式
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 /*
 App 组件的导入指向了应用程序的根组件，通常位于同级目录的 App.vue 文件中。

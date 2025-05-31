@@ -1,11 +1,11 @@
 <template>
   <div class="email-account-list-view">
-    <el-card>
+    <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <span>邮箱账户管理</span>
-          <el-button type="primary" @click="handleAddEmailAccount">
-            <el-icon><Plus /></el-icon> 添加邮箱账户
+          <span class="card-title">邮箱账户管理</span>
+          <el-button type="primary" :icon="Plus" @click="handleAddEmailAccount">
+             添加邮箱账户
           </el-button>
         </div>
       </template>
@@ -51,6 +51,9 @@
         style="width: 100%"
         @sort-change="handleSortChange"
         :default-sort="{ prop: emailAccountStore.sort.orderBy, order: emailAccountStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+        border
+        stripe
+        resizable
       >
         <el-table-column prop="email_address" label="邮箱地址" min-width="200" sortable="custom" />
         <!-- 服务商列已移除，服务商信息由后端自动提取和管理 -->
@@ -70,15 +73,15 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom" />
-        <el-table-column prop="updated_at" label="更新时间" width="180" sortable="custom" />
-        <el-table-column label="操作" width="180" fixed="right" :sortable="false">
+        <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
+        <el-table-column label="操作" width="140" fixed="right" align="center">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.row)">
-              <el-icon><Edit /></el-icon> 编辑
+            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">
+               编辑
             </el-button>
-            <el-button size="small" type="danger" @click="confirmDeleteEmailAccount(scope.row.id)">
-              <el-icon><Delete /></el-icon> 删除
+            <el-button link type="danger" :icon="Delete" @click="confirmDeleteEmailAccount(scope.row.id)">
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -114,7 +117,7 @@
 import { onMounted, ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useEmailAccountStore } from '@/stores/emailAccount';
-import { ElIcon, ElButton, ElMessageBox } from 'element-plus';
+import { ElButton, ElMessageBox } from 'element-plus';
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 
@@ -307,34 +310,31 @@ const handleAssociatedPageChange = (payload) => {
   border-radius: 8px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
 }
+.box-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #ebeef5;
-  margin-bottom: 20px;
+  padding: 10px 0;
 }
 
-.card-header span {
-  font-size: 1.25rem; /* Larger font size for title */
+.card-title {
+  font-size: 20px;
   font-weight: bold;
-  color: #303133;
+  color: #333;
 }
 
-.card-header .el-button {
-  padding: 8px 15px;
-  font-size: 0.9rem;
-  border-radius: 4px;
-}
-
+/* 统一搜索栏背景样式 */
 .filters-section {
   margin-bottom: 20px;
   padding: 15px;
-  background-color: #ffffff;
+  background-color: #f9f9f9;
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid #ebeef5;
 }
 
 .filter-row {
@@ -353,24 +353,87 @@ const handleAssociatedPageChange = (payload) => {
   width: 100%; /* Ensure inputs/selects take full width of their column */
 }
 
-.el-table {
+/* 表格样式 - 移除竖线和修复多余竖线 */
+:deep(.el-table) {
   margin-top: 20px;
   border-radius: 8px;
-  overflow: hidden; /* Ensures rounded corners apply to table borders */
+  overflow: hidden;
+  border: none;
 }
 
-.el-table::before {
+:deep(.el-table::before) {
   height: 0; /* Remove default bottom border */
 }
 
-.el-table th.el-table__cell {
-  background-color: #f5f7fa; /* Light background for table headers */
-  color: #606266;
-  font-weight: bold;
+:deep(.el-table .el-table__row:hover > td) {
+  background: linear-gradient(135deg, var(--color-primary-50), rgba(59, 130, 246, 0.05));
 }
 
-.el-table .el-button {
-  margin-right: 5px;
+/* 统一表格行高 - 更紧凑样式 */
+:deep(.el-table td.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  border-bottom: 1px solid var(--color-gray-100);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4; /* 紧凑的行高 */
+  /* 移除全局的 white-space: nowrap */
+}
+
+:deep(.el-table th.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+  color: var(--color-gray-700);
+  font-weight: var(--font-semibold);
+  border-bottom: 2px solid var(--color-gray-200);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4; /* 紧凑的行高 */
+  /* 移除全局的 white-space: nowrap */
+}
+
+/* 为邮箱地址列设置不换行 */
+:deep(.el-table td.el-table__cell:nth-child(1)) {
+  white-space: nowrap;
+}
+
+/* 为备注列设置允许换行并显示省略号 */
+:deep(.el-table td.el-table__cell:nth-child(4)) {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* 为时间列单独设置不换行样式，确保时间不会换行 */
+:deep(.el-table td.el-table__cell:nth-child(5), 
+       .el-table td.el-table__cell:nth-child(6)) {
+  white-space: nowrap;
+  min-width: 180px; /* 确保时间列有足够宽度 */
+}
+
+/* 操作按钮样式优化 */
+:deep(.el-table td.el-table__cell .el-button) {
+  margin-right: 0; /* 按钮间距 */
+  margin-bottom: 0; /* 移除底部边距 */
+  padding: 4px 8px; /* 按钮内边距 */
+  font-size: 12px; /* 字体大小 */
+  height: 28px; /* 按钮高度 */
+  line-height: 1.2; /* 行高 */
+  display: inline-block; /* 确保按钮水平排列 */
+}
+
+:deep(.el-table td.el-table__cell .el-button:last-child) {
+  margin-right: 0; /* 最后一个按钮不需要右边距 */
+}
+
+/* 专门为操作列优化布局 */
+:deep(.el-table td.el-table__cell:last-child) {
+  padding: 8px 4px; /* 操作列的内边距 */
+  white-space: nowrap; /* 确保按钮不换行 */
+}
+
+/* 操作列的按钮容器 */
+:deep(.el-table .el-table__cell:last-child .cell) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px; /* 按钮间隙 */
 }
 
 .el-pagination {
