@@ -72,7 +72,7 @@
       <el-divider />
 
       <!-- 图表和列表 -->
-      <el-row :gutter="5">
+      <el-row :gutter="15">
         <!-- 即将到期订阅列表 -->
         <el-col :xs="24" :md="14">
           <el-card class="dashboard-list-card" shadow="hover">
@@ -81,27 +81,73 @@
                 <span>即将到期订阅 (未来30天)</span>
               </div>
             </template>
-            <el-table :data="upcomingRenewalsData" style="width: 100%" height="380px" empty-text="暂无即将到期的订阅">
-              <el-table-column prop="service_name" width="130" label="服务名称" sortable />
-              <el-table-column prop="platform_name" width="100" label="平台" sortable />
-              <el-table-column prop="next_renewal_date"  width="125" label="到期日" sortable>
-                <template #default="scope">
-                  {{ formatDate(scope.row.next_renewal_date) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="cost"  width="150" label="费用" sortable>
-                <template #default="scope">
-                  {{ formatCurrency(scope.row.cost) }} / {{ scope.row.billing_cycle }}
-                </template>
-              </el-table-column>
-               <el-table-column prop="status" label="状态" width="100" sortable>
-                <template #default="scope">
-                  <el-tag :type="getStatusTagType(scope.row.status)" disable-transitions>{{ scope.row.status }}</el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-             <div v-if="!loading && upcomingRenewalsData?.length === 0" class="no-data-table">
-              <el-empty description="太棒了！近期没有即将到期的订阅。" />
+            
+            <!-- 优化后的表格容器 -->
+            <div class="table-container">
+              <el-table 
+                :data="upcomingRenewalsData" 
+                style="width: 100%" 
+                :max-height="calculateTableHeight()"
+                :sticky-header="true"
+                :show-overflow-tooltip="true"
+                empty-text="暂无即将到期的订阅"
+                table-layout="auto"
+              >
+                <el-table-column 
+                  prop="service_name" 
+                  label="服务名称" 
+                  sortable
+                  min-width="120"
+                  :show-overflow-tooltip="true"
+                />
+                <el-table-column 
+                  prop="platform_name" 
+                  label="平台" 
+                  sortable
+                  min-width="90"
+                  :show-overflow-tooltip="true"
+                />
+                <el-table-column 
+                  prop="next_renewal_date" 
+                  label="到期日" 
+                  sortable
+                  min-width="110"
+                  :show-overflow-tooltip="true"
+                >
+                  <template #default="scope">
+                    {{ formatDate(scope.row.next_renewal_date) }}
+                  </template>
+                </el-table-column>
+                <el-table-column 
+                  prop="cost" 
+                  label="费用" 
+                  sortable
+                  min-width="140"
+                  :show-overflow-tooltip="true"
+                >
+                  <template #default="scope">
+                    {{ formatCurrency(scope.row.cost) }} / {{ scope.row.billing_cycle }}
+                  </template>
+                </el-table-column>
+                <el-table-column 
+                  prop="status" 
+                  label="状态" 
+                  sortable
+                  min-width="90"
+                  :show-overflow-tooltip="true"
+                >
+                  <template #default="scope">
+                    <el-tag :type="getStatusTagType(scope.row.status)" disable-transitions>
+                      {{ scope.row.status }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+              
+              <!-- 无数据状态 -->
+              <div v-if="!loading && upcomingRenewalsData?.length === 0" class="no-data-table">
+                <el-empty description="太棒了！近期没有即将到期的订阅。" />
+              </div>
             </div>
           </el-card>
         </el-col>
@@ -114,9 +160,11 @@
                 <span>各平台订阅数量</span>
               </div>
             </template>
-            <v-chart class="chart" :option="platformDistributionChartOptions" autoresize />
-             <div v-if="!loading && summaryData.subscriptions_by_platform?.length === 0" class="no-data-chart">
-              <el-empty description="暂无平台订阅数据以生成图表。" />
+            <div class="chart-container">
+              <v-chart class="chart" :option="platformDistributionChartOptions" autoresize />
+              <div v-if="!loading && summaryData.subscriptions_by_platform?.length === 0" class="no-data-chart">
+                <el-empty description="暂无平台订阅数据以生成图表。" />
+              </div>
             </div>
           </el-card>
         </el-col>
@@ -168,6 +216,13 @@ const summaryData = computed(() => dashboardStore.getSummaryData) // Keep for ot
 const upcomingRenewalsData = computed(() => dashboardStore.upcomingRenewals) // This is from dashboardStore, not notificationStore
 const loading = computed(() => dashboardStore.isLoading) // Dashboard loading state
 const error = computed(() => dashboardStore.error) // Dashboard error state
+
+// 修改：动态计算表格高度的方法
+const calculateTableHeight = () => {
+  // 由于卡片现在有固定高度，表格应该填满可用空间
+  // 卡片高度480px - 卡片头部约65px - 卡片内边距等约15px = 约400px可用高度
+  return 400;
+};
 
 const formatDate = (dateString) => {
   if (!dateString) return '-'
@@ -400,42 +455,143 @@ onMounted(() => {
   align-items: center;
 }
 
-/* === Enhanced Table Styles === */
+/* === 优化的表格容器样式 === */
+.table-container {
+  position: relative;
+  width: 100%;
+  height: 100%; /* 填满卡片body的高度 */
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* === 优化的列表卡片样式 === */
+.dashboard-list-card {
+  height: 430px; /* 设置固定高度与右侧卡片一致 */
+  min-height: 430px;
+  max-height: 430px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dashboard-list-card > :deep(.el-card__body) {
+  flex-grow: 1;
+  overflow: hidden; /* 确保卡片本身不产生滚动条 */
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === 图表卡片样式调整 === */
+.dashboard-chart-card {
+  height: 430px; /* 与左侧卡片保持一致的高度 */
+  min-height: 430px;
+  max-height: 430px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-chart-card > :deep(.el-card__body) {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-3) !important;
+  overflow: hidden;
+}
+
+/* === 图表容器样式 === */
+.chart-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+/* === 优化的表格样式 === */
 :deep(.el-table) {
   border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-gray-200);
+  overflow: hidden;
+  flex-grow: 1;
+  height: 100%; /* 填满容器高度 */
+}
+
+/* 表头固定样式 */
+:deep(.el-table .el-table__header-wrapper) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 :deep(.el-table th.el-table__cell) {
-  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100)) !important;
+  background: transparent !important; /* 因为父容器已有背景 */
   color: var(--color-gray-700) !important;
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 2px solid var(--color-gray-200);
-  padding: var(--space-1) var(--space-2); /* 进一步减小表格header内边距 */
+  padding: var(--space-3) var(--space-2);
+  white-space: nowrap;
+  position: relative;
 }
 
 :deep(.el-table td.el-table__cell) {
   border-bottom: 1px solid var(--color-gray-100);
   font-size: var(--text-sm);
   color: var(--color-gray-700);
-  padding: var(--space-1) var(--space-2); /* 进一步减小表格cell内边距 */
+  padding: var(--space-3) var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* 表格体滚动样式 */
+:deep(.el-table .el-table__body-wrapper) {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(100% - 50px); /* 减去表头高度 */
+}
+
+/* 自定义滚动条样式 */
+:deep(.el-table .el-table__body-wrapper::-webkit-scrollbar) {
+  width: 6px;
+}
+
+:deep(.el-table .el-table__body-wrapper::-webkit-scrollbar-track) {
+  background: var(--color-gray-100);
+  border-radius: 3px;
+}
+
+:deep(.el-table .el-table__body-wrapper::-webkit-scrollbar-thumb) {
+  background: var(--color-gray-300);
+  border-radius: 3px;
+  transition: background var(--transition-base);
+}
+
+:deep(.el-table .el-table__body-wrapper::-webkit-scrollbar-thumb:hover) {
+  background: var(--color-gray-400);
+}
+
+/* 表格行悬停效果优化 */
 :deep(.el-table .el-table__row:hover > td) {
   background: linear-gradient(135deg, var(--color-primary-50), rgba(59, 130, 246, 0.05)) !important;
-  transform: scale(1.005); /* 减小hover效果 */
-  transition: all var(--transition-base);
+  transform: none; /* 移除transform避免影响布局 */
+  transition: background-color var(--transition-base);
 }
 
 :deep(.el-table__empty-text) {
   color: var(--color-gray-500);
   font-size: var(--text-base);
   font-weight: var(--font-medium);
+  padding: var(--space-8) var(--space-4);
 }
 
 /* === Enhanced Tag Styles === */
@@ -447,6 +603,7 @@ onMounted(() => {
   border: none;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 :deep(.el-tag--success) {
@@ -494,50 +651,43 @@ onMounted(() => {
   font-weight: var(--font-medium);
 }
 
-.no-data-table .el-empty,
+/* 无数据状态优化 */
+.no-data-table {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1; /* 填满剩余空间 */
+  padding: var(--space-6);
+}
+
+.no-data-table .el-empty {
+  padding: 0;
+}
+
+.no-data-chart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-lg);
+}
+
 .no-data-chart .el-empty {
-  padding: var(--space-4) 0; /* 减小内边距 */
+  padding: var(--space-4) 0;
 }
 
 /* === Enhanced Chart Styles === */
 .chart {
   width: 100%;
-  height: 380px; /* 减小图表高度 */
+  height: 100%; /* 填满卡片body的高度 */
+  min-height: 350px; /* 设置最小高度确保图表可见 */
   border-radius: var(--radius-lg);
   overflow: hidden;
-}
-
-/* === Enhanced Card Layout Styles === */
-.dashboard-list-card {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  max-width: 607px;
-  max-height: 420px; /* 限制卡片最大高度 */
-}
-
-.dashboard-list-card > :deep(.el-card__body) {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 0 !important;
-}
-
-.dashboard-list-card > :deep(.el-card__body .el-table) {
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-  border: none;
-}
-
-.dashboard-chart-card {
-  height: 100%;
-  max-width: 750px;
-  max-height: 420px; /* 限制图表卡片最大高度 */
-}
-
-.dashboard-chart-card > :deep(.el-card__body) {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: var(--space-3) !important; /* 减小图表卡片内边距 */
 }
 
 /* === 额外的行间距优化 === */
@@ -545,9 +695,25 @@ onMounted(() => {
   margin-bottom: var(--space-2); /* 减小统计行的底部间距 */
 }
 
-/* === 表格高度优化 === */
-.dashboard-list-card .el-table {
-  max-height: 400px; /* 限制表格最大高度 */
+/* === 加载状态优化 === */
+:deep(.el-loading-mask) {
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+/* === 列宽优化 === */
+:deep(.el-table .el-table__cell) {
+  word-break: normal;
+  word-wrap: break-word;
+}
+
+/* 特定列的宽度调整 */
+:deep(.el-table .cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: var(--leading-relaxed);
 }
 
 /* === Enhanced Responsive Design === */
@@ -569,17 +735,50 @@ onMounted(() => {
     font-size: var(--text-base) !important; /* 移动端减小字体 */
   }
 
-  .chart {
-    height: 200px; /* 移动端进一步减小图表高度 */
-  }
-
   .dashboard-list-card,
   .dashboard-chart-card {
-    max-height: 280px; /* 移动端减小卡片高度 */
+    height: 400px; /* 移动端统一高度 */
+    min-height: 400px;
+    max-height: 400px;
+  }
+  
+  .table-container {
+    overflow-x: auto; /* 移动端允许横向滚动 */
+  }
+  
+  :deep(.el-table) {
+    min-width: 600px; /* 确保移动端表格有最小宽度 */
+  }
+  
+  :deep(.el-table td.el-table__cell),
+  :deep(.el-table th.el-table__cell) {
+    padding: var(--space-2) var(--space-1);
+    font-size: var(--text-xs);
+  }
+
+  .chart {
+    min-height: 280px; /* 移动端图表最小高度 */
   }
 
   :deep(.el-divider--horizontal) {
     margin: var(--space-3) 0; /* 移动端减小分隔线间距 */
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-list-card,
+  .dashboard-chart-card {
+    height: 350px; /* 小屏幕设备统一高度 */
+    min-height: 350px;
+    max-height: 350px;
+  }
+  
+  :deep(.el-table) {
+    min-width: 550px;
+  }
+
+  .chart {
+    min-height: 250px;
   }
 }
 </style>
