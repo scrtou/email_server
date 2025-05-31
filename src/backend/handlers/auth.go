@@ -233,8 +233,7 @@ func UpdateProfile(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
 	var req struct {
-		RealName string `json:"real_name" binding:"required"`
-		Phone    string `json:"phone"`
+		
 		Email    string `json:"email" binding:"required,email"`
 	}
 

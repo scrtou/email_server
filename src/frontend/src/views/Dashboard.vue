@@ -84,14 +84,17 @@
             
             <!-- 优化后的表格容器 -->
             <div class="table-container">
+              <!-- 有数据或加载中时显示表格 -->
               <el-table 
+                v-if="loading || (upcomingRenewalsData && upcomingRenewalsData.length > 0)"
                 :data="upcomingRenewalsData" 
                 style="width: 100%" 
                 :max-height="calculateTableHeight()"
                 :sticky-header="true"
                 :show-overflow-tooltip="true"
-                empty-text="暂无即将到期的订阅"
                 table-layout="auto"
+                v-loading="loading"
+                element-loading-text="加载中..."
               >
                 <el-table-column 
                   prop="service_name" 
@@ -104,7 +107,7 @@
                   prop="platform_name" 
                   label="平台" 
                   sortable
-                  min-width="90"
+                  min-width="80"
                   :show-overflow-tooltip="true"
                 />
                 <el-table-column 
@@ -144,9 +147,24 @@
                 </el-table-column>
               </el-table>
               
-              <!-- 无数据状态 -->
-              <div v-if="!loading && upcomingRenewalsData?.length === 0" class="no-data-table">
-                <el-empty description="太棒了！近期没有即将到期的订阅。" />
+              <!-- 无数据时显示自定义空状态 -->
+              <div v-else class="no-data-table">
+                <el-empty 
+                  description="太棒了！近期没有即将到期的订阅。"
+                  :image-size="160"
+                >
+                  <template #image>
+                    <svg viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" style="width: 160px; height: 100px;">
+                      <g transform="translate(0 1)" fill="none" fill-rule="evenodd">
+                        <ellipse fill="#f5f5f5" cx="32" cy="33" rx="32" ry="7"/>
+                        <g fill-rule="nonzero" stroke="#d9d9d9">
+                          <path d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z"/>
+                          <path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" fill="#fafafa"/>
+                        </g>
+                      </g>
+                    </svg>
+                  </template>
+                </el-empty>
               </div>
             </div>
           </el-card>

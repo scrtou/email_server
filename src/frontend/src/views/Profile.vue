@@ -30,22 +30,6 @@
               </el-input>
             </el-form-item>
             
-            <el-form-item label="真实姓名" prop="real_name">
-              <el-input v-model="profileForm.real_name">
-                <template #prefix>
-                  <el-icon><User /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-            
-            <el-form-item label="手机号" prop="phone">
-              <el-input v-model="profileForm.phone">
-                <template #prefix>
-                  <el-icon><Phone /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-            
             <el-form-item>
               <el-button type="primary" @click="updateProfile" :loading="isUpdating">
                 更新信息
@@ -133,14 +117,13 @@
 <script>
 import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { User, Message, Phone } from '@element-plus/icons-vue'
+import { User, Message } from '@element-plus/icons-vue'
 
 export default {
   name: 'ProfilePage',
   components: {
     User,
     Message,
-    Phone
   },
   setup() {
     const authStore = useAuthStore()
@@ -152,8 +135,6 @@ export default {
     const profileForm = reactive({
       username: '',
       email: '',
-      real_name: '',
-      phone: ''
     })
     
     const passwordForm = reactive({
@@ -166,9 +147,6 @@ export default {
       email: [
         { required: true, message: '请输入邮箱', trigger: 'blur' },
         { type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }
-      ],
-      real_name: [
-        { required: true, message: '请输入真实姓名', trigger: 'blur' }
       ]
     }
     
@@ -199,8 +177,6 @@ export default {
         Object.assign(profileForm, {
           username: authStore.user.username,
           email: authStore.user.email,
-          real_name: authStore.user.real_name,
-          phone: authStore.user.phone
         })
       }
     }
@@ -215,8 +191,6 @@ export default {
         isUpdating.value = true
         const success = await authStore.updateProfile({
           email: profileForm.email,
-          real_name: profileForm.real_name,
-          phone: profileForm.phone
         })
         
         if (success) {

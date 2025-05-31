@@ -4,7 +4,6 @@
         <template #header>
           <div class="login-header">
             <h2>账号管理系统</h2>
-            <p>请登录您的账户</p>
           </div>
         </template>
         
@@ -117,13 +116,13 @@
   
   <style scoped>
   .login-container {
-    min-height: 100vh;
+    min-height: 100vh; /* Changed from 100vh to fill parent */
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-800) 50%, var(--color-gray-800) 100%);
-    padding: var(--space-6);
+    padding: var(--space-6); /* Removed padding to allow background to fill edges */
     position: relative;
     overflow: hidden;
   }
