@@ -67,14 +67,15 @@
         :default-sort="{ prop: platformRegistrationStore.sort.orderBy, order: platformRegistrationStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
         border
         stripe
+        resizable
       >
         <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="platform_name" label="平台" min-width="120" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="login_username" label="登录用户名/ID" min-width="150" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="login_username" label="登录用户名/ID" min-width="170" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="160" sortable="custom" />
-        <el-table-column prop="updated_at" label="更新时间" width="160" sortable="custom" />
-        <el-table-column label="操作" width="160" fixed="right" :sortable="false">
+        <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
+        <el-table-column label="操作" width="140" fixed="right" :sortable="false">
           <template #default="scope">
             <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">编辑</el-button>
             <el-button link type="danger" :icon="Delete" @click="confirmDeleteRegistration(scope.row.id)">删除</el-button>
@@ -209,7 +210,8 @@ const handleCurrentChange = (newPage) => {
 
 <style scoped>
 .platform-registration-list-view {
-  padding: 24px; /* 增加整体内边距 */
+  padding: 20px; /* 增加整体内边距 */
+  background-color: #f0f2f5; /* Light grey background for the whole view */
 }
 
 .box-card {
@@ -221,9 +223,7 @@ const handleCurrentChange = (newPage) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 16px; /* 标题和按钮底部间距 */
-  border-bottom: 1px solid #ebeef5; /* 底部边框 */
-  margin-bottom: 16px; /* 边框和内容间距 */
+  padding: 10px 0;
 }
 
 .card-title {
@@ -249,10 +249,68 @@ const handleCurrentChange = (newPage) => {
   width: 100%; /* 下拉选择框占满宽度 */
 }
 
-.el-table {
-  margin-top: 20px; /* 表格顶部间距 */
-  border-radius: 4px; /* 表格圆角 */
-  overflow: hidden; /* 确保圆角生效 */
+
+/* 表格核心样式 - 与 EmailAccountListView 统一 */
+:deep(.el-table) {
+  margin-top: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: none; /* 移除 Element Plus 默认边框 */
+}
+:deep(.el-table::before) { /* 移除表格底部默认横线 */
+  height: 0;
+}
+
+/* 表格行 hover 效果 */
+:deep(.el-table .el-table__row:hover > td) {
+  background: linear-gradient(135deg, var(--color-primary-50), rgba(59, 130, 246, 0.05));
+}
+
+/* 表格数据单元格 (td) */
+:deep(.el-table td.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  border-bottom: 1px solid var(--color-gray-100);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4;
+}
+
+/* 表格头部单元格 (th) */
+:deep(.el-table th.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+  color: var(--color-gray-700);
+  font-weight: var(--font-semibold);
+  border-bottom: 2px solid var(--color-gray-200);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4;
+}
+
+/* --- 操作列特定样式 (与 EmailAccountListView 统一) --- */
+/* 操作列按钮容器 */
+:deep(.el-table .el-table__cell:last-child .cell) {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+/* 操作列按钮本身 */
+:deep(.el-table td.el-table__cell .el-button) {
+  margin-right: 0px !important;
+  margin-bottom: 0 !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  height: 28px !important;
+  line-height: 1.2 !important;
+  display: inline-block !important;
+}
+/* 操作列最后一个按钮 */
+:deep(.el-table td.el-table__cell .el-button:last-child) {
+  margin-right: 0 !important;
+}
+/* 操作列单元格本身 */
+:deep(.el-table td.el-table__cell:last-child) {
+  padding: 8px 4px !important;
+  white-space: nowrap !important;
 }
 
 .pagination-container {

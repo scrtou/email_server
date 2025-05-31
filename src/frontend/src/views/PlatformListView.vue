@@ -32,6 +32,7 @@
         :default-sort="{ prop: platformStore.sort.orderBy, order: platformStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
         border
         stripe
+        resizable
       >
         <el-table-column prop="name" label="平台名称" min-width="180" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="website_url" label="平台网址" min-width="220" sortable="custom" show-overflow-tooltip>
@@ -41,10 +42,7 @@
         </el-table-column>
         <el-table-column label="关联邮箱" width="120" align="center">
           <template #default="scope">
-            <el-tag v-if="scope.row.email_account_count > 0" type="info" size="small">
-              {{ scope.row.email_account_count }}
-            </el-tag>
-            <span v-else>0</span>
+            <span>{{ scope.row.email_account_count }}</span>  
             <el-button
               v-if="scope.row.email_account_count > 0"
               type="primary"
@@ -57,14 +55,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="180" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="160" sortable="custom" />
-        <el-table-column prop="updated_at" label="更新时间" width="160" sortable="custom" />
-        <el-table-column label="操作" width="160" fixed="right" align="center">
+        <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
+        <el-table-column label="操作" width="140" fixed="right" align="center">
           <template #default="scope">
-            <el-button size="small" :icon="Edit" @click="handleEdit(scope.row)">
+            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">
               编辑
             </el-button>
-            <el-button size="small" type="danger" :icon="Delete" @click="confirmDeletePlatform(scope.row.id)">
+            <el-button link type="danger"  :icon="Delete" @click="confirmDeletePlatform(scope.row.id)">
               删除
             </el-button>
           </template>
@@ -101,7 +99,7 @@
 import { onMounted, ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePlatformStore } from '@/stores/platform';
-import { ElCard, ElButton, ElInput, ElTable, ElTableColumn, ElPagination, ElMessageBox, ElLink, ElTag } from 'element-plus';
+import { ElCard, ElButton, ElInput, ElTable, ElTableColumn, ElPagination, ElMessageBox, ElLink} from 'element-plus';
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 
@@ -232,7 +230,6 @@ const handleAssociatedPageChange = (payload) => {
 .platform-list-view {
   padding: 20px;
   background-color: #f0f2f5; /* Light grey background for the whole view */
-  min-height: calc(100vh - 80px); /* Adjust based on your AppLayout header/footer */
 }
 
 .box-card {
@@ -269,11 +266,67 @@ const handleAssociatedPageChange = (payload) => {
   width: 220px; /* Slightly wider input */
 }
 
-/* Table specific styles */
-.el-table {
-  margin-top: 20px; /* Space above the table */
+/* 表格核心样式 - 与 EmailAccountListView 统一 */
+:deep(.el-table) {
+  margin-top: 20px;
   border-radius: 8px;
-  overflow: hidden; /* Ensures border-radius applies to table corners */
+  overflow: hidden;
+  border: none; /* 移除 Element Plus 默认边框 */
+}
+:deep(.el-table::before) { /* 移除表格底部默认横线 */
+  height: 0;
+}
+
+/* 表格行 hover 效果 */
+:deep(.el-table .el-table__row:hover > td) {
+  background: linear-gradient(135deg, var(--color-primary-50), rgba(59, 130, 246, 0.05));
+}
+
+/* 表格数据单元格 (td) */
+:deep(.el-table td.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  border-bottom: 1px solid var(--color-gray-100);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4;
+}
+
+/* 表格头部单元格 (th) */
+:deep(.el-table th.el-table__cell) {
+  padding: 4px 8px; /* 更紧凑的内边距 */
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+  color: var(--color-gray-700);
+  font-weight: var(--font-semibold);
+  border-bottom: 2px solid var(--color-gray-200);
+  border-right: none; /* 移除竖线 */
+  line-height: 1.4;
+}
+
+/* --- 操作列特定样式 (与 EmailAccountListView 统一) --- */
+/* 操作列按钮容器 */
+:deep(.el-table .el-table__cell:last-child .cell) {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+/* 操作列按钮本身 */
+:deep(.el-table td.el-table__cell .el-button) {
+  margin-right: 0px !important;
+  margin-bottom: 0 !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  height: 28px !important;
+  line-height: 1.2 !important;
+  display: inline-block !important;
+}
+/* 操作列最后一个按钮 */
+:deep(.el-table td.el-table__cell .el-button:last-child) {
+  margin-right: 0 !important;
+}
+/* 操作列单元格本身 */
+:deep(.el-table td.el-table__cell:last-child) {
+  padding: 8px 4px !important;
+  white-space: nowrap !important;
 }
 
 /* Pagination styles */

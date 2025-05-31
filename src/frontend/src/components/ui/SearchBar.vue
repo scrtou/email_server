@@ -94,13 +94,113 @@ if (route.name === 'search-results' && !searchStore.searchTerm && (route.query.q
 .search-bar {
   display: flex;
   align-items: center;
-  min-width: 300px; /* Adjust as needed */
+  min-width: 400px;
+  max-width: 600px;
+  flex-grow: 1;
 }
+
 .search-input {
   width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
 }
-/* Optional: Adjust select width within input group */
-.search-bar .el-select .el-input__inner {
-  width: 100px; /* Or whatever fits your design */
+
+.search-input:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.search-input:focus-within {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+/* Enhanced input styling */
+:deep(.el-input__wrapper) {
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--color-gray-200);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  transition: all var(--transition-base);
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: var(--color-primary-300);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  border-color: var(--color-primary-500);
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+:deep(.el-input__inner) {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-gray-700);
+}
+
+:deep(.el-input__inner::placeholder) {
+  color: var(--color-gray-400);
+  font-weight: var(--font-normal);
+}
+
+/* Enhanced select styling */
+:deep(.el-input-group__prepend) {
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
+  border: none;
+  border-right: 1px solid var(--color-gray-200);
+}
+
+:deep(.el-input-group__append) {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  border: none;
+  padding: 0;
+}
+
+:deep(.el-input-group__append .el-button) {
+  background: transparent;
+  border: none;
+  color: white;
+  font-weight: var(--font-medium);
+  transition: all var(--transition-base);
+}
+
+:deep(.el-input-group__append .el-button:hover) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+/* Select dropdown styling */
+:deep(.el-select .el-input__wrapper) {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+:deep(.el-select .el-input__inner) {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--color-gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .search-bar {
+    min-width: 250px;
+    max-width: 100%;
+  }
+
+  :deep(.el-input-group__prepend) {
+    padding: 0 var(--space-2);
+  }
+
+  :deep(.el-select .el-input__inner) {
+    font-size: var(--text-xs);
+  }
 }
 </style>
