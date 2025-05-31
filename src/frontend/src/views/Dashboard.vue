@@ -512,7 +512,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  max-height: 400px; /* 限制卡片最大高度 */
+  max-height: 420px; /* 限制卡片最大高度 */
 }
 
 .dashboard-list-card > :deep(.el-card__body) {
@@ -528,7 +528,7 @@ onMounted(() => {
 
 .dashboard-chart-card {
   height: 100%;
-  max-height: 400px; /* 限制图表卡片最大高度 */
+  max-height: 420px; /* 限制图表卡片最大高度 */
 }
 
 .dashboard-chart-card > :deep(.el-card__body) {

@@ -23,7 +23,7 @@ export const usePlatformStore = defineStore('platform', {
     error: null,
     pagination: {
       currentPage: 1,
-      pageSize: 10,
+      pageSize: 8,
       totalItems: 0,
     },
     sort: { // New state for sorting
@@ -82,7 +82,7 @@ export const usePlatformStore = defineStore('platform', {
           if (result.meta) {
             this.pagination.currentPage = result.meta.current_page;
             this.pagination.pageSize = result.meta.page_size;
-            this.pagination.totalItems = result.meta.total_records;
+            this.pagination.totalItems = result.meta.total_items;
           } else {
             this.pagination = { currentPage: page, pageSize: pageSize, totalItems: result.data.length };
           }

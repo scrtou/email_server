@@ -32,8 +32,9 @@
     </el-card>
 
     <!-- 服务列表 -->
-    <el-card>
-      <el-table :data="services" style="width: 100%" v-loading="loading">
+    <el-card style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden;">
+      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+        <el-table :data="services" style="width: 100%" height="100%" v-loading="loading">
         <el-table-column prop="name" label="服务名称" width="200" />
         <el-table-column label="网站" width="250">
           <template #default="scope">
@@ -57,7 +58,8 @@
             <el-button size="small" type="danger" @click="deleteService(scope.row)">删除</el-button>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
       
       <!-- 添加分页组件 -->
       <el-pagination
@@ -69,7 +71,6 @@
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
-        style="margin-top: 20px; text-align: right"
       />
     </el-card>
 
@@ -365,6 +366,10 @@ export default {
 <style scoped>
 .service-list {
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
@@ -377,4 +382,6 @@ export default {
 .page-header h1 {
   margin: 0;
 }
+
+/* Pagination styles moved to utilities.css */
 </style>

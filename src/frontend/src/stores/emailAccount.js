@@ -10,7 +10,7 @@ export const useEmailAccountStore = defineStore('emailAccount', {
     error: null,
     pagination: {
       currentPage: 1,
-      pageSize: 10,
+      pageSize: 7,
       totalItems: 0,
     },
     sort: { // New state for sorting
@@ -82,7 +82,7 @@ export const useEmailAccountStore = defineStore('emailAccount', {
           if (result.meta) {
             this.pagination.currentPage = result.meta.current_page;
             this.pagination.pageSize = result.meta.page_size;
-            this.pagination.totalItems = result.meta.total_records;
+            this.pagination.totalItems = result.meta.total_items;
           } else {
             // Fallback if meta is somehow not present, though API should provide it
             this.pagination = { currentPage: page, pageSize: pageSize, totalItems: result.data.length };
@@ -184,11 +184,11 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       try {
         // api.js interceptor returns { data: [...], meta: {...} } for paginated responses
         const result = await emailAccountAPI.getAssociatedPlatformRegistrations(emailAccountId, params);
-        return result || { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } };
+        return result || { data: [], meta: { total_items: 0, current_page: 1, page_size: params.pageSize } };
       } catch (err) {
         this.error = err.message || '获取关联平台注册信息失败';
         ElMessage.error(this.error);
-        return { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } }; // Return empty structure on error
+        return { data: [], meta: { total_items: 0, current_page: 1, page_size: params.pageSize } }; // Return empty structure on error
       } finally {
         this.loading = false;
       }

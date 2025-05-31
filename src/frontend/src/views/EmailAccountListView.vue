@@ -1,128 +1,27 @@
-<template>
-  <div class="email-account-list-view">
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span class="card-title">邮箱账户管理</span>
-          <el-button type="primary" :icon="Plus" @click="handleAddEmailAccount">
-             添加邮箱账户
-          </el-button>
-        </div>
-      </template>
-
-      <!-- Filters -->
-      <div class="filters-section">
-        <el-row :gutter="10" class="filter-row">
-          <el-col :xs="24" :sm="12" :md="8" :lg="6">
-            <el-input
-              v-model="emailAccountStore.filters.emailAddressSearch"
-              placeholder="按邮箱地址搜索"
-              clearable
-              @keyup.enter="handleEmailAddressSearchChange(emailAccountStore.filters.emailAddressSearch)"
-              @clear="handleEmailAddressSearchChange('')"
-            />
-          </el-col>
-          <el-col :xs="24" :sm="12" :md="8" :lg="6">
-            <el-select
-              v-model="emailAccountStore.filters.provider"
-              placeholder="按服务商筛选"
-              clearable
-              filterable
-              @change="handleProviderFilterChange"
-            >
-              <el-option
-                v-for="item in emailAccountStore.uniqueProviders"
-                :key="item"
-                :label="item"
-                :value="item"
-              />
-            </el-select>
-          </el-col>
-          <el-col :xs="24" :sm="12" :md="8" :lg="6">
-            <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
-            <el-button @click="triggerClearAllFilters">重置所有</el-button>
-          </el-col>
-        </el-row>
-      </div>
-
-      <el-table
-        :data="emailAccountStore.emailAccounts"
-        v-loading="emailAccountStore.loading"
-        style="width: 100%"
-        @sort-change="handleSortChange"
-        :default-sort="{ prop: emailAccountStore.sort.orderBy, order: emailAccountStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
-        border
-        stripe
-        resizable
-      >
-        <el-table-column prop="email_address" label="邮箱地址" min-width="200" sortable="custom" />
-        <!-- 服务商列已移除，服务商信息由后端自动提取和管理 -->
-        <!-- <el-table-column prop="id" label="ID" width="80" /> -->
-        <el-table-column label="关联平台" width="120" :sortable="false">
-          <template #default="scope">
-            <span>{{ scope.row.platform_count }}</span>
-            <el-button
-              v-if="scope.row.platform_count > 0"
-              type="primary"
-              link
-              size="small"
-              :icon="ViewIcon"
-              style="margin-left: 5px;"
-              @click="showAssociatedPlatforms(scope.row)"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
-        <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
-        <el-table-column label="操作" width="140" fixed="right" align="center">
-          <template #default="scope">
-            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">
-               编辑
-            </el-button>
-            <el-button link type="danger" :icon="Delete" @click="confirmDeleteEmailAccount(scope.row.id)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-if="emailAccountStore.pagination.totalItems > 0"
-        class="mt-4"
-        background
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="emailAccountStore.pagination.totalItems"
-        :page-sizes="[10, 20, 50, 100]"
-        :current-page="emailAccountStore.pagination.currentPage"
-        :page-size="emailAccountStore.pagination.pageSize"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
-    </el-card>
-
-    <AssociatedInfoDialog
-      v-model:visible="associatedInfoDialog.visible"
-      :title="associatedInfoDialog.title"
-      :items="associatedInfoDialog.items"
-      :item-layout="associatedInfoDialog.layout"
-      :pagination="associatedInfoDialog.pagination"
-      :loading="associatedInfoDialog.loading"
-      @page-change="handleAssociatedPageChange"
-    />
-  </div>
-</template>
 
 <script setup>
 import { onMounted, ref, reactive } from 'vue';
-import { useRouter } from 'vue-router';
+// import { useRouter } from 'vue-router'; // No longer needed for add/edit
 import { useEmailAccountStore } from '@/stores/emailAccount';
-import { ElButton, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, ElButton } from 'element-plus'; // ElDialog might not be directly used if ModalDialog handles it
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
+import ModalDialog from '@/components/ui/ModalDialog.vue'; // Import ModalDialog
+import EmailAccountForm from '@/components/forms/EmailAccountForm.vue'; // Import EmailAccountForm
 
-const router = useRouter();
+// const router = useRouter(); // Keep for other navigation if any, or remove if not used at all
 const emailAccountStore = useEmailAccountStore();
+
+// --- Modal Dialog State for EmailAccountForm ---
+const emailAccountFormDialog = reactive({
+  visible: false,
+  isEditMode: false,
+  title: '',
+  currentAccount: null, // Store the account being edited
+});
+// --- End Modal Dialog State ---
+
+const loading = ref(false); // Define loading state for the view
 
 // const providerFilter = ref(emailAccountStore.filters.provider || ''); // Removed, use store directly
 
@@ -219,16 +118,58 @@ const handleSortChange = ({ prop, order }) => {
 };
 
 const handleAddEmailAccount = () => {
-  // Navigate to a form view for creating a new email account
-  // This route will be defined later
-  router.push({ name: 'EmailAccountCreate' });
+  // router.push({ name: 'EmailAccountCreate' }); // Replaced by dialog
+  emailAccountFormDialog.isEditMode = false;
+  emailAccountFormDialog.title = '添加邮箱账户';
+  associatedInfoDialog.visible = false; // 确保关联信息弹窗已关闭
+  emailAccountFormDialog.currentAccount = null; // Clear any previous edit data
+  emailAccountFormDialog.visible = true;
 };
 
 const handleEdit = (row) => {
-  // Navigate to a form view for editing, passing the id
-  // This route will be defined later
-  router.push({ name: 'EmailAccountEdit', params: { id: row.id } });
+  // router.push({ name: 'EmailAccountEdit', params: { id: row.id } }); // Replaced by dialog
+  associatedInfoDialog.visible = false; // 确保关联信息弹窗已关闭
+  emailAccountFormDialog.isEditMode = true;
+  emailAccountFormDialog.title = '编辑邮箱账户';
+  // Create a shallow copy for editing to avoid direct mutation of the list item
+  // Deep copy might be needed if form internally mutates nested objects of currentAccount
+  emailAccountFormDialog.currentAccount = { ...row };
+  emailAccountFormDialog.visible = true;
 };
+
+const handleFormSubmit = async (payloadFromForm) => {
+  // payloadFromForm is the object emitted by EmailAccountForm's submit-form event
+  loading.value = true; // Consider adding a loading state to the view if not already present
+  let success = false;
+  if (emailAccountFormDialog.isEditMode && emailAccountFormDialog.currentAccount && emailAccountFormDialog.currentAccount.id) {
+    success = await emailAccountStore.updateEmailAccount(emailAccountFormDialog.currentAccount.id, payloadFromForm);
+  } else if (!emailAccountFormDialog.isEditMode) {
+    success = await emailAccountStore.createEmailAccount(payloadFromForm);
+  } else {
+    ElMessage.error('操作失败：无法确定是新增还是编辑模式，或编辑ID丢失。');
+    loading.value = false;
+    return;
+  }
+  loading.value = false;
+  if (success) {
+    emailAccountFormDialog.visible = false;
+    // Data is refreshed by store actions, or we can call fetch here if needed.
+    // Assuming store actions (create/update) handle list refresh.
+    // If not, uncomment and adjust:
+    // emailAccountStore.fetchEmailAccounts(
+    //   emailAccountStore.pagination.currentPage,
+    //   emailAccountStore.pagination.pageSize,
+    //   emailAccountStore.sort,
+    //   emailAccountStore.filters
+    // );
+  }
+  // Error messages are handled by the store actions
+};
+
+const handleFormCancel = () => {
+  emailAccountFormDialog.visible = false;
+};
+
 
 const confirmDeleteEmailAccount = (id) => {
   ElMessageBox.confirm(
@@ -259,12 +200,13 @@ const confirmDeleteEmailAccount = (id) => {
 
 const handleSizeChange = (newSize) => {
   // Store's fetchEmailAccounts will use current filters and sort
-  emailAccountStore.fetchEmailAccounts(1, newSize); // Reset to page 1 when size changes
+  // pageSize.value = newSize; // No longer needed to update local ref
+  emailAccountStore.fetchEmailAccounts(1, newSize, emailAccountStore.sort, emailAccountStore.filters); // Reset to page 1 when size changes
 };
 
 const handleCurrentChange = (newPage) => {
   // Store's fetchEmailAccounts will use current filters and sort
-  emailAccountStore.fetchEmailAccounts(newPage, emailAccountStore.pagination.pageSize);
+  emailAccountStore.fetchEmailAccounts(newPage, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
 };
 
 const fetchAssociatedPlatformsData = async (emailAccountId, page = 1, pageSize = 5) => {
@@ -274,7 +216,7 @@ const fetchAssociatedPlatformsData = async (emailAccountId, page = 1, pageSize =
     associatedInfoDialog.items = result.data;
     associatedInfoDialog.pagination.currentPage = result.meta.current_page;
     associatedInfoDialog.pagination.pageSize = result.meta.page_size;
-    associatedInfoDialog.pagination.totalItems = result.meta.total_records;
+    associatedInfoDialog.pagination.totalItems = result.meta.total_items;
   } catch (error) {
     // Error is handled by the store and ElMessage
     associatedInfoDialog.items = [];
@@ -288,6 +230,7 @@ const showAssociatedPlatforms = async (emailAccount) => {
   currentEmailAccountForDialog.value = emailAccount; // Store context
   associatedInfoDialog.title = `邮箱 "${emailAccount.email_address}" 关联的平台`;
   associatedInfoDialog.pagination.currentPage = 1; // Reset to first page
+  emailAccountFormDialog.visible = false; // 确保编辑/新增弹窗已关闭
   await fetchAssociatedPlatformsData(emailAccount.id, 1, associatedInfoDialog.pagination.pageSize);
   associatedInfoDialog.visible = true;
 };
@@ -300,19 +243,162 @@ const handleAssociatedPageChange = (payload) => {
 
 </script>
 
+<template>
+  <div class="email-account-list-view">
+    <el-card class="box-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">邮箱账户管理</span>
+          <el-button type="primary" :icon="Plus" @click="handleAddEmailAccount">
+             添加邮箱账户
+          </el-button>
+        </div>
+      </template>
+
+      <!-- Filters -->
+      <div class="filters-section">
+        <el-row :gutter="10" class="filter-row">
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-input
+              v-model="emailAccountStore.filters.emailAddressSearch"
+              placeholder="按邮箱地址搜索"
+              clearable
+              @keyup.enter="handleEmailAddressSearchChange(emailAccountStore.filters.emailAddressSearch)"
+              @clear="handleEmailAddressSearchChange('')"
+            />
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-select
+              v-model="emailAccountStore.filters.provider"
+              placeholder="按服务商筛选"
+              clearable
+              filterable
+              @change="handleProviderFilterChange"
+            >
+              <el-option
+                v-for="item in emailAccountStore.uniqueProviders"
+                :key="item"
+                :label="item"
+                :value="item"
+              />
+            </el-select>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
+            <el-button @click="triggerClearAllFilters">重置所有</el-button>
+          </el-col>
+        </el-row>
+      </div>
+
+      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+        <el-table
+          :data="emailAccountStore.emailAccounts"
+          v-loading="emailAccountStore.loading"
+          style="width: 100%;"
+          height="100%"
+          @sort-change="handleSortChange"
+          :default-sort="{ prop: emailAccountStore.sort.orderBy, order: emailAccountStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+          border
+          stripe
+          resizable
+        >
+        <el-table-column prop="email_address" label="邮箱地址" min-width="200" sortable="custom" />
+        <!-- 服务商列已移除，服务商信息由后端自动提取和管理 -->
+        <!-- <el-table-column prop="id" label="ID" width="80" /> -->
+        <el-table-column label="关联平台" width="120" :sortable="false">
+          <template #default="scope">
+            <span>{{ scope.row.platform_count }}</span>
+            <el-button
+              v-if="scope.row.platform_count > 0"
+              type="primary"
+              link
+              size="small"
+              :icon="ViewIcon"
+              style="margin-left: 5px;"
+              @click="showAssociatedPlatforms(scope.row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
+        <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
+        <el-table-column label="操作" width="140" fixed="right" align="center">
+          <template #default="scope">
+            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">
+               编辑
+            </el-button>
+            <el-button link type="danger" :icon="Delete" @click="confirmDeleteEmailAccount(scope.row.id)">
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+        </el-table>
+      </div>
+
+      <el-pagination
+        class="mt-4"
+        background
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="emailAccountStore.pagination.totalItems"
+        :page-sizes="[10, 20, 50, 100]"
+        :current-page="emailAccountStore.pagination.currentPage"
+        :page-size="emailAccountStore.pagination.pageSize"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </el-card>
+
+    <AssociatedInfoDialog
+      v-model:visible="associatedInfoDialog.visible"
+      :title="associatedInfoDialog.title"
+      :items="associatedInfoDialog.items"
+      :item-layout="associatedInfoDialog.layout"
+      :pagination="associatedInfoDialog.pagination"
+      :loading="associatedInfoDialog.loading"
+      @page-change="handleAssociatedPageChange"
+    />
+
+    <!-- Email Account Add/Edit Modal -->
+    <ModalDialog
+      v-model:visible="emailAccountFormDialog.visible"
+      :title="emailAccountFormDialog.title"
+      @confirm="() => { emailAccountFormRef?.triggerSubmit(); }"
+      @cancel="handleFormCancel"
+      :confirm-button-text="emailAccountFormDialog.isEditMode ? '保存更新' : '立即创建'"
+    >
+      <EmailAccountForm
+        ref="emailAccountFormRef"
+        :is-edit="emailAccountFormDialog.isEditMode"
+        :email-account="emailAccountFormDialog.currentAccount"
+        @submit-form="handleFormSubmit"
+        @cancel="handleFormCancel"
+      />
+      <!-- Removed empty #footer template to use ModalDialog's default buttons -->
+    </ModalDialog>
+    <!-- End Email Account Add/Edit Modal -->
+
+  </div>
+</template>
+
 <style scoped>
 .email-account-list-view {
-  padding: 20px;
+  padding: 20px; /* This padding might need to be on the card or a content wrapper inside */
   background-color: #f0f2f5; /* Light grey background for the whole view */
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill parent (.main-content's router-view) */
+  box-sizing: border-box; /* Include padding in height calculation */
 }
 
-.el-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-}
+/* .el-card styling is fine, we need to ensure .box-card within the flex context behaves */
 .box-card {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1; /* Allow card to grow and fill space */
+  overflow: hidden; /* Prevent card itself from scrolling */
+  /* The padding from .email-account-list-view might be better here if that div is just a flex container */
 }
 
 .card-header {
@@ -436,11 +522,7 @@ const handleAssociatedPageChange = (payload) => {
   gap: 2px; /* 按钮间隙 */
 }
 
-.el-pagination {
-  margin-top: 20px;
-  justify-content: flex-end; /* Align pagination to the right */
-  padding: 10px 0;
-}
+/* Pagination styles moved to utilities.css */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {

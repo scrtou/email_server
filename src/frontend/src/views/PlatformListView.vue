@@ -24,16 +24,18 @@
         <el-button @click="triggerClearAllFilters">重置</el-button>
       </div>
 
-      <el-table
-        :data="platformStore.platforms"
-        v-loading="platformStore.loading"
-        style="width: 100%"
-        @sort-change="handleSortChange"
-        :default-sort="{ prop: platformStore.sort.orderBy, order: platformStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
-        border
-        stripe
-        resizable
-      >
+      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+        <el-table
+          :data="platformStore.platforms"
+          v-loading="platformStore.loading"
+          style="width: 100%"
+          height="100%"
+          @sort-change="handleSortChange"
+          :default-sort="{ prop: platformStore.sort.orderBy, order: platformStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
+          border
+          stripe
+          resizable
+        >
         <el-table-column prop="name" label="平台名称" min-width="180" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="website_url" label="平台网址" min-width="220" sortable="custom" show-overflow-tooltip>
           <template #default="scope">
@@ -67,7 +69,8 @@
             </el-button>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
 
       <el-pagination
         v-if="platformStore.pagination.totalItems > 0"
@@ -77,7 +80,7 @@
         :total="platformStore.pagination.totalItems"
         :page-sizes="[10, 20, 50, 100]"
         :current-page="platformStore.pagination.currentPage"
-        :page-size="platformStore.pagination.pageSize"
+        :page-size="pageSize.value"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
@@ -92,21 +95,50 @@
       :loading="associatedInfoDialog.loading"
       @page-change="handleAssociatedPageChange"
     />
+
+    <!-- 新增/编辑平台弹框 -->
+    <ModalDialog
+      :visible="modalVisible"
+      :title="modalTitle"
+      @update:visible="modalVisible = $event"
+      @confirm="() => platformFormRef?.triggerSubmit()"
+      @cancel="handleFormCancel"
+      :confirm-button-text="modalMode === 'edit' ? '保存更新' : '立即创建'"
+    >
+      <PlatformForm
+        ref="platformFormRef"
+        v-if="modalVisible"
+        :id="modalMode === 'edit' && currentEditItem ? currentEditItem.id : null"
+        :initial-data="modalMode === 'edit' && currentEditItem ? currentEditItem : {}"
+        @submit-form="handleFormSubmit"
+        @cancel="handleFormCancel"
+      />
+    </ModalDialog>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref, reactive } from 'vue';
-import { useRouter } from 'vue-router';
+// import { useRouter } from 'vue-router'; // 移除 useRouter
 import { usePlatformStore } from '@/stores/platform';
-import { ElCard, ElButton, ElInput, ElTable, ElTableColumn, ElPagination, ElMessageBox, ElLink} from 'element-plus';
+import { ElMessage, ElCard, ElButton, ElInput, ElTable, ElTableColumn, ElPagination, ElMessageBox, ElLink} from 'element-plus';
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
+import ModalDialog from '@/components/ui/ModalDialog.vue'; // 引入 ModalDialog
+import PlatformForm from '@/components/forms/PlatformForm.vue'; // 引入 PlatformForm
 
-const router = useRouter();
+// const router = useRouter(); // 移除 router
 const platformStore = usePlatformStore();
+const pageSize = ref(platformStore.pagination.pageSize || 10); // Initialize with store's pageSize or a default
 
 const currentPlatformForDialog = ref(null); // To store the platform context for pagination
+
+// 弹框相关状态
+const platformFormRef = ref(null); // Ref for PlatformForm
+const modalVisible = ref(false);
+const modalTitle = ref('');
+const modalMode = ref('add'); // 'add' or 'edit'
+const currentEditItem = ref(null);
 
 const associatedInfoDialog = reactive({
   visible: false,
@@ -130,11 +162,11 @@ onMounted(() => {
 
 const fetchData = (
   page = platformStore.pagination.currentPage,
-  pageSize = platformStore.pagination.pageSize,
+  size = pageSize.value, // Use the new ref here
   sortOptions = { orderBy: platformStore.sort.orderBy, sortDirection: platformStore.sort.sortDirection },
   filterOptions = { nameSearch: platformStore.filters.nameSearch } // Pass current nameSearch filter
 ) => {
-  platformStore.fetchPlatforms(page, pageSize, sortOptions, filterOptions);
+  platformStore.fetchPlatforms(page, size, sortOptions, filterOptions);
 };
 
 const handleNameSearchChange = (value) => {
@@ -153,15 +185,55 @@ const triggerClearAllFilters = () => {
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
-  fetchData(1, platformStore.pagination.pageSize, { orderBy: prop, sortDirection });
+  fetchData(1, pageSize.value, { orderBy: prop, sortDirection });
 };
 
 const handleAddPlatform = () => {
-  router.push({ name: 'PlatformCreate' }); 
+  modalMode.value = 'add';
+  modalTitle.value = '添加平台';
+  associatedInfoDialog.visible = false; // 确保关联信息弹窗已关闭
+  currentEditItem.value = null;
+  modalVisible.value = true;
 };
 
 const handleEdit = (row) => {
-  router.push({ name: 'PlatformEdit', params: { id: row.id } });
+  associatedInfoDialog.visible = false; // 确保关联信息弹窗已关闭
+  modalMode.value = 'edit';
+  modalTitle.value = '编辑平台';
+  currentEditItem.value = { ...row };
+  modalVisible.value = true;
+};
+
+const handleFormSubmit = async (payloadFromForm) => {
+  // payloadFromForm is the object emitted by PlatformForm's submit-form event
+  // The PlatformForm itself handles the store interaction (create/update)
+  // This handler is now primarily for closing the dialog and refreshing the list.
+  
+  // The actual API call is now inside PlatformForm, triggered by its internal handleSubmit,
+  // which then emits 'submit-form' with the payload.
+  // The parent (this view) will then call the store.
+
+  let success = false;
+  if (modalMode.value === 'edit' && currentEditItem.value && currentEditItem.value.id) {
+    success = await platformStore.updatePlatform(currentEditItem.value.id, payloadFromForm);
+  } else if (modalMode.value === 'add') {
+    success = await platformStore.createPlatform(payloadFromForm);
+  } else {
+    ElMessage.error('操作失败：无法确定模式或ID丢失。');
+    return;
+  }
+
+  if (success) {
+    modalVisible.value = false;
+    fetchData(); // Refresh list data
+  }
+  // Error messages are handled by the store actions
+};
+
+const handleFormCancel = () => {
+  modalVisible.value = false;
+  // Optionally call reset on the form if needed, though v-if should re-initialize
+  // platformFormRef.value?.resetForm();
 };
 
 const confirmDeletePlatform = (id) => {
@@ -188,11 +260,12 @@ const confirmDeletePlatform = (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  fetchData(1, newSize); 
+  pageSize.value = newSize;
+  fetchData(1, pageSize.value);
 };
 
 const handleCurrentChange = (newPage) => {
-  fetchData(newPage, platformStore.pagination.pageSize);
+  fetchData(newPage, pageSize.value);
 };
 
 const fetchAssociatedEmailsData = async (platformId, page = 1, pageSize = 5) => {
@@ -215,6 +288,7 @@ const showAssociatedEmails = async (platform) => {
   currentPlatformForDialog.value = platform; // Store context
   associatedInfoDialog.title = `平台 "${platform.name}" 关联的邮箱账户`;
   associatedInfoDialog.pagination.currentPage = 1; // Reset to first page
+  modalVisible.value = false; // 确保编辑/新增弹窗已关闭
   await fetchAssociatedEmailsData(platform.id, 1, associatedInfoDialog.pagination.pageSize);
   associatedInfoDialog.visible = true;
 };
@@ -230,11 +304,19 @@ const handleAssociatedPageChange = (payload) => {
 .platform-list-view {
   padding: 20px;
   background-color: #f0f2f5; /* Light grey background for the whole view */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .box-card {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
 }
 
 .card-header {
@@ -329,13 +411,8 @@ const handleAssociatedPageChange = (payload) => {
   white-space: nowrap !important;
 }
 
-/* Pagination styles */
-.pagination-container {
-  margin-top: 25px; /* More space above pagination */
-  display: flex;
-  justify-content: flex-end; /* Align pagination to the right */
-  padding: 10px 0;
-}
+/* Pagination styles moved to utilities.css */
+/* .pagination-container class is still used in the template, but styled globally now */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {

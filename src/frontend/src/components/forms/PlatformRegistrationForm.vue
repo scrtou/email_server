@@ -1,10 +1,6 @@
 <template>
-  <el-card class="platform-registration-form-card">
-    <template #header>
-      <div class="card-header">
-        <span class="card-title">{{ isEditMode ? '编辑平台注册信息' : '添加平台注册信息' }}</span>
-      </div>
-    </template>
+  <div class="platform-registration-form-container">
+    <!-- Card header content can be moved here if needed, or handled by ModalDialog -->
     <el-form
       ref="formRef"
       :model="form"
@@ -22,7 +18,7 @@
               filterable
               allow-create
               default-first-option
-              :disabled="isEditMode"
+              :disabled="props.isEdit"
               class="full-width-select"
             >
               <el-option
@@ -42,7 +38,7 @@
               filterable
               allow-create
               default-first-option
-              :disabled="isEditMode"
+              :disabled="props.isEdit"
               class="full-width-select"
             >
               <el-option
@@ -67,7 +63,7 @@
             <el-input
               type="password"
               v-model="form.login_password"
-              :placeholder="isEditMode ? '留空则不修改密码' : '请输入登录密码'"
+              :placeholder="props.isEdit ? '留空则不修改密码' : '请输入登录密码'"
               show-password
             />
           </el-form-item>
@@ -75,46 +71,41 @@
       </el-row>
       
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="24" :md="12">
+        <el-col :xs="24" :sm="24" :md="24">
           <el-form-item label="备注" prop="notes">
             <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="填写备注信息" />
           </el-form-item>
         </el-col>
-        <el-col :xs="24" :sm="24" :md="12">
-          <!--  确认密码字段已移除，此列保留用于布局对齐，如果不需要可以移除整个el-col -->
-        </el-col>
       </el-row>
 
-      <el-form-item class="form-actions">
-        <el-button type="primary" @click="handleSubmit">
-          {{ isEditMode ? '保存更新' : '立即创建' }}
-        </el-button>
-        <el-button @click="handleCancel">取消</el-button>
-      </el-form-item>
     </el-form>
-
-  </el-card>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, reactive } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
+import { ref, onMounted, watch } from 'vue';
+// import { useRouter, useRoute } from 'vue-router'; // Removed
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { ElMessage } from 'element-plus';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
-  id: {
-    type: [String, Number],
+  platformRegistration: {
+    type: Object,
     default: null,
   },
+  isEdit: { // Renamed from isEditMode for clarity, and to receive from parent
+    type: Boolean,
+    default: false,
+  }
 });
 
-const router = useRouter();
-const route = useRoute();
-const platformRegistrationStore = usePlatformRegistrationStore();
+// eslint-disable-next-line no-undef
+const emit = defineEmits(['submit-form', 'cancel']);
+
+// const router = useRouter(); // Removed
+// const route = useRoute(); // Removed
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
 
@@ -128,8 +119,8 @@ const form = ref({
 });
 const loading = ref(false);
 
-const isEditMode = computed(() => !!props.id || !!route.params.id);
-const currentId = computed(() => props.id || route.params.id);
+// const isEditMode = computed(() => !!props.id || !!route.params.id); // Replaced by props.isEdit
+// const currentId = computed(() => props.id || route.params.id); // ID will come from props.platformRegistration.id
 
 const rules = ref({
   email_account_id: [{ required: true, message: '请选择邮箱账户', trigger: 'change' }],
@@ -163,110 +154,110 @@ onMounted(async () => {
     platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' }, { nameSearch: '' }) // Fetch all for dropdown, clear filters
   ]);
 
-  if (isEditMode.value && currentId.value) {
-    const regData = await platformRegistrationStore.fetchPlatformRegistrationById(currentId.value);
-    if (regData) {
-      form.value.email_account_id = regData.email_account_id;
-      form.value.platform_id = regData.platform_id;
-      form.value.login_username = regData.login_username;
-      form.value.notes = regData.notes;
-      // platformRegistrationStore.currentPlatformRegistration is already set by fetchPlatformRegistrationById
-    } else {
-      ElMessage.error('无法加载平台注册信息，可能ID无效');
-      router.push({ name: 'PlatformRegistrationList' });
-    }
+  // Populate form if in edit mode and data is provided
+  if (props.isEdit && props.platformRegistration) {
+    form.value.email_account_id = props.platformRegistration.email_account_id;
+    form.value.platform_id = props.platformRegistration.platform_id;
+    form.value.login_username = props.platformRegistration.login_username;
+    form.value.notes = props.platformRegistration.notes;
+    // Password is not pre-filled for editing
+  } else {
+    // Reset form for create mode or if no data
+    form.value.email_account_id = null;
+    form.value.platform_id = null;
+    form.value.login_username = '';
+    form.value.login_password = '';
+    form.value.notes = '';
   }
   loading.value = false;
 });
+
+watch(() => props.platformRegistration, (newVal) => {
+  if (props.isEdit && newVal) {
+    form.value.email_account_id = newVal.email_account_id;
+    form.value.platform_id = newVal.platform_id;
+    form.value.login_username = newVal.login_username;
+    form.value.notes = newVal.notes;
+    form.value.login_password = ''; // Clear password on edit
+  } else if (!props.isEdit) {
+    formRef.value?.resetFields(); // Reset form for create mode
+    form.value.email_account_id = null;
+    form.value.platform_id = null;
+    form.value.login_username = '';
+    form.value.login_password = '';
+    form.value.notes = '';
+  }
+}, { immediate: true, deep: true });
+
 
 const handleSubmit = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true;
-      let success = false;
-      if (isEditMode.value) {
-        // 编辑模式逻辑保持不变，通常不允许更改 email_account_id 和 platform_id
-        const payload = {
-          login_username: form.value.login_username,
-          notes: form.value.notes,
-        };
-        if (form.value.login_password) {
-          payload.login_password = form.value.login_password;
+      const currentIdToUpdate = props.isEdit && props.platformRegistration ? props.platformRegistration.id : null;
+
+      let payload = {
+        login_username: form.value.login_username,
+        notes: form.value.notes,
+      };
+      if (form.value.login_password) {
+        payload.login_password = form.value.login_password;
+      }
+
+      if (props.isEdit) {
+        if (!currentIdToUpdate) {
+          ElMessage.error('编辑错误：缺少注册信息ID');
+          loading.value = false;
+          return;
         }
-        // 注意：编辑模式下，email_account_id 和 platform_id 通常不应更改。
-        // 如果需要更改，则应引导用户删除并重新创建。
-        // 这里我们假设编辑模式不涉及 email_account_id 和 platform_id 的更改。
-        // 如果表单允许更改它们，并且它们变成了字符串（新名称），则编辑逻辑也需要适配。
-        // 为简单起见，此处假设编辑时不更改这两个字段。
-         payload.email_account_id = form.value.email_account_id; // 确保传递，即使它们被禁用
-         payload.platform_id = form.value.platform_id;       // 确保传递，即使它们被禁用
+        // For update, include IDs as they are part of the form and might be expected by backend
+        // even if not directly editable in the UI for this specific form's edit mode.
+        payload.email_account_id = form.value.email_account_id;
+        payload.platform_id = form.value.platform_id;
+        // The store action will be called by the parent.
+        emit('submit-form', { payload, id: currentIdToUpdate, isEdit: true });
 
+      } else { // Create mode
+        const isEmailNew = typeof form.value.email_account_id === 'string' && form.value.email_account_id.trim() !== '';
+        const isPlatformNew = typeof form.value.platform_id === 'string' && form.value.platform_id.trim() !== '';
 
-        success = await platformRegistrationStore.updatePlatformRegistration(currentId.value, payload);
-      } else {
-        // 创建模式逻辑
-        const isEmailNew = typeof form.value.email_account_id === 'string';
-        const isPlatformNew = typeof form.value.platform_id === 'string';
-
-        let payload = {
-          login_username: form.value.login_username,
-          notes: form.value.notes,
-        };
-        if (form.value.login_password) {
-          payload.login_password = form.value.login_password;
-        }
-
-        if (isEmailNew || isPlatformNew) { // One or both are new, use by-name API
-            if (isEmailNew) {
-                if (!form.value.email_account_id || String(form.value.email_account_id).trim() === '') {
-                    ElMessage.error('新邮箱地址不能为空');
-                    loading.value = false;
-                    return;
-                }
-                payload.email_address = String(form.value.email_account_id).trim();
-            } else { // Existing email
-                const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
-                if (!selectedEmail) {
-                    ElMessage.error('选择的邮箱账户无效');
-                    loading.value = false;
-                    return;
-                }
-                payload.email_address = selectedEmail.email_address; // Use address for by-name API
+        if (isEmailNew || isPlatformNew) { // One or both are new
+          if (isEmailNew) {
+            payload.email_address = String(form.value.email_account_id).trim();
+          } else {
+            if (!form.value.email_account_id) {
+                ElMessage.error('请选择邮箱账户');
+                loading.value = false; return;
             }
+            const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
+            if (!selectedEmail) { ElMessage.error('选择的邮箱账户无效'); loading.value = false; return; }
+            payload.email_address = selectedEmail.email_address;
+          }
 
-            if (isPlatformNew) {
-                if (!form.value.platform_id || String(form.value.platform_id).trim() === '') {
-                    ElMessage.error('新平台名称不能为空');
-                    loading.value = false;
-                    return;
-                }
-                payload.platform_name = String(form.value.platform_id).trim();
-            } else { // Existing platform
-                const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
-                if (!selectedPlatform) {
-                    ElMessage.error('选择的平台无效');
-                    loading.value = false;
-                    return;
-                }
-                payload.platform_name = selectedPlatform.name; // Use name for by-name API
+          if (isPlatformNew) {
+            payload.platform_name = String(form.value.platform_id).trim();
+          } else {
+             if (!form.value.platform_id) {
+                ElMessage.error('请选择平台');
+                loading.value = false; return;
             }
-            success = await platformRegistrationStore.createPlatformRegistrationByName(payload);
-        } else { // Both are existing, use by-id API
-            payload.email_account_id = form.value.email_account_id;
-            payload.platform_id = form.value.platform_id;
-            if (!payload.email_account_id || !payload.platform_id) { // Ensure IDs are present
-                 ElMessage.error('请选择有效的邮箱账户和平台');
-                 loading.value = false;
-                 return;
-            }
-            success = await platformRegistrationStore.createPlatformRegistration(payload);
+            const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
+            if (!selectedPlatform) { ElMessage.error('选择的平台无效'); loading.value = false; return; }
+            payload.platform_name = selectedPlatform.name;
+          }
+          emit('submit-form', { payload, useByNameApi: true, isEdit: false });
+        } else { // Both are existing
+          if (!form.value.email_account_id || !form.value.platform_id) {
+            ElMessage.error('请选择有效的邮箱账户和平台');
+            loading.value = false; return;
+          }
+          payload.email_account_id = form.value.email_account_id;
+          payload.platform_id = form.value.platform_id;
+          emit('submit-form', { payload, useByNameApi: false, isEdit: false });
         }
       }
       loading.value = false;
-      if (success) {
-        router.push({ name: 'PlatformRegistrationList' });
-      }
     } else {
       ElMessage.error('请检查表单输入');
       return false;
@@ -274,11 +265,23 @@ const handleSubmit = async () => {
   });
 };
 
-const handleCancel = () => {
-  router.push({ name: 'PlatformRegistrationList' });
-};
 
 
+// eslint-disable-next-line no-undef
+defineExpose({
+  triggerSubmit: handleSubmit,
+  resetForm: () => { // Expose a resetForm that also clears fields
+    if (formRef.value) {
+      formRef.value.resetFields();
+    }
+    form.value.email_account_id = null;
+    form.value.platform_id = null;
+    form.value.login_username = '';
+    form.value.login_password = '';
+    form.value.notes = '';
+  },
+  formRef
+});
 </script>
 
 <style scoped>
