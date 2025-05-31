@@ -60,6 +60,10 @@ api.interceptors.response.use(
       if (response.data.meta) {
         return { data: response.data.data, meta: response.data.meta };
       }
+      // If 'reminders' exists directly in response.data (like from /users/me/reminders), return response.data
+      if (response.data.reminders !== undefined) {
+        return response.data;
+      }
       // For non-paginated or create/update/delete successful responses that might only have data
       return response.data.data !== undefined ? response.data.data : {}; // Ensure data field exists or return empty obj
     } else {
@@ -102,7 +106,9 @@ export const authAPI = {
   getProfile: () => api.get('/users/me'), // Updated path
   updateProfile: (data) => api.put('/users/me', data), // Updated path for consistency with proposal
   changePassword: (data) => api.post('/users/me/change-password', data), // Updated path for consistency
-  refreshToken: () => api.post('/auth/refresh')
+  refreshToken: () => api.post('/auth/refresh'),
+  getReminders: () => api.get('/users/me/reminders'),
+  markReminderAsRead: (id) => api.put(`/users/me/reminders/${id}/read`)
 }
 
 // 原有的API方法

@@ -80,10 +80,13 @@ export const useAuthStore = defineStore('auth', {
       if (!this.token) return false
       
       try {
+        console.log('[AuthStore] Attempting to fetch user profile. Token:', this.token);
         this.user = await authAPI.getProfile()
+        console.log('[AuthStore] Successfully fetched user profile:', this.user);
         return true
       } catch (error) {
-        console.error('获取用户信息失败:', error)
+        console.error('[AuthStore] Failed to fetch user profile. Error:', error, 'Token during failure:', this.token);
+        console.log('[AuthStore] Logging out due to fetchUserProfile failure.');
         this.logout()
         return false
       }

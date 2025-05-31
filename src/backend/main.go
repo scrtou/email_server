@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	
+
 	"email_server/config"
 	"email_server/database"
 	"email_server/handlers"
@@ -107,6 +107,10 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 
 		// 全局搜索
 		protected.GET("/search", handlers.SearchHandler)
+
+		// 用户提醒
+		protected.GET("/users/me/reminders", handlers.GetUserReminders)
+		protected.PUT("/users/me/reminders/:id/read", handlers.MarkReminderAsRead) // 新增：标记提醒为已读
 	
 		// 邮箱管理 (DEPRECATED - Use /email-accounts)
 		// emails := protected.Group("/emails")
@@ -164,6 +168,9 @@ func main() {
 	database.Init(config.AppConfig.Database.File) // Pass SQLite file path
 	// defer database.Close() // GORM typically doesn't require explicit close in this manner for app lifecycle
    
+	// 初始化并启动定时任务
+	handlers.StartSubscriptionReminderJob() // 新增：启动定时任务
+
 	// 设置路由
 	r := setupRouter() //短变量声明
 

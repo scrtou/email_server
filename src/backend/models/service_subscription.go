@@ -20,6 +20,7 @@ type ServiceSubscription struct {
 	BillingCycle      string     `gorm:"type:varchar(50)"` // e.g., monthly, yearly, onetime, free
 	NextRenewalDate   *time.Time `gorm:"type:date"`        // 下次续费日期 (可空)
 	PaymentMethodNotes string     `gorm:"type:text"`        // 支付方式备注
+	IsRead                 bool      `gorm:"default:false"`     // 新增字段，标记是否已读
 
 	User                 User                 `gorm:"foreignKey:UserID"`
 	PlatformRegistration PlatformRegistration `gorm:"foreignKey:PlatformRegistrationID"`
@@ -42,6 +43,7 @@ type ServiceSubscriptionResponse struct {
 	BillingCycle           string  `json:"billing_cycle"`
 	NextRenewalDate        *string `json:"next_renewal_date"` // Pointer to string to handle null
 	PaymentMethodNotes     string  `json:"payment_method_notes"`
+	IsRead                 bool    `json:"is_read"` // 新增字段
 	CreatedAt              string  `json:"created_at"`
 	UpdatedAt              string  `json:"updated_at"`
 }
@@ -69,6 +71,7 @@ func (ss *ServiceSubscription) ToServiceSubscriptionResponse(pr PlatformRegistra
 		BillingCycle:           ss.BillingCycle,
 		NextRenewalDate:        renewalDateStr,
 		PaymentMethodNotes:     ss.PaymentMethodNotes,
+		IsRead:                 ss.IsRead,
 		CreatedAt:              ss.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:              ss.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
@@ -92,7 +95,8 @@ func (ss *ServiceSubscription) ToServiceSubscriptionResponseLite() ServiceSubscr
         BillingCycle:           ss.BillingCycle,
         NextRenewalDate:        renewalDateStr,
         PaymentMethodNotes:     ss.PaymentMethodNotes,
+        IsRead:                 ss.IsRead,
         CreatedAt:              ss.CreatedAt.Format("2006-01-02 15:04:05"),
         UpdatedAt:              ss.UpdatedAt.Format("2006-01-02 15:04:05"),
-    }
-}
+       }
+      }

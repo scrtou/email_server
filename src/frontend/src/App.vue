@@ -74,6 +74,18 @@
         <!-- 底部用户信息区域 -->
         <div class="sidebar-footer">
           <div class="user-info-section">
+            <!-- 通知图标 -->
+            <el-dropdown trigger="click" @visible-change="handleDropdownVisibleChange" style="margin-right: 15px;" placement="top-start">
+              <el-badge :value="notificationStore.unreadCount" :hidden="!notificationStore.hasUnread" class="item" type="danger">
+                <el-icon :size="22" style="color: var(--app-sidebar-text); cursor: pointer;" @click="logIconClick"><Bell /></el-icon>
+              </el-badge>
+              <template #dropdown>
+                <div v-if="notificationStore.isLoading" style="padding: 20px 15px; text-align: center; min-width: 150px;">加载中...</div>
+                <div v-else-if="notificationStore.error" style="padding: 20px 15px; color: red; text-align: center; min-width: 150px;">{{ notificationStore.error }}</div>
+                <NotificationList v-else />
+              </template>
+            </el-dropdown>
+
             <el-dropdown @command="handleUserCommand" trigger="click" placement="top-start">
               <div class="user-avatar-section" style="cursor: pointer;">
                 <el-avatar
@@ -85,7 +97,6 @@
                 </el-avatar>
                 <div class="user-details">
                   <div class="username">{{ authStore.userName }}</div>
-                  <div class="user-role">管理员</div>
                 </div>
               </div>
               <template #dropdown>
@@ -119,9 +130,12 @@
 </template>
 
 <script>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification' // Import notification store
+// import ReminderCard from '@/components/cards/ReminderCard.vue'; // ReminderCard is now replaced by NotificationList in the dropdown
+import NotificationList from '@/components/ui/NotificationList.vue'; // Import NotificationList
 import { ElMessageBox, ElMessage } from 'element-plus'
 import {
   House,
@@ -131,7 +145,8 @@ import {
   SwitchButton,
   Platform,
   Tickets,
-  Setting
+  Setting,
+  Bell // Import Bell icon
 } from '@element-plus/icons-vue'
 
 export default {
@@ -144,13 +159,35 @@ export default {
     SwitchButton,
     Platform,
     Tickets,
-    Setting
+    Setting,
+    Bell, // Register Bell icon
+    // ReminderCard // ReminderCard is no longer directly used here
+    NotificationList // Register NotificationList
   },
   setup() {
     const route = useRoute()
     const router = useRouter()
     const authStore = useAuthStore()
+    const notificationStore = useNotificationStore() // Initialize notification store
     const dropdownVisible = ref(false) // 用于控制下拉菜单的可见性，如果需要手动控制
+
+    const logIconClick = () => {
+      console.log('Notification icon clicked');
+    };
+
+    const handleDropdownVisibleChange = (visible) => {
+      console.log('Dropdown visible changed:', visible);
+      if (visible) {
+        // Dropdown is now showing NotificationList, specific reminder logging might not be needed here
+        // or can be adapted if general store state is still useful.
+        console.log('Notification dropdown visible. Store state:', {
+          isLoading: notificationStore.isLoading,
+          error: notificationStore.error,
+          hasUnread: notificationStore.hasUnread,
+          unreadCount: notificationStore.unreadCount
+        });
+      }
+    };
 
     // 页面标题映射
     const pageTitles = {
@@ -194,18 +231,66 @@ export default {
       }
     }
     
-    // 初始化时检查认证状态
+    // 初始化时检查认证状态并获取提醒
     onMounted(async () => {
-      if (authStore.token && !authStore.user) {
-        await authStore.fetchUserProfile()
+      if (authStore.isAuthenticated) { // Check isAuthenticated instead of token directly
+        if (!authStore.user) { // Fetch user profile if not already loaded
+          await authStore.fetchUserProfile();
+        }
+        console.log('App.vue onMounted: notificationStore object:', notificationStore);
+        console.log('App.vue onMounted: typeof notificationStore.fetchReminders:', typeof notificationStore.fetchReminders);
+        await notificationStore.fetchReminders();
+        console.log('Initial reminders fetched:', JSON.parse(JSON.stringify(notificationStore.reminders)));
+        console.log('Initial notification store state:', {
+          isLoading: notificationStore.isLoading,
+          error: notificationStore.error,
+          reminders: notificationStore.reminders, // Log the raw reminders
+          remindersCount: Array.isArray(notificationStore.reminders) ? notificationStore.reminders.length : 'not an array'
+        });
       }
-    })
+    });
+
+    // 监听认证状态变化
+    watch(() => authStore.isAuthenticated, async (isAuth) => {
+      if (isAuth) {
+        if (!authStore.user) {
+         await authStore.fetchUserProfile(); // Ensure user profile is loaded on login
+       }
+       console.log('App.vue watch: notificationStore object:', notificationStore);
+       console.log('App.vue watch: typeof notificationStore.fetchReminders:', typeof notificationStore.fetchReminders);
+       await notificationStore.fetchReminders();
+       console.log('Reminders fetched on auth change:', JSON.parse(JSON.stringify(notificationStore.reminders)));
+       console.log('Notification store state on auth change:', {
+          isLoading: notificationStore.isLoading,
+          error: notificationStore.error,
+          reminders: notificationStore.reminders, // Log the raw reminders
+          remindersCount: Array.isArray(notificationStore.reminders) ? notificationStore.reminders.length : 'not an array'
+        });
+      } else {
+        notificationStore.clearReminders(); // Clear reminders on logout
+      }
+    });
     
+    // const handleNotificationCommand = (command) => {
+    //   // This handler might no longer be needed if ReminderCard handles its own navigation
+    //   // and we are not using the command property on el-dropdown-item for reminders.
+    //   if (command && command.type === 'reminder' && command.id) {
+    //     router.push(`/service-subscriptions/${command.id}/edit`);
+    //   } else if (command === 'view_all_notifications') {
+    //     // router.push('/notifications'); // Future: Navigate to a dedicated notifications page
+    //     ElMessage.info('查看所有提醒功能开发中...');
+    //   }
+    // };
+
     return {
       authStore,
+      notificationStore, // Expose notification store
       getPageTitle,
       handleUserCommand,
-      dropdownVisible
+      // handleNotificationCommand, // Intentionally not exposing the original one
+      dropdownVisible,
+      logIconClick,
+      handleDropdownVisibleChange
     }
   }
 }
@@ -495,13 +580,15 @@ body {
 }
 
 .user-info-section {
-  padding: var(--space-4);
+  padding: var(--space-2); /* Reduced padding to decrease height */
+  display: flex;
+  align-items: center;
 }
 
 .user-avatar-section {
   display: flex;
   align-items: center;
-  margin-bottom: var(--space-3);
+  /* margin-bottom: var(--space-3); Removed margin-bottom */
 }
 
 .user-avatar-section .user-avatar {
@@ -732,5 +819,30 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+</style>
+
+<style scoped>
+/* Scoped styles for App.vue if needed, or add to global styles if preferred */
+.reminder-dropdown-item {
+  padding: 0 !important; /* Remove default padding of dropdown item */
+  line-height: normal !important; /* Override default line-height */
+}
+
+.reminder-dropdown-item .el-card {
+  margin-bottom: 0 !important; /* Remove margin from ReminderCard if it's the only content */
+  border: none !important; /* Remove border from card if it's inside dropdown */
+  box-shadow: none !important; /* Remove shadow from card */
+  background-color: transparent !important; /* Make card background transparent */
+}
+
+.reminder-dropdown-item:hover .el-card {
+  background-color: var(--el-dropdown-menuItem-hover-fill) !important; /* Match dropdown hover */
+}
+
+/* Ensure ReminderCard itself doesn't have excessive margins or borders when in dropdown */
+:deep(.reminder-dropdown-item .reminder-card) {
+  margin-bottom: 0 !important;
+  border-radius: 0; /* Optional: remove card's own border radius if it looks odd */
 }
 </style>

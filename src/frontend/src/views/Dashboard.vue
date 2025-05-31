@@ -72,9 +72,9 @@
       <el-divider />
 
       <!-- 图表和列表 -->
-      <el-row :gutter="20">
+      <el-row :gutter="5">
         <!-- 即将到期订阅列表 -->
-        <el-col :xs="24" :md="12">
+        <el-col :xs="24" :md="14">
           <el-card class="dashboard-list-card" shadow="hover">
             <template #header>
               <div class="card-header">
@@ -82,14 +82,14 @@
               </div>
             </template>
             <el-table :data="upcomingRenewalsData" style="width: 100%" height="380px" empty-text="暂无即将到期的订阅">
-              <el-table-column prop="service_name" label="服务名称" sortable />
-              <el-table-column prop="platform_name" label="平台" sortable />
-              <el-table-column prop="next_renewal_date" label="到期日" sortable>
+              <el-table-column prop="service_name" width="130" label="服务名称" sortable />
+              <el-table-column prop="platform_name" width="100" label="平台" sortable />
+              <el-table-column prop="next_renewal_date"  width="125" label="到期日" sortable>
                 <template #default="scope">
                   {{ formatDate(scope.row.next_renewal_date) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="cost" label="费用" sortable>
+              <el-table-column prop="cost"  width="150" label="费用" sortable>
                 <template #default="scope">
                   {{ formatCurrency(scope.row.cost) }} / {{ scope.row.billing_cycle }}
                 </template>
@@ -107,7 +107,7 @@
         </el-col>
 
         <!-- 各平台订阅数量分布 -->
-        <el-col :xs="24" :md="12">
+        <el-col :xs="24" :md="10">
           <el-card class="dashboard-chart-card" shadow="hover">
             <template #header>
               <div class="card-header">
@@ -165,9 +165,9 @@ const dashboardStore = useDashboardStore()
 
 // 从 store 获取计算属性
 const summaryData = computed(() => dashboardStore.getSummaryData) // Keep for other parts of summaryData
-const upcomingRenewalsData = computed(() => dashboardStore.upcomingRenewals)
-const loading = computed(() => dashboardStore.isLoading)
-const error = computed(() => dashboardStore.error)
+const upcomingRenewalsData = computed(() => dashboardStore.upcomingRenewals) // This is from dashboardStore, not notificationStore
+const loading = computed(() => dashboardStore.isLoading) // Dashboard loading state
+const error = computed(() => dashboardStore.error) // Dashboard error state
 
 const formatDate = (dateString) => {
   if (!dateString) return '-'
@@ -266,7 +266,7 @@ const platformDistributionChartOptions = computed(() => {
 })
 
 onMounted(() => {
-  dashboardStore.fetchDashboardSummary()
+  dashboardStore.fetchDashboardSummary();
 })
 
 </script>
@@ -416,14 +416,14 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 2px solid var(--color-gray-200);
-  padding: var(--space-2) var(--space-3); /* 减小表格header内边距 */
+  padding: var(--space-1) var(--space-2); /* 进一步减小表格header内边距 */
 }
 
 :deep(.el-table td.el-table__cell) {
   border-bottom: 1px solid var(--color-gray-100);
   font-size: var(--text-sm);
   color: var(--color-gray-700);
-  padding: var(--space-2) var(--space-3); /* 减小表格cell内边距 */
+  padding: var(--space-1) var(--space-2); /* 进一步减小表格cell内边距 */
 }
 
 :deep(.el-table .el-table__row:hover > td) {
@@ -512,6 +512,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  max-width: 607px;
   max-height: 420px; /* 限制卡片最大高度 */
 }
 
@@ -528,6 +529,7 @@ onMounted(() => {
 
 .dashboard-chart-card {
   height: 100%;
+  max-width: 750px;
   max-height: 420px; /* 限制图表卡片最大高度 */
 }
 
