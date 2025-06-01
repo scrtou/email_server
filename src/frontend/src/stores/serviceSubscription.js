@@ -34,7 +34,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       billing_cycle: '',
       renewal_date_start: '',
       renewal_date_end: '',
-      platform_registration_id: null, // Added platform_registration_id
+      // platform_registration_id: null, // Removed platform_registration_id
     }
   }),
   actions: {
@@ -53,7 +53,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       this.filters.billing_cycle = '';
       this.filters.renewal_date_start = '';
       this.filters.renewal_date_end = '';
-      this.filters.platform_registration_id = null; // Clear platform_registration_id
+      // this.filters.platform_registration_id = null; // Removed platform_registration_id
       this.pagination.currentPage = 1;
       this.fetchServiceSubscriptions(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters);
     },
@@ -78,7 +78,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       if (filterOptions.billing_cycle !== undefined) this.filters.billing_cycle = filterOptions.billing_cycle;
       if (filterOptions.renewal_date_start !== undefined) this.filters.renewal_date_start = filterOptions.renewal_date_start;
       if (filterOptions.renewal_date_end !== undefined) this.filters.renewal_date_end = filterOptions.renewal_date_end;
-      if (filterOptions.platform_registration_id !== undefined) this.filters.platform_registration_id = filterOptions.platform_registration_id; // Handle platform_registration_id
+      // if (filterOptions.platform_registration_id !== undefined) this.filters.platform_registration_id = filterOptions.platform_registration_id; // Removed
       
       const apiParams = {
         page,
@@ -89,7 +89,7 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
         billing_cycle: this.filters.billing_cycle || undefined,
         renewal_date_start: this.filters.renewal_date_start || undefined,
         renewal_date_end: this.filters.renewal_date_end || undefined,
-        platform_registration_id: this.filters.platform_registration_id || undefined, // Add platform_registration_id to API params
+        // platform_registration_id: this.filters.platform_registration_id || undefined, // Removed
       };
       
       try {

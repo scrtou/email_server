@@ -8,21 +8,48 @@
       label-width="160px"
       v-loading="loading"
     >
-      <el-form-item label="平台注册信息" prop="platform_registration_id">
+      <el-form-item v-if="!isEditMode" label="平台名称" prop="platform_name">
         <el-select
-          v-model="form.platform_registration_id"
-          placeholder="选择关联的平台注册信息"
+          v-model="form.platform_name"
+          placeholder="选择或输入平台名称"
           filterable
-          :disabled="isEditMode"
+          allow-create
+          default-first-option
+          :reserve-keyword="false"
           style="width: 100%;"
         >
           <el-option
-            v-for="item in platformRegistrationStore.platformRegistrations"
-            :key="item.id"
-            :label="`${item.platform_name} - ${item.email_address} (${item.login_username || '无用户名'})`"
-            :value="item.id"
+            v-for="platform in platformStore.platforms"
+            :key="platform.id"
+            :label="platform.name"
+            :value="platform.name"
           />
         </el-select>
+      </el-form-item>
+      <el-form-item v-if="isEditMode" label="平台名称" prop="platform_name">
+        <el-input v-model="form.platform_name" disabled />
+      </el-form-item>
+
+      <el-form-item v-if="!isEditMode" label="邮箱地址" prop="email_address">
+        <el-select
+          v-model="form.email_address"
+          placeholder="选择或输入邮箱地址"
+          filterable
+          allow-create
+          default-first-option
+          :reserve-keyword="false"
+          style="width: 100%;"
+        >
+          <el-option
+            v-for="account in emailAccountStore.emailAccounts"
+            :key="account.id"
+            :label="account.email_address"
+            :value="account.email_address"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="isEditMode" label="邮箱地址" prop="email_address">
+        <el-input v-model="form.email_address" disabled />
       </el-form-item>
 
       <el-form-item label="服务名称" prop="service_name">
@@ -81,7 +108,9 @@
 import { ref, onMounted, computed, watch } from 'vue';
 // import { useRouter, useRoute } from 'vue-router'; // Removed
 import { useServiceSubscriptionStore } from '@/stores/serviceSubscription';
-import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
+// import { usePlatformRegistrationStore } from '@/stores/platformRegistration'; // Removed
+import { usePlatformStore } from '@/stores/platform';
+import { useEmailAccountStore } from '@/stores/emailAccount';
 import { ElMessage } from 'element-plus';
 
 // eslint-disable-next-line no-undef
@@ -102,11 +131,14 @@ const emit = defineEmits(['submit-form', 'cancel']);
 // const router = useRouter(); // Removed
 // const route = useRoute(); // Removed
 const serviceSubscriptionStore = useServiceSubscriptionStore();
-const platformRegistrationStore = usePlatformRegistrationStore();
+// const platformRegistrationStore = usePlatformRegistrationStore(); // Removed
+const platformStore = usePlatformStore();
+const emailAccountStore = useEmailAccountStore();
 
 const formRef = ref(null);
 const form = ref({
-  platform_registration_id: null,
+  platform_name: '',
+  email_address: '',
   service_name: '',
   description: '',
   status: 'active',
@@ -120,7 +152,11 @@ const loading = ref(false);
 const isEditMode = computed(() => !!props.id);
 
 const rules = ref({
-  platform_registration_id: [{ required: true, message: '请选择平台注册信息', trigger: 'change' }],
+  platform_name: [{ required: true, message: '请输入或选择平台名称', trigger: 'change' }],
+  email_address: [
+    { required: true, message: '请输入或选择邮箱地址', trigger: 'change' },
+    { type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'change'] },
+  ],
   service_name: [
     { required: true, message: '请输入服务名称', trigger: 'blur' },
     { max: 255, message: '服务名称过长', trigger: 'blur' },
@@ -132,7 +168,10 @@ const rules = ref({
 
 const populateForm = (data) => {
   if (data) {
-    form.value.platform_registration_id = data.platform_registration_id;
+    // For edit mode, platform_name and email_address should come from the fetched subscription data
+    // Assuming the backend API for fetching a subscription now includes platform_name and email_address
+    form.value.platform_name = data.platform_name || ''; // Fallback if not present
+    form.value.email_address = data.email_address || ''; // Fallback if not present
     form.value.service_name = data.service_name;
     form.value.description = data.description;
     form.value.status = data.status;
@@ -144,7 +183,8 @@ const populateForm = (data) => {
     // Reset form for add mode or if data is null
     formRef.value?.resetFields(); // Reset validation and fields
     form.value = { // Explicitly reset data
-      platform_registration_id: null,
+      platform_name: '',
+      email_address: '',
       service_name: '',
       description: '',
       status: 'active',
@@ -164,13 +204,14 @@ watch(() => props.initialData, (newData) => {
 
 onMounted(async () => {
   loading.value = true;
-  if (platformRegistrationStore.platformRegistrations.length === 0) {
-    await platformRegistrationStore.fetchPlatformRegistrations(
-      1,
-      10000, // Fetch all for dropdown
-      { orderBy: 'platform_name', sortDirection: 'asc' },
-      { email_account_id: null, platform_id: null }
-    );
+  // Fetch platforms and email accounts for dropdowns
+  // Fetching all items for dropdowns, assuming the lists are not excessively large.
+  // Consider pagination/search for dropdowns if lists become very long.
+  if (platformStore.platforms.length === 0) {
+    await platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' });
+  }
+  if (emailAccountStore.emailAccounts.length === 0) {
+    await emailAccountStore.fetchEmailAccounts(1, 10000, { orderBy: 'email_address', sortDirection: 'asc' });
   }
 
   // If in edit mode and initialData is not yet populated (e.g. direct navigation for dev, though not typical for modal)
@@ -180,6 +221,7 @@ onMounted(async () => {
   if (isEditMode.value && props.id && !props.initialData) {
     const subData = await serviceSubscriptionStore.fetchServiceSubscriptionById(props.id);
     if (subData) {
+      // Ensure subData contains platform_name and email_address for edit mode
       populateForm(subData);
     } else {
       ElMessage.error('无法加载服务订阅数据，可能ID无效');
@@ -199,15 +241,29 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true;
-      const payload = { ...form.value };
-      if (!payload.next_renewal_date) {
-        payload.next_renewal_date = null; // Ensure null is sent if date is cleared
+      const formData = { ...form.value };
+      
+      let payload;
+      if (isEditMode.value) {
+        // For edit mode, exclude platform_name and email_address from the payload
+        payload = { ...formData }; // Create a shallow copy to avoid mutating the original form data
+        delete payload.platform_name;
+        delete payload.email_address;
+      } else {
+        // For create mode, include platform_name and email_address
+        payload = formData;
       }
+
+      if (payload.next_renewal_date === '') { // Ensure empty string date is sent as null
+        payload.next_renewal_date = null;
+      }
+      
       // The actual store call will be handled by the parent component
       emit('submit-form', { payload, id: props.id, isEdit: isEditMode.value });
-      loading.value = false;
+      loading.value = false; // Moved here to ensure it's set after emit
     } else {
       ElMessage.error('请检查表单输入');
+      // loading.value = false; // Ensure loading is false on validation error
       return false;
     }
   });

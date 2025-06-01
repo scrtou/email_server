@@ -106,7 +106,7 @@
         <el-table-column prop="cost" label="费用" width="100" sortable="custom" />
         <el-table-column prop="billing_cycle" label="计费周期" width="140" sortable="custom" />
         <el-table-column prop="next_renewal_date" label="下次续费日" width="140" sortable="custom" />
-        <el-table-column prop="notes" label="备注" min-width="150" :sortable="false" show-overflow-tooltip />
+        <el-table-column prop="description" label="订阅信息" min-width="150" :sortable="false" show-overflow-tooltip />
         <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
         <el-table-column label="操作" width="120" fixed="right" :sortable="false">
           <template #default="scope">

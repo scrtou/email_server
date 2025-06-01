@@ -16,6 +16,7 @@ type Platform struct {
 // PlatformResponse 用于API响应
 type PlatformResponse struct {
 	ID                uint   `json:"id"`
+	UserID            uint   `json:"user_id"` // 添加 UserID
 	Name              string `json:"name"`
 	WebsiteURL        string `json:"website_url"`
 	Notes             string `json:"notes"`
@@ -29,6 +30,7 @@ type PlatformResponse struct {
 func (p *Platform) ToPlatformResponse() PlatformResponse {
 	return PlatformResponse{
 		ID:         p.ID,
+		UserID:     p.UserID, // 添加 UserID
 		Name:       p.Name,
 		WebsiteURL: p.WebsiteURL,
 		Notes:      p.Notes,

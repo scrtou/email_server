@@ -26,6 +26,18 @@ type ServiceSubscription struct {
 	PlatformRegistration PlatformRegistration `gorm:"foreignKey:PlatformRegistrationID"`
 }
 
+// CreateServiceSubscriptionRequest 定义了创建服务订阅时的请求体
+type CreateServiceSubscriptionRequest struct {
+	PlatformName       string  `json:"platform_name" binding:"required"`
+	EmailAddress       string  `json:"email_address" binding:"required,email"`
+	ServiceName        string  `json:"service_name" binding:"required"`
+	Description        string  `json:"description"`
+	Status             string  `json:"status" binding:"required"` // e.g., active, cancelled
+	Cost               float64 `json:"cost" binding:"omitempty,min=0"`
+	BillingCycle       string  `json:"billing_cycle" binding:"required"` // e.g., monthly, yearly
+	NextRenewalDateStr *string `json:"next_renewal_date"`                // Format: YYYY-MM-DD
+	PaymentMethodNotes string  `json:"payment_method_notes"`
+}
 // ServiceSubscriptionResponse 用于API响应
 type ServiceSubscriptionResponse struct {
 	ID                     uint    `json:"id"`

@@ -15,15 +15,14 @@ import (
 
 // CreateServiceSubscription godoc
 // @Summary 创建服务订阅
-// @Description 为当前用户创建一个新的服务订阅，关联一个平台注册信息
+// @Description 为当前用户创建一个新的服务订阅，通过平台名称和邮箱地址关联或创建平台和邮箱账户信息
 // @Tags ServiceSubscriptions
 // @Accept json
 // @Produce json
-// @Param serviceSubscription body models.ServiceSubscription true "服务订阅信息。ID, UserID, CreatedAt 等会被忽略。"
+// @Param serviceSubscription body object{platform_name=string,email_address=string,service_name=string,description=string,status=string,cost=float64,billing_cycle=string,next_renewal_date=string,payment_method_notes=string} true "服务订阅信息，包含平台名称和邮箱地址。 platform_name, email_address, service_name, status, billing_cycle 为必填项。"
 // @Success 201 {object} models.SuccessResponse{data=models.ServiceSubscriptionResponse} "创建成功"
 // @Failure 400 {object} models.ErrorResponse "请求参数错误或关联资源无效"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
-// @Failure 404 {object} models.ErrorResponse "关联的平台注册信息未找到"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
 // @Router /service-subscriptions [post]
 // @Security BearerAuth
@@ -40,50 +39,98 @@ func CreateServiceSubscription(c *gin.Context) {
 	}
 	currentUserID := uint(userID)
 
-	var input struct {
-		PlatformRegistrationID uint    `json:"platform_registration_id" binding:"required"`
-		ServiceName            string  `json:"service_name" binding:"required"`
-		Description            string  `json:"description"`
-		Status                 string  `json:"status" binding:"required"` // e.g., active, cancelled
-		Cost                   float64 `json:"cost" binding:"min=0"`
-		BillingCycle           string  `json:"billing_cycle" binding:"required"` // e.g., monthly, yearly
-		NextRenewalDateStr     *string `json:"next_renewal_date"`                // Format: YYYY-MM-DD
-		PaymentMethodNotes     string  `json:"payment_method_notes"`
-	}
+	var input models.CreateServiceSubscriptionRequest // 使用新的 DTO
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "请求参数无效: "+err.Error())
 		return
 	}
 
-	// 验证 PlatformRegistration 是否属于当前用户
-	var pr models.PlatformRegistration
-	if err := database.DB.Where("id = ? AND user_id = ?", input.PlatformRegistrationID, currentUserID).
-		Preload("Platform").Preload("EmailAccount").First(&pr).Error; err != nil {
+	// 1. 查找或创建 EmailAccount
+	var emailAccount models.EmailAccount
+	err := database.DB.Where("email_address = ? AND user_id = ?", input.EmailAddress, currentUserID).First(&emailAccount).Error
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			utils.SendErrorResponse(c, http.StatusNotFound, "关联的平台注册信息未找到或不属于当前用户")
+			emailAccount = models.EmailAccount{
+				UserID:       currentUserID,
+				EmailAddress: input.EmailAddress,
+				Provider:     "", // Per requirement, set Provider to empty string
+			}
+			if createErr := database.DB.Create(&emailAccount).Error; createErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建邮箱账户失败: "+createErr.Error())
+				return
+			}
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败: "+err.Error())
 			return
 		}
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
-		return
 	}
+
+	// 2. 查找或创建 Platform
+	var platform models.Platform
+	err = database.DB.Where("name = ? AND user_id = ?", input.PlatformName, currentUserID).First(&platform).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			platform = models.Platform{
+				Name:   input.PlatformName,
+				UserID: currentUserID, // Assign current user's ID
+			}
+			if createErr := database.DB.Create(&platform).Error; createErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台失败: "+createErr.Error())
+				return
+			}
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
+			return
+		}
+	}
+
+	// 3. 查找或创建 PlatformRegistration
+	var platformRegistration models.PlatformRegistration
+	// Try to find existing PlatformRegistration and preload its associations
+	err = database.DB.Where("user_id = ? AND email_account_id = ? AND platform_id = ?", currentUserID, emailAccount.ID, platform.ID).
+		Preload("Platform").Preload("EmailAccount").First(&platformRegistration).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Not found, create a new one
+			platformRegistration = models.PlatformRegistration{
+				UserID:         currentUserID,
+				EmailAccountID: emailAccount.ID,
+				PlatformID:     platform.ID,
+				// Manually assign the Platform and EmailAccount objects for the response structure
+				// as GORM might not link them immediately on create for the current object instance
+				Platform:     platform,
+				EmailAccount: emailAccount,
+			}
+			if createErr := database.DB.Create(&platformRegistration).Error; createErr != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
+				return
+			}
+			// After creation, platformRegistration.ID is populated.
+			// The Platform and EmailAccount fields were manually set above.
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
+			return
+		}
+	}
+	// If found, Preload("Platform").Preload("EmailAccount") should have populated them.
+	// If created, we manually assigned platform and emailAccount to platformRegistration.Platform and platformRegistration.EmailAccount.
 
 	var nextRenewalDate *time.Time
 	if input.NextRenewalDateStr != nil && *input.NextRenewalDateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", *input.NextRenewalDateStr)
-		if err != nil {
+		parsedDate, errDate := time.Parse("2006-01-02", *input.NextRenewalDateStr)
+		if errDate != nil {
 			utils.SendErrorResponse(c, http.StatusBadRequest, "下次续费日期格式无效，请使用 YYYY-MM-DD")
 			return
 		}
 		nextRenewalDate = &parsedDate
 	}
 
-	// 查找或创建/恢复 ServiceSubscription 记录
-	// 假设业务唯一性基于 UserID, PlatformRegistrationID, ServiceName
+	// 4. 查找或创建/恢复 ServiceSubscription 记录
 	var subscription models.ServiceSubscription
-	err := database.DB.Unscoped().Where(models.ServiceSubscription{
+	err = database.DB.Unscoped().Where(models.ServiceSubscription{
 		UserID:                 currentUserID,
-		PlatformRegistrationID: input.PlatformRegistrationID,
+		PlatformRegistrationID: platformRegistration.ID, // Use the ID from the found/created PlatformRegistration
 		ServiceName:            input.ServiceName,
 	}).First(&subscription).Error
 
@@ -91,7 +138,7 @@ func CreateServiceSubscription(c *gin.Context) {
 		if err == gorm.ErrRecordNotFound { // 记录不存在，创建新的
 			subscription = models.ServiceSubscription{
 				UserID:                 currentUserID,
-				PlatformRegistrationID: input.PlatformRegistrationID,
+				PlatformRegistrationID: platformRegistration.ID,
 				ServiceName:            input.ServiceName,
 				Description:            input.Description,
 				Status:                 input.Status,
@@ -101,8 +148,6 @@ func CreateServiceSubscription(c *gin.Context) {
 				PaymentMethodNotes:     input.PaymentMethodNotes,
 			}
 			if createErr := database.DB.Create(&subscription).Error; createErr != nil {
-				// 如果未来 ServiceSubscription 表添加了唯一约束 (e.g., user_id, platform_registration_id, service_name)
-				// 且这里依然发生 UNIQUE constraint failed，则说明并发创建或数据不一致
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建服务订阅失败: "+createErr.Error())
 				return
 			}
@@ -112,7 +157,6 @@ func CreateServiceSubscription(c *gin.Context) {
 		}
 	} else { // 找到了记录
 		if subscription.DeletedAt.Valid { // 如果是软删除的记录
-			// 恢复记录并更新字段
 			subscription.Description = input.Description
 			subscription.Status = input.Status
 			subscription.Cost = input.Cost
@@ -125,17 +169,14 @@ func CreateServiceSubscription(c *gin.Context) {
 				return
 			}
 		} else { // 记录已存在且未被软删除
-			// 根据业务逻辑，这里可能应该提示用户“该服务订阅已存在”
-			// 为简单起见，如果用户尝试创建完全相同的（且未删除的）订阅，我们返回冲突错误
-			// 或者，也可以选择更新现有记录，但这更像是 PUT 操作的行为
 			utils.SendErrorResponse(c, http.StatusConflict, "该服务订阅已存在。")
 			return
 		}
 	}
-	
-	// subscription will have its ID populated. We need pr, pr.Platform, pr.EmailAccount for the response.
-	response := subscription.ToServiceSubscriptionResponse(pr, pr.Platform, pr.EmailAccount)
-	utils.SendSuccessResponse(c, response)
+
+	// platformRegistration should have .Platform and .EmailAccount populated for the response
+	response := subscription.ToServiceSubscriptionResponse(platformRegistration, platformRegistration.Platform, platformRegistration.EmailAccount)
+	c.JSON(http.StatusCreated, gin.H{"status": "success", "data": response})
 }
 
 // GetServiceSubscriptions godoc
@@ -323,14 +364,14 @@ func GetServiceSubscriptionByID(c *gin.Context) {
 
 // UpdateServiceSubscription godoc
 // @Summary 更新指定ID的服务订阅
-// @Description 更新当前用户拥有的指定ID的服务订阅信息
+// @Description 更新当前用户拥有的指定ID的服务订阅信息。平台和邮箱不可更改。
 // @Tags ServiceSubscriptions
 // @Accept json
 // @Produce json
 // @Param id path int true "服务订阅ID"
-// @Param serviceSubscription body models.ServiceSubscription true "要更新的服务订阅信息。UserID, PlatformRegistrationID 不可更改。"
+// @Param serviceSubscription body object{service_name=string,description=string,status=string,cost=float64,billing_cycle=string,next_renewal_date=string,payment_method_notes=string} true "要更新的服务订阅信息。UserID, PlatformRegistrationID, PlatformName, EmailAddress 不可更改。"
 // @Success 200 {object} models.SuccessResponse{data=models.ServiceSubscriptionResponse} "更新成功"
-// @Failure 400 {object} models.ErrorResponse "请求参数错误或无效的ID格式"
+// @Failure 400 {object} models.ErrorResponse "请求参数错误、无效的ID格式或尝试修改不可变字段"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 403 {object} models.ErrorResponse "无权访问该资源"
 // @Failure 404 {object} models.ErrorResponse "服务订阅未找到"
@@ -370,52 +411,143 @@ func UpdateServiceSubscription(c *gin.Context) {
 		return
 	}
 
-	var input struct {
-		ServiceName        string  `json:"service_name" binding:"omitempty,required"` // omitempty allows partial, but service name is core
-		Description        string  `json:"description"`
-		Status             string  `json:"status" binding:"omitempty,required"`
-		Cost               float64 `json:"cost" binding:"omitempty,min=0"`
-		BillingCycle       string  `json:"billing_cycle" binding:"omitempty,required"`
-		NextRenewalDateStr *string `json:"next_renewal_date"` // Format: YYYY-MM-DD
-		PaymentMethodNotes string  `json:"payment_method_notes"`
-		// PlatformRegistrationID is not updatable here.
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var rawInput map[string]interface{}
+	if err := c.ShouldBindJSON(&rawInput); err != nil {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "请求参数无效: "+err.Error())
 		return
 	}
 
-	if input.ServiceName != "" { ss.ServiceName = input.ServiceName }
-	ss.Description = input.Description // Allow clearing
-	if input.Status != "" { ss.Status = input.Status }
-	// Cost needs careful handling for omitempty if 0 is a valid value but also "not provided"
-    // Assuming if cost is in the payload, it's an intended update.
-    // For simplicity, if the key is present in JSON, we update.
-    // This requires client to send all fields they want to keep, or use PATCH.
-    // Given PUT, typically means full replacement of updatable fields.
-    // Let's assume client sends all updatable fields.
-    ss.Cost = input.Cost
-	if input.BillingCycle != "" { ss.BillingCycle = input.BillingCycle }
-	ss.PaymentMethodNotes = input.PaymentMethodNotes // Allow clearing
+	// 检查是否尝试修改不可变字段
+	if _, rok := rawInput["platform_name"]; rok {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "不允许修改平台名称(platform_name)")
+		return
+	}
+	if _, rok := rawInput["email_address"]; rok {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "不允许修改邮箱地址(email_address)")
+		return
+	}
+	if _, rok := rawInput["platform_registration_id"]; rok {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "不允许修改平台注册ID(platform_registration_id)")
+		return
+	}
 
-	if input.NextRenewalDateStr != nil {
-		if *input.NextRenewalDateStr == "" { // Explicitly clearing the date
-			ss.NextRenewalDate = nil
-		} else {
-			parsedDate, err := time.Parse("2006-01-02", *input.NextRenewalDateStr)
-			if err != nil {
-				utils.SendErrorResponse(c, http.StatusBadRequest, "下次续费日期格式无效，请使用 YYYY-MM-DD")
-				return
+	// 更新允许修改的字段
+	updated := false // Track if any field is actually updated
+
+	if val, rok := rawInput["service_name"]; rok {
+		if strVal, okAssert := val.(string); okAssert {
+			// Add validation if service_name cannot be empty, e.g.
+			// if strVal == "" { utils.SendErrorResponse(c, http.StatusBadRequest, "服务名称不能为空"); return }
+			if ss.ServiceName != strVal {
+				ss.ServiceName = strVal
+				updated = true
 			}
-			ss.NextRenewalDate = &parsedDate
+		} else {
+			// utils.SendErrorResponse(c, http.StatusBadRequest, "service_name 格式错误")
+			// return
 		}
 	}
 
+	if val, rok := rawInput["description"]; rok { // Allows null or empty string to clear
+		currentDesc := ss.Description
+		newDesc := ""
+		if strVal, okAssert := val.(string); okAssert {
+			newDesc = strVal
+		} else if val == nil {
+			newDesc = "" // Treat null as empty string for description
+		}
+		if currentDesc != newDesc {
+			ss.Description = newDesc
+			updated = true
+		}
+	}
 
-	if err := database.DB.Save(&ss).Error; err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "更新服务订阅失败: "+err.Error())
-		return
+	if val, rok := rawInput["status"]; rok {
+		if strVal, okAssert := val.(string); okAssert && strVal != "" { // Status usually required
+			if ss.Status != strVal {
+				ss.Status = strVal
+				updated = true
+			}
+		}
+	}
+
+	if val, rok := rawInput["cost"]; rok { // Allows 0 as a valid cost
+		if numVal, okAssert := val.(float64); okAssert {
+			// Add validation if cost cannot be negative, e.g.
+			// if numVal < 0 { utils.SendErrorResponse(c, http.StatusBadRequest, "cost 不能为负数"); return }
+			if ss.Cost != numVal {
+				ss.Cost = numVal
+				updated = true
+			}
+		}
+	}
+
+	if val, rok := rawInput["billing_cycle"]; rok {
+		if strVal, okAssert := val.(string); okAssert && strVal != "" { // Billing cycle usually required
+			if ss.BillingCycle != strVal {
+				ss.BillingCycle = strVal
+				updated = true
+			}
+		}
+	}
+
+	if val, rok := rawInput["payment_method_notes"]; rok {
+		currentPmn := ss.PaymentMethodNotes
+		newPmn := ""
+		if strVal, okAssert := val.(string); okAssert {
+			newPmn = strVal
+		} else if val == nil {
+			newPmn = "" // Treat null as empty string
+		}
+		if currentPmn != newPmn {
+			ss.PaymentMethodNotes = newPmn
+			updated = true
+		}
+	}
+
+	if val, rok := rawInput["next_renewal_date"]; rok {
+		var newDate *time.Time
+		changed := false
+		if val == nil { // Explicitly set to null
+			if ss.NextRenewalDate != nil { // Only change if it was not already null
+				newDate = nil
+				changed = true
+			}
+		} else if strVal, okAssert := val.(string); okAssert {
+			if strVal == "" { // Empty string also clears the date
+				if ss.NextRenewalDate != nil {
+					newDate = nil
+					changed = true
+				}
+			} else {
+				parsedDate, errDate := time.Parse("2006-01-02", strVal)
+				if errDate != nil {
+					utils.SendErrorResponse(c, http.StatusBadRequest, "下次续费日期格式无效，请使用 YYYY-MM-DD")
+					return
+				}
+				// Compare with existing date if it exists
+				if ss.NextRenewalDate == nil || !ss.NextRenewalDate.Equal(parsedDate) {
+					newDate = &parsedDate
+					changed = true
+				} else if ss.NextRenewalDate != nil && ss.NextRenewalDate.Equal(parsedDate) {
+                    // No change if dates are the same
+                }
+			}
+		} else {
+			// utils.SendErrorResponse(c, http.StatusBadRequest, "next_renewal_date 格式错误")
+			// return
+		}
+		if changed {
+			ss.NextRenewalDate = newDate
+			updated = true
+		}
+	}
+	
+	if updated { // Only save if there were actual changes to prevent unnecessary DB write and updated_at bump
+		if err := database.DB.Save(&ss).Error; err != nil {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "更新服务订阅失败: "+err.Error())
+			return
+		}
 	}
 	
 	response := ss.ToServiceSubscriptionResponse(ss.PlatformRegistration, ss.PlatformRegistration.Platform, ss.PlatformRegistration.EmailAccount)
