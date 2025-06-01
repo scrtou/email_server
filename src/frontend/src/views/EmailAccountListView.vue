@@ -313,7 +313,7 @@ const handleAssociatedPageChange = (payload) => {
           </el-col>
           <el-col :xs="24" :sm="12" :md="8" :lg="6">
             <el-button type="primary" @click="triggerApplyAllFilters" :loading="isQuerying">查询</el-button>
-            <el-button @click="triggerClearAllFilters" :loading="isResetting">重置所有</el-button>
+            <el-button @click="triggerClearAllFilters" :loading="isResetting">重置</el-button>
           </el-col>
         </el-row>
       </div>
@@ -367,9 +367,8 @@ const handleAssociatedPageChange = (payload) => {
       <el-pagination
         class="mt-4"
         background
-        layout="total, sizes, prev, pager, next, jumper"
+        layout="total, prev, pager, next, jumper"
         :total="emailAccountStore.pagination.totalItems"
-        :page-sizes="[10, 20, 50, 100]"
         :current-page="emailAccountStore.pagination.currentPage"
         :page-size="emailAccountStore.pagination.pageSize"
         @size-change="handleSizeChange"
@@ -470,7 +469,7 @@ const handleAssociatedPageChange = (payload) => {
 
 /* 表格样式 - 移除竖线和修复多余竖线 */
 :deep(.el-table) {
-  margin-top: 20px;
+  margin-top: 0px; /* 原为 20px, 增加间距 */
   border-radius: 8px;
   overflow: hidden;
   border: none;
@@ -486,7 +485,7 @@ const handleAssociatedPageChange = (payload) => {
 
 /* 统一表格行高 - 更紧凑样式 */
 :deep(.el-table td.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   border-bottom: 1px solid var(--color-gray-100);
   border-right: none; /* 移除竖线 */
   line-height: 1.4; /* 紧凑的行高 */
@@ -494,7 +493,7 @@ const handleAssociatedPageChange = (payload) => {
 }
 
 :deep(.el-table th.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
   color: var(--color-gray-700);
   font-weight: var(--font-semibold);

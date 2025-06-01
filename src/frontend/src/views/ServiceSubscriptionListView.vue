@@ -173,9 +173,8 @@
       <el-pagination
         v-if="serviceSubscriptionStore.pagination.totalItems > 0"
         background
-        layout="total, sizes, prev, pager, next, jumper"
+        layout="total, prev, pager, next, jumper"
         :total="serviceSubscriptionStore.pagination.totalItems"
-        :page-sizes="[10, 20, 50, 100]"
         :current-page="serviceSubscriptionStore.pagination.currentPage"
         :page-size="pageSize.value"
         @size-change="handleSizeChange"
@@ -597,7 +596,7 @@ onMounted(async () => {
 
 /* 表格样式 - 移除竖线和修复多余竖线 */
 :deep(.el-table) {
-  margin-top: 20px;
+  margin-top: 0px;
   border-radius: 8px;
   overflow: hidden;
   border: none;
@@ -615,7 +614,7 @@ onMounted(async () => {
 
 /* 统一表格行高 - 更紧凑样式 */
 :deep(.el-table td.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   border-bottom: 1px solid var(--color-gray-100);
   border-right: none; /* 移除竖线 */
   line-height: 1.4; /* 紧凑的行高 */
@@ -623,7 +622,7 @@ onMounted(async () => {
 }
 
 :deep(.el-table th.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
   color: var(--color-gray-700);
   font-weight: var(--font-semibold);

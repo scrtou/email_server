@@ -399,7 +399,27 @@ func GetServiceSubscriptions(c *gin.Context) {
 	currentUserID := uint(userID)
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	// --- pageSize 处理逻辑 ---
+	pageSizeStr := c.Query("pageSize")
+	var pageSize int
+	fetchAll := false
+	if pageSizeStr == "" {
+		pageSize = 10 // 默认值
+	} else {
+		parsedPageSize, err := strconv.Atoi(pageSizeStr)
+		if err != nil {
+			pageSize = 10 // 解析失败，使用默认值
+		} else {
+			if parsedPageSize > 0 {
+				pageSize = parsedPageSize // 使用前端提供的值
+			} else {
+				// pageSize <= 0，获取所有记录
+				fetchAll = true
+				pageSize = 0 // 标记为获取所有，实际查询时不使用 limit
+			}
+		}
+	}
+	// --- End pageSize 处理逻辑 ---
 	prIDFilter, _ := strconv.Atoi(c.Query("platform_registration_id"))
 	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
 	billingCycleFilter := strings.ToLower(strings.TrimSpace(c.Query("billing_cycle")))
@@ -433,9 +453,13 @@ func GetServiceSubscriptions(c *gin.Context) {
 	orderClause := dbOrderByField + " " + sortDirection
 
 	if page <= 0 { page = 1 }
-	if pageSize <= 0 { pageSize = 10 }
-	if pageSize > 100 { pageSize = 100 }
-	offset := (page - 1) * pageSize
+	// 移除旧的 pageSize <= 0 和 > 100 的限制
+	// if pageSize <= 0 { pageSize = 10 } // 由上面的新逻辑处理
+	// if pageSize > 100 { pageSize = 100 } // 移除上限
+	offset := 0
+	if !fetchAll {
+		offset = (page - 1) * pageSize
+	}
 
 	var subscriptions []models.ServiceSubscription
 	var totalRecords int64
@@ -501,8 +525,11 @@ func GetServiceSubscriptions(c *gin.Context) {
 	}
 
 	// Preload PlatformRegistration and its nested Platform and EmailAccount
-	err := query.Order(orderClause).Offset(offset).Limit(pageSize).
-		Preload("PlatformRegistration.Platform").
+	dbQuery := query.Order(orderClause)
+	if !fetchAll {
+		dbQuery = dbQuery.Offset(offset).Limit(pageSize)
+	}
+	err := dbQuery.Preload("PlatformRegistration.Platform").
 		Preload("PlatformRegistration.EmailAccount").
 		Find(&subscriptions).Error
 	if err != nil {
@@ -527,7 +554,11 @@ func GetServiceSubscriptions(c *gin.Context) {
 		responses = append(responses, ss.ToServiceSubscriptionResponse(ss.PlatformRegistration, platformForResp, emailAccountForResp))
 	}
 	
-	pagination := utils.CreatePaginationMeta(page, pageSize, int(totalRecords))
+	metaPageSize := pageSize
+	if fetchAll {
+		metaPageSize = int(totalRecords) // 如果获取所有，meta 中的 pageSize 为总数
+	}
+	pagination := utils.CreatePaginationMeta(page, metaPageSize, int(totalRecords))
 	utils.SendSuccessResponseWithMeta(c, responses, pagination)
 }
 
@@ -891,7 +922,27 @@ func GetServiceSubscriptionsByPlatformRegistrationID(c *gin.Context) {
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	// --- pageSize 处理逻辑 ---
+	pageSizeStr := c.Query("pageSize")
+	var pageSize int
+	fetchAll := false
+	if pageSizeStr == "" {
+		pageSize = 10 // 默认值
+	} else {
+		parsedPageSize, err := strconv.Atoi(pageSizeStr)
+		if err != nil {
+			pageSize = 10 // 解析失败，使用默认值
+		} else {
+			if parsedPageSize > 0 {
+				pageSize = parsedPageSize // 使用前端提供的值
+			} else {
+				// pageSize <= 0，获取所有记录
+				fetchAll = true
+				pageSize = 0 // 标记为获取所有，实际查询时不使用 limit
+			}
+		}
+	}
+	// --- End pageSize 处理逻辑 ---
 	orderBy := c.DefaultQuery("orderBy", "created_at")
 	sortDirection := c.DefaultQuery("sortDirection", "desc")
 
@@ -917,13 +968,13 @@ func GetServiceSubscriptionsByPlatformRegistrationID(c *gin.Context) {
 	if page <= 0 {
 		page = 1
 	}
-	if pageSize <= 0 {
-		pageSize = 10
+	// 移除旧的 pageSize <= 0 和 > 100 的限制
+	// if pageSize <= 0 { pageSize = 10 } // 由上面的新逻辑处理
+	// if pageSize > 100 { pageSize = 100 } // 移除上限
+	offset := 0
+	if !fetchAll {
+		offset = (page - 1) * pageSize
 	}
-	if pageSize > 100 { // Max page size limit
-		pageSize = 100
-	}
-	offset := (page - 1) * pageSize
 
 	var subscriptions []models.ServiceSubscription
 	var totalRecords int64
@@ -940,12 +991,15 @@ func GetServiceSubscriptionsByPlatformRegistrationID(c *gin.Context) {
 	// Preload PlatformRegistration and its nested Platform and EmailAccount for the response
 	// Since we already have `pr` (PlatformRegistration with its preloads), we can use it.
 	// However, the subscriptions themselves need to be fetched.
-	err = database.DB.Model(&models.ServiceSubscription{}).
+	finalDbQuery := database.DB.Model(&models.ServiceSubscription{}).
 		Where("platform_registration_id = ? AND user_id = ?", platformRegistrationID, uint(currentUserID)).
-		Order(orderClause).
-		Offset(offset).
-		Limit(pageSize).
-		Find(&subscriptions).Error
+		Order(orderClause)
+
+	if !fetchAll {
+		finalDbQuery = finalDbQuery.Offset(offset).Limit(pageSize)
+	}
+
+	err = finalDbQuery.Find(&subscriptions).Error
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取服务订阅信息失败: "+err.Error())
 		return
@@ -970,7 +1024,11 @@ func GetServiceSubscriptionsByPlatformRegistrationID(c *gin.Context) {
 		responses = append(responses, ss.ToServiceSubscriptionResponse(pr, platformForRespLoop, emailAccountForRespLoop))
 	}
 
-	pagination := utils.CreatePaginationMeta(page, pageSize, int(totalRecords))
+	metaPageSize := pageSize
+	if fetchAll {
+		metaPageSize = int(totalRecords) // 如果获取所有，meta 中的 pageSize 为总数
+	}
+	pagination := utils.CreatePaginationMeta(page, metaPageSize, int(totalRecords))
 	utils.SendSuccessResponseWithMeta(c, responses, pagination)
 }
 

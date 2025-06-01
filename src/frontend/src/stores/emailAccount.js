@@ -78,9 +78,15 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
       
       try {
+        // Determine the pageSize to be sent to the API
+        let apiPageSize = pageSize;
+        if (pageSize === 10000) { // If pageSize 10000 is passed, change it to 0 for the API call
+          apiPageSize = 0;
+        }
+
         const params = {
           page,
-          pageSize,
+          pageSize: apiPageSize, // Use the potentially modified pageSize
           orderBy: orderBy,
           sortDirection: sortDirection,
           provider: this.filters.provider || undefined, // Use the potentially updated store filter

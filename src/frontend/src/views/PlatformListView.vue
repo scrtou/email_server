@@ -76,9 +76,8 @@
         v-if="platformStore.pagination.totalItems > 0"
         class="pagination-container"
         background
-        layout="total, sizes, prev, pager, next, jumper"
+        layout="total, prev, pager, next, jumper"
         :total="platformStore.pagination.totalItems"
-        :page-sizes="[10, 20, 50, 100]"
         :current-page="platformStore.pagination.currentPage"
         :page-size="pageSize.value"
         @size-change="handleSizeChange"
@@ -382,7 +381,7 @@ const handleAssociatedPageChange = (payload) => {
 
 /* 表格核心样式 - 与 EmailAccountListView 统一 */
 :deep(.el-table) {
-  margin-top: 20px;
+  margin-top: 0px;
   border-radius: 8px;
   overflow: hidden;
   border: none; /* 移除 Element Plus 默认边框 */
@@ -398,7 +397,7 @@ const handleAssociatedPageChange = (payload) => {
 
 /* 表格数据单元格 (td) */
 :deep(.el-table td.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   border-bottom: 1px solid var(--color-gray-100);
   border-right: none; /* 移除竖线 */
   line-height: 1.4;
@@ -406,7 +405,7 @@ const handleAssociatedPageChange = (payload) => {
 
 /* 表格头部单元格 (th) */
 :deep(.el-table th.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
   color: var(--color-gray-700);
   font-weight: var(--font-semibold);

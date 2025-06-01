@@ -413,10 +413,11 @@ func GetPlatformRegistrations(c *gin.Context) {
 	}
 	currentUserID := uint(userID)
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	// --- Pagination and Filtering ---
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.Query("pageSize") // Get pageSize query param as string
 
-	// Get filter parameters
+	// Get filter parameters before calculating total records
 	emailAccountIDQuery := c.Query("email_account_id")
 	platformIDQuery := c.Query("platform_id")
 	usernameFilter := strings.ToLower(strings.TrimSpace(c.Query("username"))) // 读取 username 参数
@@ -483,24 +484,58 @@ func GetPlatformRegistrations(c *gin.Context) {
 		query = query.Where("LOWER(platform_registrations.login_username) = LOWER(?)", usernameFilter)
 		countQuery = countQuery.Where("LOWER(login_username) = LOWER(?)", usernameFilter)
 	}
-	if page <= 0 {	page = 1 }
-	if pageSize <= 0 { pageSize = 10	}
-	if pageSize > 100 { pageSize = 100 }
-	offset := (page - 1) * pageSize
-
-	var registrations []models.PlatformRegistration
+	// --- Calculate Total Records (needs to be done after filtering) ---
 	var totalRecords int64
-
-	// query and countQuery are now initialized and potentially filtered before this point.
-	// The Joins for sorting are applied to 'query', not 'countQuery'.
-
 	if err := countQuery.Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台注册总数失败: "+err.Error())
 		return
 	}
-	
+
+	// --- Process Pagination Parameters ---
+	page, _ := strconv.Atoi(pageStr)
+	if page <= 0 {
+		page = 1
+	}
+
+	pageSize := 10 // Default page size
+	fetchAll := false
+
+	if pageSizeStr != "" {
+		parsedPageSize, err := strconv.Atoi(pageSizeStr)
+		if err == nil {
+			if parsedPageSize > 0 {
+				pageSize = parsedPageSize // Use provided positive value, no upper limit
+			} else {
+				// pageSize <= 0 means fetch all
+				fetchAll = true
+			}
+		}
+		// If parsing fails, pageSize remains the default 10
+	}
+
+	var offset int
+	if fetchAll {
+		pageSize = int(totalRecords) // Set pageSize to total records
+		if pageSize < 0 { pageSize = 0 } // Ensure pageSize is not negative if totalRecords is somehow negative (shouldn't happen)
+		page = 1 // Force page to 1 when fetching all
+		offset = 0
+	} else {
+		offset = (page - 1) * pageSize
+	}
+
+	// --- Fetch Paginated Data ---
+	var registrations []models.PlatformRegistration
+
+	// Apply sorting, preloading, and potentially pagination limits
+	query = query.Order(orderClause) // Apply sorting order
+
+	if !fetchAll && totalRecords > 0 { // Only apply limit and offset if not fetching all and there are records
+		query = query.Offset(offset).Limit(pageSize)
+	}
+	// If fetchAll is true, no Offset or Limit is applied, retrieving all records matching filters.
+	// If totalRecords is 0, Offset/Limit don't matter but skipping them is cleaner.
+
 	// Preload related data for the response
-	// If sorting by related fields (e.g., email_accounts.email_address), a JOIN would be needed here.
 	// For now, we sort by PlatformRegistration fields and then preload.
 	// Example for JOIN and sort (more complex):
 	// if orderBy == "email_address" {
@@ -511,7 +546,10 @@ func GetPlatformRegistrations(c *gin.Context) {
 	// orderClause = "platforms.name " + sortDirection
 	// }
 
-	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Preload("EmailAccount").Preload("Platform").Find(&registrations).Error; err != nil {
+	// Always preload after potential pagination
+	query = query.Preload("EmailAccount").Preload("Platform")
+
+	if err := query.Find(&registrations).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台注册列表失败: "+err.Error())
 		return
 	}

@@ -24,7 +24,7 @@ export const usePlatformStore = defineStore('platform', {
     error: null,
     pagination: {
       currentPage: 1,
-      pageSize: 8,
+      pageSize: 7,
       totalItems: 0,
     },
     sort: { // New state for sorting
@@ -81,7 +81,7 @@ export const usePlatformStore = defineStore('platform', {
       try {
         const params = {
           page,
-          pageSize,
+          pageSize: pageSize, // Use the pageSize parameter passed to fetchPlatforms
           orderBy: orderBy,
           sortDirection: sortDirection,
           name: this.filters.nameSearch || undefined, // Add name search filter

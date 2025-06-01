@@ -7,6 +7,9 @@
           <el-button type="primary" :icon="Plus" @click="handleAdd">
             添加注册信息
           </el-button>
+          <el-button type="success" :icon="Upload" @click="handleImportBitwarden" style="margin-left: 10px;">
+            导入 Bitwarden 数据
+          </el-button>
         </div>
       </template>
 
@@ -110,9 +113,8 @@
         v-if="platformRegistrationStore.pagination.totalItems > 0"
         class="pagination-container"
         background
-        layout="total, sizes, prev, pager, next, jumper"
+        layout="total, prev, pager, next, jumper"
         :total="platformRegistrationStore.pagination.totalItems"
-        :page-sizes="[10, 20, 50, 100]"
         :current-page="platformRegistrationStore.pagination.currentPage"
         :page-size="pageSize.value"
         @size-change="handleSizeChange"
@@ -159,17 +161,17 @@
 
 <script setup>
 import { onMounted, ref, computed } from 'vue';
-// import { useRouter } from 'vue-router'; // Removed
+import { useRouter } from 'vue-router'; // Added back
 const MIN_LOADING_TIME = 300; // 最小加载时间，单位毫秒
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { ElMessageBox, ElMessage } from 'element-plus';
-import { Plus, Edit, Delete } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Upload } from '@element-plus/icons-vue'; // Added Upload icon
 import ModalDialog from '@/components/ui/ModalDialog.vue';
 import PlatformRegistrationForm from '@/components/forms/PlatformRegistrationForm.vue';
 
-// const router = useRouter(); // Removed
+const router = useRouter(); // Added back
 const platformRegistrationStore = usePlatformRegistrationStore();
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
@@ -207,9 +209,14 @@ onMounted(async () => {
       { provider: '', emailAddressSearch: '' } // Explicitly pass empty filters
     );
   }
-  if (platformStore.platforms.length === 0) { // Fetch only if not already populated
-    await platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' }); // Fetch a large number for dropdown
-  }
+  // Always fetch platforms for the dropdown with a large page size (e.g., 200)
+  // to ensure all platforms are available, overriding any previously fetched list
+  // that might have been paginated with a smaller pageSize (like the default 8).
+  // The backend API's max pageSize is 100. Requesting 200 here aims to get
+  // as many as possible, ideally all if the backend handles pageSize > max gracefully,
+  // or at least the maximum of 100. This directly addresses the issue of the
+  // dropdown showing only 8 items due to an earlier fetch with a small pageSize.
+  await platformStore.fetchPlatforms(1, 200, { orderBy: 'name', sortDirection: 'asc' });
   
   // Initial data fetch for the table, using current store state for filters, sort, pagination
   platformRegistrationStore.fetchPlatformRegistrations(
@@ -373,6 +380,10 @@ const handleCurrentChange = (newPage) => {
   // Store's fetchPlatformRegistrations will use current filters and sort
   platformRegistrationStore.fetchPlatformRegistrations(newPage, pageSize.value);
 };
+
+const handleImportBitwarden = () => {
+  router.push('/import/bitwarden');
+};
 </script>
 
 <style scoped>
@@ -427,7 +438,7 @@ const handleCurrentChange = (newPage) => {
 
 /* 表格核心样式 - 与 EmailAccountListView 统一 */
 :deep(.el-table) {
-  margin-top: 20px;
+  margin-top: 0px;
   border-radius: 8px;
   overflow: hidden;
   border: none; /* 移除 Element Plus 默认边框 */
@@ -443,7 +454,7 @@ const handleCurrentChange = (newPage) => {
 
 /* 表格数据单元格 (td) */
 :deep(.el-table td.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   border-bottom: 1px solid var(--color-gray-100);
   border-right: none; /* 移除竖线 */
   line-height: 1.4;
@@ -451,7 +462,7 @@ const handleCurrentChange = (newPage) => {
 
 /* 表格头部单元格 (th) */
 :deep(.el-table th.el-table__cell) {
-  padding: 4px 8px; /* 更紧凑的内边距 */
+  padding: 4px 8px; /* 增加垂直内边距 */
   background: linear-gradient(135deg, var(--color-gray-50), var(--color-gray-100));
   color: var(--color-gray-700);
   font-weight: var(--font-semibold);

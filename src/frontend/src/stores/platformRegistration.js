@@ -24,7 +24,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
     error: null,
     pagination: {
       currentPage: 1,
-      pageSize: 8,
+      pageSize: 7,
       totalItems: 0,
     },
     sort: { // New state for sorting

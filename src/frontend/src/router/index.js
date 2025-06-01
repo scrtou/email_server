@@ -18,6 +18,7 @@ import PlatformListView from '../views/PlatformListView.vue'
 import PlatformRegistrationListView from '../views/PlatformRegistrationListView.vue'
 import ServiceSubscriptionListView from '../views/ServiceSubscriptionListView.vue'
 import SearchResultView from '../views/SearchResultView.vue' // Import SearchResultView
+import ImportBitwardenView from '../views/ImportBitwardenView.vue' // Import Bitwarden Import View
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
 const routes = [
@@ -155,6 +156,13 @@ const routes = [
         name: 'search-results', // Changed from 'SearchResults' to 'search-results' for consistency
         component: SearchResultView,
         // meta: { requiresAuth: true } // Already covered by parent AppLayout
+      },
+      // Bitwarden Import Route
+      {
+        path: 'import/bitwarden',
+        name: 'ImportBitwarden',
+        component: ImportBitwardenView,
+        // meta: { requiresAuth: true } // Inherited from AppLayout
       }
       // Add other authenticated routes as children of AppLayout here
     ]

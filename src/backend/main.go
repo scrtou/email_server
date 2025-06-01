@@ -103,6 +103,12 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			serviceSubscriptions.PUT("/:id", handlers.UpdateServiceSubscription)
 			serviceSubscriptions.DELETE("/:id", handlers.DeleteServiceSubscription)
 		}
+
+		// 导入模块
+		importerGroup := protected.Group("/import") // 使用 importer 而不是 import 避免与 Go 关键字冲突
+		{
+			importerGroup.POST("/bitwarden-csv", handlers.ImportBitwardenCSVHandler)
+		}
  
 		// 仪表板
 		protected.GET("/dashboard", handlers.GetDashboard) // 旧的仪表盘API，已在handler中标记为弃用

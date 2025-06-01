@@ -27,19 +27,19 @@ import (
 // @Router /platforms [post]
 // @Security BearerAuth
 func CreatePlatform(c *gin.Context) {
-userIDRaw, exists := c.Get("user_id")
-if !exists {
-	utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
-	return
-}
-userID, ok := userIDRaw.(int64)
-if !ok {
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
-	return
-}
-currentUserID := uint(userID)
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	currentUserID := uint(userID)
 
-var input struct {
+	var input struct {
 		Name       string `json:"name" binding:"required,min=2,max=100"`
 		WebsiteURL string `json:"website_url" binding:"omitempty,url"`
 		Notes      string `json:"notes"`
@@ -71,11 +71,11 @@ var input struct {
 
 // GetPlatforms godoc
 // @Summary 获取所有平台信息
-// @Description 获取所有平台信息，支持分页
+// @Description 获取所有平台信息，支持分页。pageSize > 0 时分页；pageSize <= 0 时获取所有；未提供或无效时使用默认值 10。
 // @Tags Platforms
 // @Produce json
 // @Param page query int false "页码" default(1)
-// @Param pageSize query int false "每页数量" default(10)
+// @Param pageSize query int false "每页数量 (<= 0 表示获取所有)" default(10)
 // @Param orderBy query string false "排序字段 (e.g., name, website_url, created_at, updated_at)" default(name)
 // @Param sortDirection query string false "排序方向 (asc, desc)" default(asc)
 // @Param name query string false "按平台名称进行模糊匹配筛选"
@@ -85,54 +85,89 @@ var input struct {
 // @Router /platforms [get]
 // @Security BearerAuth
 func GetPlatforms(c *gin.Context) {
-userIDRaw, exists := c.Get("user_id")
-if !exists {
-	utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
-	return
-}
-userID, ok := userIDRaw.(int64)
-if !ok {
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
-	return
-}
-currentUserID := uint(userID)
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	currentUserID := uint(userID)
 
-page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-orderBy := c.DefaultQuery("orderBy", "name")
-sortDirection := c.DefaultQuery("sortDirection", "asc")
-filterName := strings.ToLower(strings.TrimSpace(c.Query("name")))
+	orderBy := c.DefaultQuery("orderBy", "name")
+	sortDirection := c.DefaultQuery("sortDirection", "asc")
+	filterName := strings.ToLower(strings.TrimSpace(c.Query("name")))
 
-// Validate orderBy parameter
-allowedOrderByFields := map[string]string{
-	"name":        "name",
-	"website_url": "website_url",
-	"notes":       "notes",
-	"created_at":  "created_at",
-	"updated_at":  "updated_at",
-}
-dbOrderByField, isValidField := allowedOrderByFields[orderBy]
-if !isValidField {
-	dbOrderByField = "name" // Default to a safe field
-}
+	// Validate orderBy parameter
+	allowedOrderByFields := map[string]string{
+		"name":        "name",
+		"website_url": "website_url",
+		"notes":       "notes",
+		"created_at":  "created_at",
+		"updated_at":  "updated_at",
+	}
+	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
+	if !isValidField {
+		dbOrderByField = "name" // Default to a safe field
+	}
 
-// Validate sortDirection
-if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
-	sortDirection = "asc" // Default to asc
-}
-orderClause := dbOrderByField + " " + sortDirection
+	// Validate sortDirection
+	if strings.ToLower(sortDirection) != "asc" && strings.ToLower(sortDirection) != "desc" {
+		sortDirection = "asc" // Default to asc
+	}
+	orderClause := dbOrderByField + " " + sortDirection
 
-if page <= 0 {
+	var page int
+	var pageSizeForQuery int // Used for Offset/Limit if pagination is active, and potentially for meta
+	fetchAllWindows := false
+	defaultPageSize := 10
+
+	pageQuery := c.DefaultQuery("page", "1")
+	page, _ = strconv.Atoi(pageQuery) // Error ignored for simplicity
+	if page <= 0 {
 		page = 1
 	}
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-	if pageSize > 100 { // Max page size limit
-		pageSize = 100
+
+	pageSizeQuery := c.Query("pageSize")
+	if pageSizeQuery == "" {
+		// 3. pageSize 未传递: 使用默认值
+		pageSizeForQuery = defaultPageSize
+		fetchAllWindows = false
+	} else {
+		parsedPageSize, err := strconv.Atoi(pageSizeQuery)
+		if err != nil {
+			// 3. pageSize 无法解析: 使用默认值
+			pageSizeForQuery = defaultPageSize
+			fetchAllWindows = false
+		} else {
+			if parsedPageSize > 0 {
+				// 1. pageSize > 0: 使用传递的值
+				pageSizeForQuery = parsedPageSize
+				fetchAllWindows = false
+			} else { // parsedPageSize <= 0 (包括 0 和负数)
+				// 2. pageSize <= 0: 获取所有记录
+				fetchAllWindows = true
+				// pageSizeForQuery 在 fetchAllWindows 为 true 时不直接用于查询 LIMIT。
+				// 它将在后面用于 meta data，并根据 totalRecords 进行调整。
+				// 暂时设为 0 表示“全部”。
+				pageSizeForQuery = 0 // Indicates "all", will be adjusted for meta later
+			}
+		}
 	}
 
-	offset := (page - 1) * pageSize
+	var offset int
+	if !fetchAllWindows {
+		// 确保 pageSizeForQuery 是正数，用于 offset 计算和 Limit
+		// 如果 fetchAllWindows 为 false，pageSizeForQuery 此时应为 > 0 的用户值或默认值
+		if pageSizeForQuery <= 0 { // 安全检查，理论上不应发生
+			pageSizeForQuery = defaultPageSize
+		}
+		offset = (page - 1) * pageSizeForQuery
+	}
+	// 如果 fetchAllWindows 为 true, offset 不用于主查询。
 
 	var platforms []models.Platform
 	var totalRecords int64
@@ -149,7 +184,15 @@ if page <= 0 {
 		return
 	}
 
-	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Find(&platforms).Error; err != nil {
+	finalQuery := query.Order(orderClause)
+	if !fetchAllWindows {
+		// Apply pagination only if not fetching all items.
+		// pageSizeForQuery here would be the user-defined positive value, or default 10.
+		finalQuery = finalQuery.Offset(offset).Limit(pageSizeForQuery)
+	}
+	// If fetchAllWindows is true, no Offset or Limit is applied, getting all records.
+
+	if err := finalQuery.Find(&platforms).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台列表失败: "+err.Error())
 		return
 	}
@@ -169,8 +212,19 @@ if page <= 0 {
 		response.EmailAccountCount = emailAccountCount // 这个字段现在表示当前用户在该平台注册的邮箱数
 		responses = append(responses, response)
 	}
-	
-	pagination := utils.CreatePaginationMeta(page, pageSize, int(totalRecords))
+
+	var metaPage, metaPageSizeForResponse int
+	if fetchAllWindows {
+		metaPage = 1 // 当获取所有项目时，它实际上是第一页也是唯一一页
+		// 当获取所有记录时，响应中的 pageSize 应为总记录数
+		metaPageSizeForResponse = int(totalRecords)
+	} else {
+		metaPage = page
+		// 当分页时，响应中的 pageSize 是用于查询的 pageSize (用户提供或默认值)
+		// 此时 pageSizeForQuery 保证是 > 0 的值
+		metaPageSizeForResponse = pageSizeForQuery
+	}
+	pagination := utils.CreatePaginationMeta(metaPage, metaPageSizeForResponse, int(totalRecords))
 	utils.SendSuccessResponseWithMeta(c, responses, pagination)
 }
 
@@ -189,33 +243,33 @@ if page <= 0 {
 // @Router /platforms/{id} [get]
 // @Security BearerAuth
 func GetPlatformByID(c *gin.Context) {
-userIDRaw, exists := c.Get("user_id")
-if !exists {
-	utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
-	return
-}
-userID, ok := userIDRaw.(int64)
-if !ok {
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
-	return
-}
-currentUserID := uint(userID)
-
-platformID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-if err != nil {
-	utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台ID格式")
-	return
-}
-
-var platform models.Platform
-if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID).First(&platform).Error; err != nil {
-	if err == gorm.ErrRecordNotFound {
-		utils.SendErrorResponse(c, http.StatusNotFound, "平台未找到或无权访问")
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
 		return
 	}
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台详情失败: "+err.Error())
-	return
-}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	currentUserID := uint(userID)
+
+	platformID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台ID格式")
+		return
+	}
+
+	var platform models.Platform
+	if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID).First(&platform).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "平台未找到或无权访问")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台详情失败: "+err.Error())
+		return
+	}
    // 计算当前用户在此平台上的注册数量
    var emailAccountCount int64
    // 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
@@ -228,7 +282,7 @@ if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID)
    }
    response := platform.ToPlatformResponse()
    response.EmailAccountCount = emailAccountCount
-utils.SendSuccessResponse(c, response)
+	utils.SendSuccessResponse(c, response)
 }
 
 // UpdatePlatform godoc
@@ -248,35 +302,35 @@ utils.SendSuccessResponse(c, response)
 // @Router /platforms/{id} [put]
 // @Security BearerAuth
 func UpdatePlatform(c *gin.Context) {
-userIDRaw, exists := c.Get("user_id")
-if !exists {
-	utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
-	return
-}
-userID, ok := userIDRaw.(int64)
-if !ok {
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
-	return
-}
-currentUserID := uint(userID)
-
-platformID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-if err != nil {
-	utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台ID格式")
-	return
-}
-
-var platform models.Platform
-if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID).First(&platform).Error; err != nil {
-	if err == gorm.ErrRecordNotFound {
-		utils.SendErrorResponse(c, http.StatusNotFound, "平台未找到或无权访问")
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
 		return
 	}
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待更新平台失败: "+err.Error())
-	return
-}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	currentUserID := uint(userID)
 
-var input struct {
+	platformID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台ID格式")
+		return
+	}
+
+	var platform models.Platform
+	if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID).First(&platform).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "平台未找到或无权访问")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待更新平台失败: "+err.Error())
+		return
+	}
+
+	var input struct {
 		Name       string `json:"name" binding:"omitempty,min=2,max=100"`
 		WebsiteURL string `json:"website_url" binding:"omitempty,url"`
 		Notes      string `json:"notes"`
@@ -372,34 +426,34 @@ var input struct {
 // @Router /platforms/{id} [delete]
 // @Security BearerAuth
 func DeletePlatform(c *gin.Context) {
-userIDRaw, exists := c.Get("user_id")
-if !exists {
-	utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
-	return
-}
-userID, ok := userIDRaw.(int64)
-if !ok {
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
-	return
-}
-currentUserID := uint(userID)
-
-platformID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-if err != nil {
-	utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台ID格式")
-	return
-}
-
-var platform models.Platform
-if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID).First(&platform).Error; err != nil {
-	if err == gorm.ErrRecordNotFound {
-		utils.SendErrorResponse(c, http.StatusNotFound, "平台未找到或无权访问")
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
 		return
 	}
-	utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待删除平台失败: "+err.Error())
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
 		return
 	}
-	
+	currentUserID := uint(userID)
+
+	platformID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台ID格式")
+		return
+	}
+
+	var platform models.Platform
+	if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID).First(&platform).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "平台未找到或无权访问")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待删除平台失败: "+err.Error())
+			return
+		}
+
 	// 使用事务确保操作的原子性
 	tx := database.DB.Begin()
 	if tx.Error != nil {
