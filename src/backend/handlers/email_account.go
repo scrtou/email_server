@@ -44,6 +44,7 @@ func CreateEmailAccount(c *gin.Context) {
 		Password        string `json:"password" binding:"omitempty,min=6"`       // 密码可选
 		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
 		Notes           string `json:"notes"`
+		PhoneNumber     string `json:"phone_number"` // 手机号码，可选
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -70,6 +71,7 @@ func CreateEmailAccount(c *gin.Context) {
 		PasswordEncrypted: hashedPassword,
 		Provider:          provider,
 		Notes:             input.Notes,
+		PhoneNumber:       input.PhoneNumber,
 	}
 
 	if err := database.DB.Create(&emailAccount).Error; err != nil {
@@ -127,6 +129,7 @@ func GetEmailAccounts(c *gin.Context) {
 		"notes":         "notes",
 		"created_at":    "created_at",
 		"updated_at":    "updated_at",
+		"phone_number":  "phone_number",
 	}
 	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
 	if !isValidField {
@@ -293,6 +296,7 @@ func UpdateEmailAccount(c *gin.Context) {
 		Password        string `json:"password" binding:"omitempty,min=6"`         // 密码可选
 		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
 		Notes           string `json:"notes"`
+		PhoneNumber     string `json:"phone_number"` // 手机号码，可选，如果提供则更新
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -318,6 +322,8 @@ func UpdateEmailAccount(c *gin.Context) {
 	// Notes 总是更新，即使是空字符串，允许用户清空这些字段
 	// Provider 的更新已在 EmailAddress 更新时处理
 	emailAccount.Notes = input.Notes
+	// PhoneNumber 总是更新，即使是空字符串，允许用户清空或设置
+	emailAccount.PhoneNumber = input.PhoneNumber
 
 
 	if err := database.DB.Save(&emailAccount).Error; err != nil {

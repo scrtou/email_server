@@ -19,6 +19,7 @@ type CreatePlatformRegistrationInput struct {
 	LoginUsername string `json:"login_username"`
 	LoginPassword string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
 	Notes         string `json:"notes"`
+	PhoneNumber   string `json:"phone_number"`                             // 手机号码，可选
 	// 可以根据需要添加 Provider (针对EmailAccount) 和 WebsiteURL (针对Platform)
 	// EmailProvider    string `json:"email_provider"`
 	// PlatformWebsiteURL string `json:"platform_website_url"`
@@ -30,6 +31,7 @@ type CreatePlatformRegistrationWithIDsInput struct {
 	LoginUsername  string `json:"login_username"`
 	LoginPassword  string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
 	Notes          string `json:"notes"`
+	PhoneNumber    string `json:"phone_number"`                             // 手机号码，可选
 }
 
 // CreatePlatformRegistrationWithIDs godoc
@@ -152,6 +154,7 @@ func CreatePlatformRegistrationWithIDs(c *gin.Context) {
 		LoginUsername:          input.LoginUsername,
 		LoginPasswordEncrypted: hashedPassword,
 		Notes:                  input.Notes,
+		PhoneNumber:            input.PhoneNumber,
 	}
 	if createErr := database.DB.Create(&registration).Error; createErr != nil {
 		if strings.Contains(createErr.Error(), "UNIQUE constraint failed") {
@@ -353,6 +356,7 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 		LoginUsername:          input.LoginUsername,
 		LoginPasswordEncrypted: hashedPassword,
 		Notes:                  input.Notes,
+		PhoneNumber:            input.PhoneNumber,
 	}
 	if createErr := database.DB.Create(&registration).Error; createErr != nil {
 		if strings.Contains(createErr.Error(), "UNIQUE constraint failed") {
@@ -438,6 +442,7 @@ func GetPlatformRegistrations(c *gin.Context) {
 		"updated_at":     "platform_registrations.updated_at",
 		"email_address":  "email_accounts.email_address",
 		"platform_name":  "platforms.name",
+		"phone_number":   "platform_registrations.phone_number",
 	}
 	dbOrderByField, isValidField := allowedOrderByFields[orderBy]
 	
@@ -627,6 +632,7 @@ func UpdatePlatformRegistration(c *gin.Context) {
 		LoginUsername  string `json:"login_username"`
 		LoginPassword  string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
 		Notes          string `json:"notes"`
+		PhoneNumber    string `json:"phone_number"`                             // 手机号码，可选
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -638,6 +644,7 @@ func UpdatePlatformRegistration(c *gin.Context) {
 	// 更新基本字段
 	registration.LoginUsername = input.LoginUsername
 	registration.Notes = input.Notes
+	registration.PhoneNumber = input.PhoneNumber
 
 
 	// 更新密码（如果提供）

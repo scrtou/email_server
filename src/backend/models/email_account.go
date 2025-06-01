@@ -10,6 +10,7 @@ type EmailAccount struct {
 	PasswordEncrypted string `gorm:"type:varchar(255)"` // 加密存储的密码, 允许为空
 	Provider          string `gorm:"type:varchar(100)"`          // 邮箱服务商，例如 Gmail, Outlook 等
 	Notes             string `gorm:"type:text"`                  // 备注信息
+	PhoneNumber       string `gorm:"type:varchar(50)"`           // 手机号码, 可选
 
 	User User `gorm:"foreignKey:UserID"` // 定义关联关系
 }
@@ -20,6 +21,7 @@ type EmailAccountResponse struct {
 	EmailAddress  string `json:"email_address"`
 	Provider      string `json:"provider"`
 	Notes         string `json:"notes"`
+	PhoneNumber   string `json:"phone_number,omitempty"`
 	PlatformCount int64  `json:"platform_count"` // 添加关联平台数量字段
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`
@@ -33,6 +35,7 @@ func (ea *EmailAccount) ToEmailAccountResponse() EmailAccountResponse {
 		EmailAddress:  ea.EmailAddress,
 		Provider:      ea.Provider,
 		Notes:         ea.Notes,
+		PhoneNumber:   ea.PhoneNumber,
 		// PlatformCount: 0, // 这里暂时不直接赋值，由 handler 处理
 		CreatedAt:     ea.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:     ea.UpdatedAt.Format("2006-01-02 15:04:05"),

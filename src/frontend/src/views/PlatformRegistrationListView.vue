@@ -93,6 +93,7 @@
         <el-table-column prop="platform_name" label="平台" min-width="120" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="login_username" label="用户名/ID" min-width="130" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
+<el-table-column prop="phone_number" label="手机号" min-width="150" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
         <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />

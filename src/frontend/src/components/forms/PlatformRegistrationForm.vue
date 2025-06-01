@@ -73,9 +73,14 @@
           </el-form-item>
         </el-col>
       </el-row>
-      
+
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="24" :md="24">
+        <el-col :xs="24" :sm="24" :md="12">
+          <el-form-item label="手机号" prop="phone_number">
+            <el-input v-model="form.phone_number" placeholder="请输入手机号" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="备注" prop="notes">
             <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="填写备注信息" />
           </el-form-item>
@@ -85,6 +90,7 @@
     </el-form>
   </div>
 </template>
+
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
@@ -116,6 +122,7 @@ const form = ref({
   platform_id: null,
   login_username: '',
   login_password: '',
+  phone_number: '', // Added phone_number
   notes: '',
 });
 const loading = ref(false); // General form loading
@@ -125,6 +132,18 @@ const rules = ref({
   email_account_id: [{ required: false, message: '请选择邮箱账户', trigger: 'change' }], // Removed required validation
   platform_id: [{ required: true, message: '请选择平台', trigger: 'change' }],
   login_username: [{ max: 255, message: '登录用户名过长', trigger: 'blur' }],
+  phone_number: [ // Added phone_number validation
+    {
+      validator: (rule, value, callback) => {
+        if (value && !/^\+?[0-9\s-]{7,20}$/.test(value)) {
+          callback(new Error('请输入有效的手机号'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
   login_password: [
     { required: false, message: '请输入登录密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少为6位', trigger: 'blur' },
@@ -145,6 +164,7 @@ onMounted(async () => {
     form.value.email_account_id = props.platformRegistration.email_account_id;
     form.value.platform_id = props.platformRegistration.platform_id;
     form.value.login_username = props.platformRegistration.login_username;
+    form.value.phone_number = props.platformRegistration.phone_number || ''; // Populate phone_number
     form.value.notes = props.platformRegistration.notes;
   } else {
     // Reset form for create mode or if no data
@@ -152,6 +172,7 @@ onMounted(async () => {
     form.value.platform_id = null;
     form.value.login_username = '';
     form.value.login_password = '';
+    form.value.phone_number = ''; // Reset phone_number
     form.value.notes = '';
   }
   loading.value = false;
@@ -162,6 +183,7 @@ watch(() => props.platformRegistration, (newVal) => {
     form.value.email_account_id = newVal.email_account_id;
     form.value.platform_id = newVal.platform_id;
     form.value.login_username = newVal.login_username;
+    form.value.phone_number = newVal.phone_number || ''; // Populate phone_number
     form.value.notes = newVal.notes;
     form.value.login_password = ''; // Clear password on edit
   } else if (!props.isEdit) {
@@ -170,6 +192,7 @@ watch(() => props.platformRegistration, (newVal) => {
     form.value.platform_id = null;
     form.value.login_username = '';
     form.value.login_password = '';
+    form.value.phone_number = ''; // Reset phone_number
     form.value.notes = '';
   }
 }, { immediate: true, deep: true });
@@ -189,6 +212,7 @@ const handleSubmit = async () => {
 
       let payload = {
         login_username: form.value.login_username,
+        phone_number: form.value.phone_number, // Add phone_number to payload
         notes: form.value.notes,
       };
       if (form.value.login_password) {
@@ -267,6 +291,7 @@ defineExpose({
     form.value.platform_id = null;
     form.value.login_username = '';
     form.value.login_password = '';
+    form.value.phone_number = ''; // Reset phone_number
     form.value.notes = '';
   },
   formRef

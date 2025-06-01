@@ -12,6 +12,7 @@ type PlatformRegistration struct {
 	LoginPasswordEncrypted string `gorm:"type:varchar(255)"`                                                                                                             // 在该平台的登录密码 (加密存储)
 	Notes                  string `gorm:"type:text"`                                                                                                                            // 备注信息
 	IsActive               bool   `gorm:"not null;default:true;uniqueIndex:uq_user_platform_loginusername_active,priority:4;uniqueIndex:uq_user_platform_emailaccountid_active,priority:4"` // 辅助列，用于唯一索引处理软删除
+	PhoneNumber            string `gorm:"type:varchar(50)"`                                                                                                                            // 手机号码, 可选
 
 	User         User          `gorm:"foreignKey:UserID"`
 	EmailAccount *EmailAccount `gorm:"foreignKey:EmailAccountID"` // 指针类型以匹配可空外键
@@ -34,6 +35,7 @@ type PlatformRegistrationResponse struct {
 	PlatformName           string              `json:"platform_name"` // From Platform
 	LoginUsername          string              `json:"login_username"`
 	Notes                  string              `json:"notes"`
+	PhoneNumber            string              `json:"phone_number,omitempty"`
 	CreatedAt              string              `json:"created_at"`
 	UpdatedAt              string              `json:"updated_at"`
 }
@@ -50,6 +52,7 @@ func (pr *PlatformRegistration) ToPlatformRegistrationResponse(emailAccount Emai
 		PlatformName:   platform.Name, // Populate from passed Platform
 		LoginUsername:  pr.LoginUsername,
 		Notes:          pr.Notes,
+		PhoneNumber:    pr.PhoneNumber,
 		CreatedAt:      pr.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:      pr.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
@@ -65,6 +68,7 @@ func (pr *PlatformRegistration) ToPlatformRegistrationResponseLite() PlatformReg
         PlatformID:     pr.PlatformID,
         LoginUsername:  pr.LoginUsername,
         Notes:          pr.Notes,
+        PhoneNumber:    pr.PhoneNumber,
         CreatedAt:      pr.CreatedAt.Format("2006-01-02 15:04:05"),
         UpdatedAt:      pr.UpdatedAt.Format("2006-01-02 15:04:05"),
     }

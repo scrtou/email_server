@@ -331,6 +331,7 @@ const handleAssociatedPageChange = (payload) => {
           resizable
         >
         <el-table-column prop="email_address" label="邮箱地址" min-width="200" sortable="custom" />
+<el-table-column prop="phone_number" label="手机号" min-width="150" sortable="custom" />
         <!-- 服务商列已移除，服务商信息由后端自动提取和管理 -->
         <!-- <el-table-column prop="id" label="ID" width="80" /> -->
         <el-table-column label="关联平台" width="120" :sortable="false">
@@ -508,6 +509,10 @@ const handleAssociatedPageChange = (payload) => {
   white-space: nowrap;
 }
 
+/* 为手机号列设置不换行 */
+:deep(.el-table td.el-table__cell:nth-child(2)) {
+  white-space: nowrap;
+}
 /* 为备注列设置允许换行并显示省略号 */
 :deep(.el-table td.el-table__cell:nth-child(4)) {
   white-space: normal;

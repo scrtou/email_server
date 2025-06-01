@@ -26,6 +26,11 @@
             />
           </el-form-item>
         </el-col>
+<el-col :span="24">
+          <el-form-item label="手机号" prop="phone_number">
+            <el-input v-model="form.phone_number" placeholder="请输入手机号" />
+          </el-form-item>
+        </el-col>
         <el-col :span="24">
           <el-form-item label="备注" prop="notes">
             <el-input type="textarea" v-model="form.notes" :rows="4" placeholder="添加任何相关备注" />
@@ -69,6 +74,7 @@ const emailAccountFormRef = ref(null);
 const form = ref({
   email_address: '',
   password: '',
+phone_number: '',
   // provider: '', // 已移除
   notes: '',
 });
@@ -82,6 +88,23 @@ const rules = ref({
   email_address: [
     { required: true, message: '请输入邮箱地址', trigger: 'blur' },
     { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' },
+  ],
+phone_number: [
+    {
+      // Basic validation for phone number (e.g., not empty, or a simple regex)
+      // This can be enhanced with a more specific regex if needed.
+      // For now, let's keep it simple or make it optional.
+      // required: true, message: '请输入手机号', trigger: 'blur'
+      // Example: Allow empty or match a simple pattern
+      validator: (rule, value, callback) => {
+        if (value && !/^\+?[0-9\s-]{7,20}$/.test(value)) { // Allows digits, spaces, hyphens, optional leading +
+          callback(new Error('请输入有效的手机号'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur'
+    }
   ],
   password: [
     // Password is required in create mode, optional in edit mode (if empty, not changed)
@@ -117,6 +140,7 @@ const resetForm = () => {
   form.value = {
     email_address: '',
     password: '',
+phone_number: '',
     notes: '',
   };
 };
@@ -125,6 +149,7 @@ watch(() => props.emailAccount, (newAccount) => {
   resetForm();
   if (newAccount && isEditMode.value) {
     form.value.email_address = newAccount.email_address || '';
+form.value.phone_number = newAccount.phone_number || '';
     form.value.notes = newAccount.notes || '';
     // Password and confirm_password remain blank for editing
   }
@@ -146,6 +171,7 @@ const handleSubmit = async () => {
       loading.value = true; // Keep loading state for visual feedback if needed
       const payload = {
         email_address: form.value.email_address,
+phone_number: form.value.phone_number,
         notes: form.value.notes,
       };
 

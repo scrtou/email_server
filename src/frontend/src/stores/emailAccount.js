@@ -7,6 +7,7 @@ export const useEmailAccountStore = defineStore('emailAccount', {
   state: () => ({
     emailAccounts: [],
     currentEmailAccount: null,
+// currentEmailAccount will include phone_number when fetched/set
     loading: false,
     error: null,
     pagination: {
@@ -125,6 +126,7 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       try {
         // api.js interceptor returns the 'data' part of the backend response
         const data = await emailAccountAPI.getById(id);
+// Ensure data includes phone_number if returned by API
         this.currentEmailAccount = data;
         return data;
       } catch (err) {
@@ -147,6 +149,7 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       this.loading = true;
       this.error = null;
       try {
+// data should include phone_number from the form
         const createdData = await emailAccountAPI.create(data);
         ElMessage.success('邮箱账户创建成功');
         await this.fetchEmailAccounts(this.pagination.currentPage, this.pagination.pageSize);
@@ -177,10 +180,12 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       this.loading = true;
       this.error = null;
       try {
+// data should include phone_number from the form
         const updatedData = await emailAccountAPI.update(id, data);
         ElMessage.success('邮箱账户更新成功');
         await this.fetchEmailAccounts(this.pagination.currentPage, this.pagination.pageSize);
         if (this.currentEmailAccount && this.currentEmailAccount.id === id) {
+// Ensure updatedData includes phone_number if returned by API
             this.currentEmailAccount = updatedData;
         }
         return updatedData;

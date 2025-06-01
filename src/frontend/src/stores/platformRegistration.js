@@ -19,6 +19,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
   state: () => ({
     platformRegistrations: [],
     currentPlatformRegistration: null,
+// currentPlatformRegistration will include phone_number when fetched/set
     loading: false,
     error: null,
     pagination: {
@@ -130,6 +131,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       this.currentPlatformRegistration = null;
       try {
         const data = await platformRegistrationAPI.getById(id);
+// Ensure data includes phone_number if returned by API
         this.currentPlatformRegistration = data;
         return data;
       } catch (err) {
@@ -152,6 +154,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       this.loading = true;
       this.error = null;
       try {
+// data should include phone_number from the form
         const createdData = await platformRegistrationAPI.create(data);
         ElMessage.success('平台注册信息创建成功');
         // Decide on re-fetch strategy, e.g., based on current view or always re-fetch first page
@@ -183,6 +186,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       this.error = null;
       try {
         // 假设 platformRegistrationAPI.createByName 将被添加到 api.js
+// data should include phone_number from the form
         const createdData = await platformRegistrationAPI.createByName(data);
         ElMessage.success('平台注册信息创建成功 (by name)');
         await this.fetchPlatformRegistrations(1, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
@@ -211,10 +215,12 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
 
       this.loading = true;
       this.error = null;
+// data should include phone_number from the form
       try {
         const updatedData = await platformRegistrationAPI.update(id, data);
         ElMessage.success('平台注册信息更新成功');
         await this.fetchPlatformRegistrations(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
+// Ensure updatedData includes phone_number if returned by API
         if (this.currentPlatformRegistration && this.currentPlatformRegistration.id === id) {
           this.currentPlatformRegistration = updatedData;
         }
