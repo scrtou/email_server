@@ -4,6 +4,7 @@ import (
 	"email_server/database"
 	"email_server/models"
 	"email_server/utils"
+	"errors" // Added for errors.Is
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,7 +14,7 @@ import (
 )
 // CreatePlatformRegistrationInput 定义了创建平台注册信息的输入结构
 type CreatePlatformRegistrationInput struct {
-	EmailAddress  string `json:"email_address" binding:"required,email"`
+	EmailAddress  string `json:"email_address" binding:"omitempty,email"` // 修改为可选
 	PlatformName  string `json:"platform_name" binding:"required"`
 	LoginUsername string `json:"login_username"`
 	LoginPassword string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
@@ -24,7 +25,7 @@ type CreatePlatformRegistrationInput struct {
 }
 // CreatePlatformRegistrationWithIDsInput 定义了通过ID创建平台注册信息的输入结构
 type CreatePlatformRegistrationWithIDsInput struct {
-	EmailAccountID uint   `json:"email_account_id" binding:"required"`
+	EmailAccountID uint   `json:"email_account_id"` // 移除 binding:"required"
 	PlatformID     uint   `json:"platform_id" binding:"required"`
 	LoginUsername  string `json:"login_username"`
 	LoginPassword  string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
@@ -66,17 +67,20 @@ func CreatePlatformRegistrationWithIDs(c *gin.Context) {
 
 	var err error // Declare err once
 
-	// 验证 EmailAccount 是否属于当前用户
-	var emailAccount models.EmailAccount
-	err = database.DB.Where("id = ? AND user_id = ?", input.EmailAccountID, currentUserID).First(&emailAccount).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			utils.SendErrorResponse(c, http.StatusNotFound, "关联的邮箱账户未找到或不属于当前用户")
+	// 仅当 EmailAccountID > 0 时，验证 EmailAccount 是否属于当前用户
+	var emailAccount models.EmailAccount // 声明 emailAccount 变量，以便后续使用
+	if input.EmailAccountID > 0 {
+		err = database.DB.Where("id = ? AND user_id = ?", input.EmailAccountID, currentUserID).First(&emailAccount).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				utils.SendErrorResponse(c, http.StatusNotFound, "关联的邮箱账户未找到或不属于当前用户")
+				return
+			}
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败: "+err.Error())
 			return
 		}
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败: "+err.Error())
-		return
 	}
+	// 如果 EmailAccountID 为 0，则跳过验证，emailAccount 将保持其零值
 
 	// 验证 Platform 是否存在且属于当前用户
 	var platform models.Platform
@@ -99,51 +103,82 @@ func CreatePlatformRegistrationWithIDs(c *gin.Context) {
 		}
 	}
 
-	// 查找或创建/恢复 PlatformRegistration 记录
-	var registration models.PlatformRegistration
-	err = database.DB.Unscoped().Where(models.PlatformRegistration{
-		UserID:         currentUserID,
-		EmailAccountID: input.EmailAccountID,
-		PlatformID:     input.PlatformID,
-	}).First(&registration).Error
+	// --- 精确冲突检查 ---
+	var existingRegistration models.PlatformRegistration
+	query := database.DB.Where("user_id = ? AND platform_id = ?", currentUserID, input.PlatformID)
 
-	if err != nil {
-		if err == gorm.ErrRecordNotFound { // 记录不存在，创建新的
-			registration = models.PlatformRegistration{
-				UserID:                 currentUserID,
-				EmailAccountID:         input.EmailAccountID,
-				PlatformID:             input.PlatformID,
-				LoginUsername:          input.LoginUsername,
-				LoginPasswordEncrypted: hashedPassword,
-				Notes:                  input.Notes,
-			}
-			if createErr := database.DB.Create(&registration).Error; createErr != nil {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
-				return
-			}
-		} else { // 其他查询错误
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
-			return
-		}
-	} else { // 找到了记录
-		if registration.DeletedAt.Valid { // 如果是软删除的记录
-			// 恢复记录并更新字段
-			registration.LoginUsername = input.LoginUsername
-			registration.LoginPasswordEncrypted = hashedPassword
-			registration.Notes = input.Notes
-			registration.DeletedAt = gorm.DeletedAt{} // 重置软删除标记
-			if updateErr := database.DB.Unscoped().Save(&registration).Error; updateErr != nil {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新平台注册信息失败: "+updateErr.Error())
-				return
-			}
-		} else { // 记录已存在且未被软删除
-			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册。")
-			return
-		}
+	conflictMsg := ""
+	if input.LoginUsername != "" && input.EmailAccountID > 0 {
+		// 检查用户名和邮箱组合
+		query = query.Where("login_username = ? AND email_account_id = ?", input.LoginUsername, input.EmailAccountID)
+		conflictMsg = "该用户名和邮箱组合已在此平台注册。"
+	} else if input.LoginUsername != "" && input.EmailAccountID == 0 {
+		// 仅检查用户名（邮箱为空或NULL）
+		query = query.Where("login_username = ? AND (email_account_id = ? OR email_account_id IS NULL)", input.LoginUsername, 0)
+		conflictMsg = "该用户名已在此平台注册（无关联邮箱）。"
+	} else if input.LoginUsername == "" && input.EmailAccountID > 0 {
+		// 仅检查邮箱（用户名为空或NULL）
+		query = query.Where("(login_username = ? OR login_username IS NULL) AND email_account_id = ?", "", input.EmailAccountID)
+		conflictMsg = "该邮箱账户已在此平台注册（无关联用户名）。"
+	} else {
+		// 理论上不应发生，因为前面应该有校验保证至少有一个不为空
+		utils.SendErrorResponse(c, http.StatusBadRequest, "用户名和邮箱账户ID不能同时为空")
+		return
 	}
-	
-	// 确保 emailAccount 和 platform 包含最新的信息 (如果它们被恢复或创建)
-	// GetPlatformRegistrationByID 预加载了这些，所以这里我们直接使用传入的或新创建/恢复的
+
+	err = query.First(&existingRegistration).Error
+	if err == nil {
+		// 明确找到记录，表示冲突
+		utils.SendErrorResponse(c, http.StatusConflict, conflictMsg)
+		return
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 明确未找到记录，无冲突，继续执行后续创建逻辑
+	} else {
+		// 发生其他数据库错误
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "检查平台注册冲突失败: "+err.Error())
+		return
+	}
+	// --- 冲突检查结束，未找到冲突 (err == gorm.ErrRecordNotFound) ---
+
+	// 创建新的 PlatformRegistration 记录
+	var emailAccountIDPtr *uint
+	if input.EmailAccountID > 0 {
+		emailAccountIDPtr = &input.EmailAccountID
+	}
+	registration := models.PlatformRegistration{
+		UserID:                 currentUserID,
+		EmailAccountID:         emailAccountIDPtr,
+		PlatformID:             input.PlatformID,
+		LoginUsername:          input.LoginUsername,
+		LoginPasswordEncrypted: hashedPassword,
+		Notes:                  input.Notes,
+	}
+	if createErr := database.DB.Create(&registration).Error; createErr != nil {
+		if strings.Contains(createErr.Error(), "UNIQUE constraint failed") {
+			// 根据输入推断是哪个约束冲突
+			// 优先判断 EmailAccountID 是否可能导致冲突，因为它有一个涉及 EmailAccountID 的唯一索引组合
+			// uq_user_platform_emailaccountid_active: (UserID, PlatformID, EmailAccountID, IsActive)
+			if input.EmailAccountID > 0 {
+				// 实际冲突可能是 (UserID, PlatformID, EmailAccountID, IsActive)
+				// 此时返回邮箱账户相关的错误更准确
+				utils.SendErrorResponse(c, http.StatusConflict, "此邮箱账户已在此平台注册。")
+				return
+			} else if input.LoginUsername != "" {
+				// 如果 EmailAccountID 为 0 或 nil，再判断 LoginUsername 是否导致冲突
+				// uq_user_platform_loginusername_active: (UserID, PlatformID, LoginUsername, IsActive)
+				utils.SendErrorResponse(c, http.StatusConflict, "此用户名已在该平台注册。")
+				return
+			}
+			// 如果两者都为空（理论上不应发生，因为有预检查），或无法精确判断，则返回通用冲突消息
+			utils.SendErrorResponse(c, http.StatusConflict, "创建失败，注册信息与现有记录冲突。")
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
+		}
+		return
+	}
+
+	// 创建成功，准备响应
+	// 注意：如果 input.EmailAccountID 为 0，这里的 emailAccount 是零值
 	response := registration.ToPlatformRegistrationResponse(emailAccount, platform)
 	utils.SendSuccessResponse(c, response)
 }
@@ -180,6 +215,13 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "请求参数无效: "+err.Error())
 		return
 	}
+
+	// --- 新增校验：用户名和邮箱地址不能同时为空 ---
+	if input.LoginUsername == "" && input.EmailAddress == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "用户名和邮箱地址不能同时为空")
+		return
+	}
+	// --- 校验结束 ---
 
 	var err error // Declare err once here
 
@@ -259,51 +301,80 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 		}
 	}
 
-	// 查找或创建/恢复 PlatformRegistration 记录
-	var registration models.PlatformRegistration
-	err = database.DB.Unscoped().Where(models.PlatformRegistration{
-		UserID:         currentUserID,
-		EmailAccountID: emailAccount.ID, // 使用已确定/创建/恢复的 emailAccount.ID
-		PlatformID:     platform.ID,     // 使用已确定/创建/恢复的 platform.ID
-	}).First(&registration).Error
+	// --- 精确冲突检查 ---
+	var existingRegistration models.PlatformRegistration
+	query := database.DB.Where("user_id = ? AND platform_id = ?", currentUserID, platform.ID)
 
-	if err != nil {
-		if err == gorm.ErrRecordNotFound { // 记录不存在，创建新的
-			registration = models.PlatformRegistration{
-				UserID:                 currentUserID,
-				EmailAccountID:         emailAccount.ID,
-				PlatformID:             platform.ID,
-				LoginUsername:          input.LoginUsername,
-				LoginPasswordEncrypted: hashedPassword,
-				Notes:                  input.Notes,
-			}
-			if createErr := database.DB.Create(&registration).Error; createErr != nil {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
-				return
-			}
-		} else { // 其他查询错误
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
-			return
-		}
-	} else { // 找到了记录
-		if registration.DeletedAt.Valid { // 如果是软删除的记录
-			// 恢复记录并更新字段
-			registration.LoginUsername = input.LoginUsername
-			registration.LoginPasswordEncrypted = hashedPassword
-			registration.Notes = input.Notes
-			registration.DeletedAt = gorm.DeletedAt{} // 重置软删除标记
-			if updateErr := database.DB.Unscoped().Save(&registration).Error; updateErr != nil {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新平台注册信息失败: "+updateErr.Error())
-				return
-			}
-		} else { // 记录已存在且未被软删除
-			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册。")
-			return
-		}
+	conflictMsg := ""
+	currentEmailAccountID := emailAccount.ID // 获取前面查找或创建的 EmailAccount ID
+
+	if input.LoginUsername != "" && currentEmailAccountID > 0 {
+		// 检查用户名和邮箱组合
+		query = query.Where("login_username = ? AND email_account_id = ?", input.LoginUsername, currentEmailAccountID)
+		conflictMsg = "该用户名和邮箱组合已在此平台注册。"
+	} else if input.LoginUsername != "" && currentEmailAccountID == 0 { // EmailAddress 为空时 ID 为 0
+		// 仅检查用户名（邮箱为空或NULL）
+		query = query.Where("login_username = ? AND (email_account_id = ? OR email_account_id IS NULL)", input.LoginUsername, 0)
+		conflictMsg = "该用户名已在此平台注册（无关联邮箱）。"
+	} else if input.LoginUsername == "" && currentEmailAccountID > 0 {
+		// 仅检查邮箱（用户名为空或NULL）
+		query = query.Where("(login_username = ? OR login_username IS NULL) AND email_account_id = ?", "", currentEmailAccountID)
+		conflictMsg = "该邮箱账户已在此平台注册（无关联用户名）。"
+	} else {
+		// 前面已有校验 input.LoginUsername == "" && input.EmailAddress == ""
+		// 此处理论上不会执行，但保留以防万一
+		utils.SendErrorResponse(c, http.StatusBadRequest, "内部错误：用户名和邮箱地址不能同时为空")
+		return
 	}
-	
-	// 为了返回完整的 PlatformRegistrationResponse，我们需要 emailAccount 和 platform 的信息
-	// 在创建时我们已经查询过了
+
+	err = query.First(&existingRegistration).Error
+	if err == nil {
+		// 明确找到记录，表示冲突
+		utils.SendErrorResponse(c, http.StatusConflict, conflictMsg)
+		return
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 明确未找到记录，无冲突，继续执行后续创建逻辑
+	} else {
+		// 发生其他数据库错误
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "检查平台注册冲突失败: "+err.Error())
+		return
+	}
+	// --- 冲突检查结束，未找到冲突 (err == gorm.ErrRecordNotFound) ---
+
+	// 创建新的 PlatformRegistration 记录
+	var currentEmailAccountIDPtr *uint
+	if currentEmailAccountID > 0 {
+		currentEmailAccountIDPtr = &currentEmailAccountID
+	}
+	registration := models.PlatformRegistration{
+		UserID:                 currentUserID,
+		EmailAccountID:         currentEmailAccountIDPtr,
+		PlatformID:             platform.ID,
+		LoginUsername:          input.LoginUsername,
+		LoginPasswordEncrypted: hashedPassword,
+		Notes:                  input.Notes,
+	}
+	if createErr := database.DB.Create(&registration).Error; createErr != nil {
+		if strings.Contains(createErr.Error(), "UNIQUE constraint failed") {
+			// 根据输入推断是哪个约束冲突
+			if input.LoginUsername != "" {
+				// 假设是用户名冲突
+				utils.SendErrorResponse(c, http.StatusConflict, "此用户名已在此平台注册。")
+				return
+			} else if currentEmailAccountID > 0 { // currentEmailAccountID 来自 emailAccount.ID
+				// 假设是邮箱账户ID冲突
+				utils.SendErrorResponse(c, http.StatusConflict, "此邮箱账户已在此平台注册。")
+				return
+			}
+			// 通用冲突消息
+			utils.SendErrorResponse(c, http.StatusConflict, "创建失败，注册信息与现有记录冲突。")
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
+		}
+		return
+	}
+
+	// 创建成功，准备响应
 	response := registration.ToPlatformRegistrationResponse(emailAccount, platform)
 	utils.SendSuccessResponse(c, response)
 }
@@ -435,7 +506,11 @@ func GetPlatformRegistrations(c *gin.Context) {
 
 	var responses []models.PlatformRegistrationResponse
 	for _, pr := range registrations {
-		responses = append(responses, pr.ToPlatformRegistrationResponse(pr.EmailAccount, pr.Platform))
+		emailAccountForResp := models.EmailAccount{}
+		if pr.EmailAccount != nil {
+			emailAccountForResp = *pr.EmailAccount
+		}
+		responses = append(responses, pr.ToPlatformRegistrationResponse(emailAccountForResp, pr.Platform))
 	}
 	
 	pagination := utils.CreatePaginationMeta(page, pageSize, int(totalRecords))
@@ -486,7 +561,11 @@ func GetPlatformRegistrationByID(c *gin.Context) {
 		return
 	}
 	
-	response := registration.ToPlatformRegistrationResponse(registration.EmailAccount, registration.Platform)
+	emailAccountForRespGetByID := models.EmailAccount{}
+	if registration.EmailAccount != nil {
+		emailAccountForRespGetByID = *registration.EmailAccount
+	}
+	response := registration.ToPlatformRegistrationResponse(emailAccountForRespGetByID, registration.Platform)
 	utils.SendSuccessResponse(c, response)
 }
 
@@ -537,11 +616,10 @@ func UpdatePlatformRegistration(c *gin.Context) {
 	}
 
 	var input struct {
-		LoginUsername string `json:"login_username"`
-		LoginPassword string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
-		Notes         string `json:"notes"`
-		// EmailAccountID and PlatformID are not updatable via this endpoint to maintain integrity.
-		// If they need to be changed, it's conceptually a new registration.
+		EmailAccountID *uint  `json:"email_account_id,omitempty"` // 添加 EmailAccountID，使用指针区分未提供和0
+		LoginUsername  string `json:"login_username"`
+		LoginPassword  string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
+		Notes          string `json:"notes"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -549,9 +627,13 @@ func UpdatePlatformRegistration(c *gin.Context) {
 		return
 	}
 
+	originalLoginUsername := registration.LoginUsername
+	// 更新基本字段
 	registration.LoginUsername = input.LoginUsername
 	registration.Notes = input.Notes
 
+
+	// 更新密码（如果提供）
 	if input.LoginPassword != "" {
 		hashedPassword, err := utils.HashPassword(input.LoginPassword)
 		if err != nil {
@@ -561,12 +643,104 @@ func UpdatePlatformRegistration(c *gin.Context) {
 		registration.LoginPasswordEncrypted = hashedPassword
 	}
 
+	// --- 新增：如果 LoginUsername 发生变化且非空，则检查冲突 ---
+	if registration.LoginUsername != originalLoginUsername && registration.LoginUsername != "" {
+		var existingUserReg models.PlatformRegistration
+		errCheckUser := database.DB.Where("login_username = ? AND platform_id = ? AND user_id = ? AND id != ?",
+			registration.LoginUsername, registration.PlatformID, currentUserID, registration.ID).First(&existingUserReg).Error
+		if errCheckUser == nil {
+			utils.SendErrorResponse(c, http.StatusConflict, "此用户名已在此平台注册，无法更新。")
+			return
+		} else if errCheckUser != gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "检查用户名唯一性失败: "+errCheckUser.Error())
+			return
+		}
+		// 如果 errCheckUser == gorm.ErrRecordNotFound，说明用户名可用，继续
+	}
+	// --- 预检查结束 ---
+
+	// 更新 EmailAccountID (如果提供且与当前不同)
+	var emailAccountValuesDiffer bool
+	if input.EmailAccountID == nil && registration.EmailAccountID != nil {
+		emailAccountValuesDiffer = true
+	} else if input.EmailAccountID != nil && registration.EmailAccountID == nil {
+		emailAccountValuesDiffer = true
+	} else if input.EmailAccountID != nil && registration.EmailAccountID != nil && *input.EmailAccountID != *registration.EmailAccountID {
+		emailAccountValuesDiffer = true
+	}
+
+	if input.EmailAccountID != nil && emailAccountValuesDiffer { // Only proceed if input.EmailAccountID is not nil and values differ
+		newEmailAccountID := *input.EmailAccountID
+
+		// 1. 验证新的 EmailAccount 是否存在且属于当前用户
+		var newEmailAccount models.EmailAccount
+		err = database.DB.Where("id = ? AND user_id = ?", newEmailAccountID, currentUserID).First(&newEmailAccount).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				utils.SendErrorResponse(c, http.StatusBadRequest, "提供的邮箱账户ID无效或不属于当前用户")
+				return
+			}
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询新邮箱账户失败: "+err.Error())
+			return
+		}
+
+		// 2. 检查新的 (EmailAccountID, PlatformID) 组合是否已存在（违反唯一约束）
+		var existingRegistration models.PlatformRegistration
+		// 确保不与自身比较
+		err = database.DB.Where("email_account_id = ? AND platform_id = ? AND user_id = ? AND id != ?", newEmailAccountID, registration.PlatformID, currentUserID, registration.ID).First(&existingRegistration).Error
+		if err == nil {
+			// 找到了一个存在的记录，不允许更新，因为会违反唯一约束
+			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱账户已在此平台注册，无法将当前注册信息更新为该邮箱。")
+			return
+		} else if err != gorm.ErrRecordNotFound {
+			// 查询时发生其他错误
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "检查唯一约束失败: "+err.Error())
+			return
+		}
+		// 如果 err == gorm.ErrRecordNotFound，说明组合不存在，可以更新
+
+		// 3. 更新 EmailAccountID
+		registration.EmailAccountID = &newEmailAccountID
+		// 更新响应中使用的 EmailAccount 信息
+		registration.EmailAccount = &newEmailAccount
+	} else if input.EmailAccountID == nil && registration.EmailAccountID != nil { // Handle case where input wants to set it to nil
+		registration.EmailAccountID = nil
+		registration.EmailAccount = nil // Or an empty struct if appropriate for ToPlatformRegistrationResponse
+	}
+
+
+	// --- 新增校验：更新后用户名和关联邮箱不能都为空/无效 ---
+	if registration.LoginUsername == "" && (registration.EmailAccountID == nil || *registration.EmailAccountID == 0) {
+			utils.SendErrorResponse(c, http.StatusBadRequest, "更新失败：用户名和关联邮箱不能同时为空或无效")
+			return
+	}
+	// --- 校验结束 ---
+
 	if err := database.DB.Save(&registration).Error; err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "更新平台注册信息失败: "+err.Error())
+		// 理论上，如果前面的检查都通过了，这里的保存不应再触发唯一约束错误，但以防万一
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") { // 检查 SQLite 特有的唯一约束错误
+			// 尝试判断是哪个字段引起的冲突
+			// 注意：这里的判断可能不完美，因为Save操作可能同时更新多个字段
+			// 更好的做法是进行更细致的预检查
+			if input.LoginUsername != "" { // 如果尝试更新的用户名非空
+				utils.SendErrorResponse(c, http.StatusConflict, "更新失败，此用户名可能已在该平台注册。")
+			} else if input.EmailAccountID != nil && *input.EmailAccountID != 0 { // 如果尝试更新的邮箱ID有效
+				utils.SendErrorResponse(c, http.StatusConflict, "更新失败，此邮箱账户可能已在该平台注册。")
+			} else {
+				utils.SendErrorResponse(c, http.StatusConflict, "更新失败，可能导致重复的平台注册信息。")
+			}
+
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "更新平台注册信息失败: "+err.Error())
+		}
 		return
 	}
 	
-	response := registration.ToPlatformRegistrationResponse(registration.EmailAccount, registration.Platform)
+	emailAccountForRespUpdate := models.EmailAccount{}
+	if registration.EmailAccount != nil {
+		emailAccountForRespUpdate = *registration.EmailAccount
+	}
+	response := registration.ToPlatformRegistrationResponse(emailAccountForRespUpdate, registration.Platform)
 	utils.SendSuccessResponse(c, response)
 }
 
@@ -765,23 +939,23 @@ func GetEmailRegistrationsByPlatformID(c *gin.Context) {
 	if pageSize > 100 { pageSize = 100 } // Max page size limit
 	offset := (page - 1) * pageSize
 
-	var registrations []models.PlatformRegistration
 	var totalRecords int64
 	
-	dbQuery := database.DB.Where("platform_id = ? AND user_id = ?", platformID, uint(currentUserID))
+	// Base query joining with email_accounts and filtering for valid addresses
+	baseQuery := database.DB.Model(&models.PlatformRegistration{}).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.email_account_id IS NOT NULL AND platform_registrations.email_account_id > 0 AND email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> '' AND email_accounts.deleted_at IS NULL", platformID, uint(currentUserID))
 
-	// Count total records
-	if err := dbQuery.Model(&models.PlatformRegistration{}).Count(&totalRecords).Error; err != nil {
+	// Count total records using the base query
+	countQuery := baseQuery
+	// We need to be careful with Count() after Joins, sometimes it requires specifying the count column.
+	// Let's count on the primary key of the main table to be safe.
+	if err := countQuery.Distinct("platform_registrations.id").Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "统计关联邮箱注册总数失败: "+err.Error())
 		return
 	}
 
-	// Fetch paginated records
-	if err := dbQuery.Preload("EmailAccount").Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&registrations).Error; err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱注册信息失败: "+err.Error())
-		return
-	}
-
+	// Define the structure for the response items
 	type ResponseItem struct {
 		EmailAccountID    uint   `json:"email_account_id"`
 		EmailAddress      string `json:"email_address"`
@@ -789,11 +963,32 @@ func GetEmailRegistrationsByPlatformID(c *gin.Context) {
 	}
 	var responseData []ResponseItem
 
-	for _, reg := range registrations {
+	// Define a temporary structure to scan query results into
+	type QueryResultItem struct {
+		EmailAccountID    uint   `gorm:"column:email_account_id"`
+		EmailAddress      string `gorm:"column:email_address"`
+		RegistrationNotes string `gorm:"column:notes"`
+	}
+	var queryResults []QueryResultItem
+
+	// Fetch paginated records using the base query, selecting specific fields
+	fetchQuery := baseQuery
+	if err := fetchQuery.
+		Select("platform_registrations.email_account_id, email_accounts.email_address, platform_registrations.notes").
+		Offset(offset).
+		Limit(pageSize).
+		Order("platform_registrations.created_at DESC").
+		Scan(&queryResults).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱注册信息失败: "+err.Error())
+		return
+	}
+
+	// Populate responseData from queryResults
+	for _, qr := range queryResults {
 		responseData = append(responseData, ResponseItem{
-			EmailAccountID:    reg.EmailAccountID,
-			EmailAddress:      reg.EmailAccount.EmailAddress,
-			RegistrationNotes: reg.Notes,
+			EmailAccountID:    qr.EmailAccountID,
+			EmailAddress:      qr.EmailAddress,
+			RegistrationNotes: qr.RegistrationNotes,
 		})
 	}
 

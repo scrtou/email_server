@@ -96,6 +96,9 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		{
 			serviceSubscriptions.POST("", handlers.CreateServiceSubscription)
 			serviceSubscriptions.GET("", handlers.GetServiceSubscriptions)
+			serviceSubscriptions.GET("/distinct-platform-names", handlers.GetDistinctPlatformNames) // 新增
+			serviceSubscriptions.GET("/distinct-emails", handlers.GetDistinctEmails)                // 新增
+			serviceSubscriptions.GET("/distinct-usernames", handlers.GetDistinctUsernames)          // 新增
 			serviceSubscriptions.GET("/:id", handlers.GetServiceSubscriptionByID)
 			serviceSubscriptions.PUT("/:id", handlers.UpdateServiceSubscription)
 			serviceSubscriptions.DELETE("/:id", handlers.DeleteServiceSubscription)

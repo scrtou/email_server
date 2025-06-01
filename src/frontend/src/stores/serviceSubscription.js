@@ -35,8 +35,10 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       billing_cycle: '',
       renewal_date_start: '',
       renewal_date_end: '',
-      // platform_registration_id: null, // Removed platform_registration_id
-    }
+      filterPlatformName: '', // New filter
+      filterEmail: '', // New filter
+      filterUsername: '', // New filter
+    },
   }),
   actions: {
     // Action to update filter values
@@ -54,7 +56,9 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       this.filters.billing_cycle = '';
       this.filters.renewal_date_start = '';
       this.filters.renewal_date_end = '';
-      // this.filters.platform_registration_id = null; // Removed platform_registration_id
+      this.filters.filterPlatformName = ''; // Clear new filter
+      this.filters.filterEmail = ''; // Clear new filter
+      this.filters.filterUsername = ''; // Clear new filter
       this.pagination.currentPage = 1;
       this.fetchServiceSubscriptions(this.pagination.currentPage, this.pagination.pageSize, this.sort, this.filters);
     },
@@ -93,7 +97,9 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       if (filterOptions.billing_cycle !== undefined) this.filters.billing_cycle = filterOptions.billing_cycle;
       if (filterOptions.renewal_date_start !== undefined) this.filters.renewal_date_start = filterOptions.renewal_date_start;
       if (filterOptions.renewal_date_end !== undefined) this.filters.renewal_date_end = filterOptions.renewal_date_end;
-      // if (filterOptions.platform_registration_id !== undefined) this.filters.platform_registration_id = filterOptions.platform_registration_id; // Removed
+      if (filterOptions.filterPlatformName !== undefined) this.filters.filterPlatformName = filterOptions.filterPlatformName; // New
+      if (filterOptions.filterEmail !== undefined) this.filters.filterEmail = filterOptions.filterEmail; // New
+      if (filterOptions.filterUsername !== undefined) this.filters.filterUsername = filterOptions.filterUsername; // New
       
       const apiParams = {
         page,
@@ -104,7 +110,9 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
         billing_cycle: this.filters.billing_cycle || undefined,
         renewal_date_start: this.filters.renewal_date_start || undefined,
         renewal_date_end: this.filters.renewal_date_end || undefined,
-        // platform_registration_id: this.filters.platform_registration_id || undefined, // Removed
+        platform_name: this.filters.filterPlatformName || undefined, // New
+        email: this.filters.filterEmail || undefined, // New
+        username: this.filters.filterUsername || undefined, // New
       };
       
       try {

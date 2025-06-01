@@ -157,9 +157,13 @@ if page <= 0 {
 	var responses []models.PlatformResponse
 	for _, p := range platforms {
 		var emailAccountCount int64
-		// 计算当前用户在此平台上的注册数量
-		if err := database.DB.Model(&models.PlatformRegistration{}).Where("platform_id = ? AND user_id = ?", p.ID, currentUserID).Count(&emailAccountCount).Error; err != nil {
-			emailAccountCount = 0
+		// 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
+		if err := database.DB.Model(&models.PlatformRegistration{}).
+			Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+			Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", p.ID, currentUserID).
+			Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
+			Count(&emailAccountCount).Error; err != nil {
+			emailAccountCount = 0 // Keep count as 0 on error
 		}
 		response := p.ToPlatformResponse()
 		response.EmailAccountCount = emailAccountCount // 这个字段现在表示当前用户在该平台注册的邮箱数
@@ -214,8 +218,13 @@ if err := database.DB.Where("id = ? AND user_id = ?", platformID, currentUserID)
 }
    // 计算当前用户在此平台上的注册数量
    var emailAccountCount int64
-   if errDb := database.DB.Model(&models.PlatformRegistration{}).Where("platform_id = ? AND user_id = ?", platform.ID, currentUserID).Count(&emailAccountCount).Error; errDb != nil {
-       emailAccountCount = 0
+   // 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
+   if errDb := database.DB.Model(&models.PlatformRegistration{}).
+  Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+  Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
+  Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
+  Count(&emailAccountCount).Error; errDb != nil {
+       emailAccountCount = 0 // Keep count as 0 on error
    }
    response := platform.ToPlatformResponse()
    response.EmailAccountCount = emailAccountCount
@@ -335,8 +344,13 @@ var input struct {
 	}
 	   // 计算当前用户在此平台上的注册数量
 	   var emailAccountCount int64
-	   if errDb := database.DB.Model(&models.PlatformRegistration{}).Where("platform_id = ? AND user_id = ?", platform.ID, currentUserID).Count(&emailAccountCount).Error; errDb != nil {
-	       emailAccountCount = 0
+	   // 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
+	   if errDb := database.DB.Model(&models.PlatformRegistration{}).
+	  Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+	  Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
+	  Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
+	  Count(&emailAccountCount).Error; errDb != nil {
+	       emailAccountCount = 0 // Keep count as 0 on error
 	   }
 	   response := platform.ToPlatformResponse()
 	   response.EmailAccountCount = emailAccountCount

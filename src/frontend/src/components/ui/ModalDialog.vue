@@ -8,6 +8,7 @@
     class="modal-dialog"
     append-to-body
     draggable
+    align-center
   >
     <div class="modal-content">
       <slot></slot>

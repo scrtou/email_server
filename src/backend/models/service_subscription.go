@@ -28,8 +28,20 @@ type ServiceSubscription struct {
 
 // CreateServiceSubscriptionRequest 定义了创建服务订阅时的请求体
 type CreateServiceSubscriptionRequest struct {
-	PlatformName       string  `json:"platform_name" binding:"required"`
-	EmailAddress       string  `json:"email_address" binding:"required,email"`
+	// 平台信息 - 提供 PlatformID 或 PlatformName (用于新平台)
+	PlatformID   *uint  `json:"platform_id"`    // 可选，如果提供了已存在的平台ID
+	PlatformName string `json:"platform_name"`  // 可选，如果用户输入了新的平台名称
+
+	// 邮箱账户信息
+	EmailAddress   string `json:"email_address"`    // 关联的邮箱地址
+	EmailAccountID uint   `json:"email_account_id"` // 关联的邮箱账户ID
+
+	// 平台注册信息 - 提供 PlatformRegistrationID 或 LoginUsername (用于新注册)
+	PlatformRegistrationID *uint  `json:"platform_registration_id"` // 可选，如果选择了已存在的平台注册
+	LoginUsername                  string `json:"login_username,omitempty"`           // 可选，登录用户名
+	SelectedUsernameRegistrationID uint   `json:"selected_username_registration_id,omitempty"` // 新增字段，用于选择已有用户名时传递PlatformRegistration的ID
+
+	// 服务订阅详情
 	ServiceName        string  `json:"service_name" binding:"required"`
 	Description        string  `json:"description"`
 	Status             string  `json:"status" binding:"required"` // e.g., active, cancelled

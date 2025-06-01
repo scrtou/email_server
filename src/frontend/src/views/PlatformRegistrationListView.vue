@@ -53,8 +53,8 @@
           </el-col>
           <el-col :xs="24" :sm="24" :md="8" :lg="6">
             <el-form-item>
-              <el-button type="primary" @click="triggerFetchWithCurrentFilters">查询</el-button>
-              <el-button @click="triggerClearFilters">重置</el-button>
+              <el-button type="primary" @click="triggerFetchWithCurrentFilters" :loading="platformRegistrationStore.loading">查询</el-button>
+              <el-button @click="triggerClearFilters" :loading="platformRegistrationStore.loading">重置</el-button>
             </el-form-item>
           </el-col>
         </el-row>
@@ -80,7 +80,7 @@
         <el-table-column label="操作" width="140" fixed="right" :sortable="false">
           <template #default="scope">
             <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button link type="danger" :icon="Delete" @click="confirmDeleteRegistration(scope.row.id)">删除</el-button>
+            <el-button link type="danger" :icon="Delete" @click="confirmDeleteRegistration(scope.row.id)" :loading="platformRegistrationStore.loading">删除</el-button>
           </template>
         </el-table-column>
         </el-table>
@@ -107,7 +107,10 @@
       @cancel="closeModal"
       width="60%"
       :confirm-button-text="isEditMode ? '保存更新' : '立即创建'"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
     >
+      <!-- Form content remains the same -->
       <PlatformRegistrationForm
         ref="platformRegistrationFormRef"
         v-if="showModal"
@@ -116,6 +119,20 @@
         @submit-form="handleFormSubmit"
         @cancel="closeModal"
       />
+      <!-- Custom Footer with loading state -->
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeModal">取消</el-button>
+          <el-button
+            type="primary"
+            @click="() => platformRegistrationFormRef?.triggerSubmit()"
+            :loading="platformRegistrationStore.loading"
+            :disabled="platformRegistrationStore.loading"
+          >
+            {{ isEditMode ? '保存更新' : '立即创建' }}
+          </el-button>
+        </div>
+      </template>
     </ModalDialog>
   </div>
 </template>

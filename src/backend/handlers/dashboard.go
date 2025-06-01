@@ -107,7 +107,11 @@ func GetDashboardSummary(c *gin.Context) {
 	}
 	for _, sub := range upcomingRenewalsModels {
 		// 直接使用完整的 Response，因为 UpcomingRenewals 的类型已经是 []models.ServiceSubscriptionResponse
-		summary.UpcomingRenewals = append(summary.UpcomingRenewals, sub.ToServiceSubscriptionResponse(sub.PlatformRegistration, sub.PlatformRegistration.Platform, sub.PlatformRegistration.EmailAccount))
+		emailAccountForResp := models.EmailAccount{}
+		if sub.PlatformRegistration.EmailAccount != nil {
+			emailAccountForResp = *sub.PlatformRegistration.EmailAccount
+		}
+		summary.UpcomingRenewals = append(summary.UpcomingRenewals, sub.ToServiceSubscriptionResponse(sub.PlatformRegistration, sub.PlatformRegistration.Platform, emailAccountForResp))
 	}
 
 

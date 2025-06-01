@@ -11,26 +11,6 @@
     >
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item label="邮箱账户" prop="email_account_id">
-            <el-select
-              v-model="form.email_account_id"
-              placeholder="选择或输入邮箱账户"
-              filterable
-              allow-create
-              default-first-option
-              :disabled="props.isEdit"
-              class="full-width-select"
-            >
-              <el-option
-                v-for="item in emailAccountStore.emailAccounts"
-                :key="item.id"
-                :label="item.email_address"
-                :value="item.id"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="平台" prop="platform_id">
             <el-select
               v-model="form.platform_id"
@@ -45,6 +25,26 @@
                 v-for="item in platformStore.platforms"
                 :key="item.id"
                 :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :xs="24" :sm="24" :md="12">
+
+          <el-form-item label="邮箱账户" prop="email_account_id">
+            <el-select
+              v-model="form.email_account_id"
+              placeholder="选择或输入邮箱账户"
+              filterable
+              allow-create
+              default-first-option
+              class="full-width-select"
+            >
+              <el-option
+                v-for="item in emailAccountStore.emailAccounts"
+                :key="item.id"
+                :label="item.email_address"
                 :value="item.id"
               />
             </el-select>
@@ -123,7 +123,7 @@ const loading = ref(false);
 // const currentId = computed(() => props.id || route.params.id); // ID will come from props.platformRegistration.id
 
 const rules = ref({
-  email_account_id: [{ required: true, message: '请选择邮箱账户', trigger: 'change' }],
+  email_account_id: [{ required: false, message: '请选择邮箱账户', trigger: 'change' }], // Removed required validation
   platform_id: [{ required: true, message: '请选择平台', trigger: 'change' }],
   login_username: [{ max: 255, message: '登录用户名过长', trigger: 'blur' }],
   login_password: [
@@ -193,6 +193,12 @@ watch(() => props.platformRegistration, (newVal) => {
 const handleSubmit = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
+    // Add custom validation: Username and Email cannot both be empty
+    if (!form.value.login_username && !form.value.email_account_id) {
+        ElMessage.error('用户名/ID 和 邮箱账户 不能同时为空');
+        return false; // Prevent submission
+    }
+
     if (valid) {
       loading.value = true;
       const currentIdToUpdate = props.isEdit && props.platformRegistration ? props.platformRegistration.id : null;
@@ -225,13 +231,10 @@ const handleSubmit = async () => {
         if (isEmailNew || isPlatformNew) { // One or both are new
           if (isEmailNew) {
             payload.email_address = String(form.value.email_account_id).trim();
-          } else {
-            if (!form.value.email_account_id) {
-                ElMessage.error('请选择邮箱账户');
-                loading.value = false; return;
-            }
+          } else if (form.value.email_account_id) { // Only process if an existing email IS selected
+            // If email_account_id is null/undefined, we skip this block, allowing username-only submission
             const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
-            if (!selectedEmail) { ElMessage.error('选择的邮箱账户无效'); loading.value = false; return; }
+            if (!selectedEmail) { ElMessage.error('选择的邮箱账户无效'); loading.value = false; return; } // Keep validation for selected email
             payload.email_address = selectedEmail.email_address;
           }
 
@@ -247,12 +250,14 @@ const handleSubmit = async () => {
             payload.platform_name = selectedPlatform.name;
           }
           emit('submit-form', { payload, useByNameApi: true, isEdit: false });
-        } else { // Both are existing
-          if (!form.value.email_account_id || !form.value.platform_id) {
-            ElMessage.error('请选择有效的邮箱账户和平台');
-            loading.value = false; return;
+        } else { // Both are existing (selected from dropdown)
+          // Removed the check for email_account_id.
+          // platform_id is already validated by formRef.value.validate based on rules.
+          // We still need to assign them to the payload if they exist.
+          if (form.value.email_account_id) { // Assign if selected
+             payload.email_account_id = form.value.email_account_id;
           }
-          payload.email_account_id = form.value.email_account_id;
+          // platform_id is required by rules, so it should exist here if validation passed.
           payload.platform_id = form.value.platform_id;
           emit('submit-form', { payload, useByNameApi: false, isEdit: false });
         }
