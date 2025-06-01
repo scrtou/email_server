@@ -491,8 +491,8 @@ func GetServiceSubscriptions(c *gin.Context) {
 			Where("LOWER(email_accounts.email_address) LIKE ?", "%"+strings.ToLower(emailFilter)+"%")
 	}
 	if usernameFilter != "" {
-		query = query.Where("LOWER(platform_registrations.login_username) LIKE ?", "%"+strings.ToLower(usernameFilter)+"%")
-		countQuery = countQuery.Where("LOWER(platform_registrations.login_username) LIKE ?", "%"+strings.ToLower(usernameFilter)+"%")
+		query = query.Where("LOWER(platform_registrations.login_username) = ?", strings.ToLower(usernameFilter))
+		countQuery = countQuery.Where("LOWER(platform_registrations.login_username) = ?", strings.ToLower(usernameFilter))
 	}
 
 	if err := countQuery.Count(&totalRecords).Error; err != nil {

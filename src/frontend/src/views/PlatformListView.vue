@@ -20,8 +20,8 @@
           @clear="handleNameSearchChange('')"
           class="filter-input"
         />
-        <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
-        <el-button @click="triggerClearAllFilters">重置</el-button>
+        <el-button type="primary" @click="triggerApplyAllFilters" :loading="isQuerying">查询</el-button>
+        <el-button @click="triggerClearAllFilters" :loading="isResetting">重置</el-button>
       </div>
 
       <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
@@ -130,6 +130,9 @@ import PlatformForm from '@/components/forms/PlatformForm.vue'; // 引入 Platfo
 // const router = useRouter(); // 移除 router
 const platformStore = usePlatformStore();
 const pageSize = ref(platformStore.pagination.pageSize || 10); // Initialize with store's pageSize or a default
+const MIN_LOADING_TIME = 300; // Minimum loading time in milliseconds
+const isQuerying = ref(false);
+const isResetting = ref(false);
 
 const currentPlatformForDialog = ref(null); // To store the platform context for pagination
 
@@ -160,13 +163,15 @@ onMounted(() => {
   fetchData();
 });
 
-const fetchData = (
+const fetchData = async (
   page = platformStore.pagination.currentPage,
   size = pageSize.value, // Use the new ref here
   sortOptions = { orderBy: platformStore.sort.orderBy, sortDirection: platformStore.sort.sortDirection },
   filterOptions = { nameSearch: platformStore.filters.nameSearch } // Pass current nameSearch filter
 ) => {
-  platformStore.fetchPlatforms(page, size, sortOptions, filterOptions);
+  // platformStore.loading is handled by the store itself.
+  // The individual button loading states (isQuerying, isResetting) are separate.
+  await platformStore.fetchPlatforms(page, size, sortOptions, filterOptions);
 };
 
 const handleNameSearchChange = (value) => {
@@ -174,13 +179,40 @@ const handleNameSearchChange = (value) => {
   fetchData(1); // Reset to page 1 and fetch with new filter
 };
 
-const triggerApplyAllFilters = () => {
-  fetchData(1); // Fetch with all current filters from store, reset to page 1
+const triggerApplyAllFilters = async () => {
+  isQuerying.value = true;
+  const startTime = Date.now();
+  try {
+    // fetchData will use platformStore.filters.nameSearch internally
+    await fetchData(1); // Fetch with all current filters from store, reset to page 1
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isQuerying.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isQuerying.value = false;
+    }
+  }
 };
 
-const triggerClearAllFilters = () => {
-  platformStore.clearFilters(); // Clears nameSearch in store
-  fetchData(1); // Fetch with cleared filters, reset to page 1
+const triggerClearAllFilters = async () => {
+  isResetting.value = true;
+  const startTime = Date.now();
+  try {
+    platformStore.clearFilters(); // Clears nameSearch in store
+    await fetchData(1); // Fetch with cleared filters, reset to page 1
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isResetting.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isResetting.value = false;
+    }
+  }
 };
 
 const handleSortChange = ({ prop, order }) => {

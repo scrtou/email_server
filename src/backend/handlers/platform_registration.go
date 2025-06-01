@@ -388,6 +388,7 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 // @Param pageSize query int false "每页数量" default(10)
 // @Param email_account_id query int false "按邮箱账户ID筛选"
 // @Param platform_id query int false "按平台ID筛选"
+// @Param username query string false "按平台用户名筛选"
 // @Param orderBy query string false "排序字段 (e.g., login_username, created_at)" default(created_at)
 // @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
 // @Success 200 {object} models.SuccessResponse{data=[]models.PlatformRegistrationResponse,meta=models.PaginationMeta} "获取成功"
@@ -414,6 +415,7 @@ func GetPlatformRegistrations(c *gin.Context) {
 	// Get filter parameters
 	emailAccountIDQuery := c.Query("email_account_id")
 	platformIDQuery := c.Query("platform_id")
+	usernameFilter := strings.ToLower(strings.TrimSpace(c.Query("username"))) // 读取 username 参数
 	var emailAccountIDFilter uint64
 	if emailAccountIDQuery != "" {
 		emailAccountIDFilter, _ = strconv.ParseUint(emailAccountIDQuery, 10, 32)
@@ -447,11 +449,11 @@ func GetPlatformRegistrations(c *gin.Context) {
 		dbOrderByField = "platform_registrations.created_at" // Default to created_at on the main table
 	} else {
 		if orderBy == "email_address" {
-			query = query.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.user_id = ?", currentUserID)
+			query = query.Joins("LEFT JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.user_id = ?", currentUserID)
 			// For countQuery, if filtering by email_account properties is ever needed, joins would be added there too.
 			// But for sorting, countQuery remains simple.
 		} else if orderBy == "platform_name" {
-			query = query.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id AND platforms.user_id = ?", currentUserID)
+			query = query.Joins("LEFT JOIN platforms ON platforms.id = platform_registrations.platform_id AND platforms.user_id = ?", currentUserID)
 		}
 		// For other valid fields (login_username, notes, created_at, updated_at), no join is needed beyond what's already handled by allowedOrderByFields.
 	}
@@ -470,6 +472,11 @@ func GetPlatformRegistrations(c *gin.Context) {
 	if platformIDFilter > 0 {
 		query = query.Where("platform_registrations.platform_id = ?", uint(platformIDFilter))
 		countQuery = countQuery.Where("platform_id = ?", uint(platformIDFilter))
+	}
+	if usernameFilter != "" { // 应用 username 筛选
+		// 使用 LOWER on both sides for case-insensitive comparison
+		query = query.Where("LOWER(platform_registrations.login_username) = LOWER(?)", usernameFilter)
+		countQuery = countQuery.Where("LOWER(login_username) = LOWER(?)", usernameFilter)
 	}
 	if page <= 0 {	page = 1 }
 	if pageSize <= 0 { pageSize = 10	}

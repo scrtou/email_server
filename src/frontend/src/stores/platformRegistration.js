@@ -33,6 +33,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
     filters: { // New state for filters
       email_account_id: null,
       platform_id: null,
+      login_username: '', // 添加用户名筛选
     }
   }),
   actions: {
@@ -48,6 +49,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
     clearFilters() {
       this.filters.email_account_id = null;
       this.filters.platform_id = null;
+      this.filters.login_username = ''; // 清空用户名筛选
       this.pagination.currentPage = 1;
       this.fetchPlatformRegistrations();
     },
@@ -55,7 +57,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         page = this.pagination.currentPage,
         pageSize = this.pagination.pageSize,
         sortOptions = {},
-        filterOptions = {}
+        // filterOptions = {} // filterOptions is not used as a parameter anymore, filters are taken from state
     ) {
       const authStore = useAuthStore();
       if (!authStore.isAuthenticated) {
@@ -76,10 +78,10 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       if (sortOptions.orderBy) this.sort.orderBy = sortOptions.orderBy;
       if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
 
-      // Update filter state if new options are provided
-      if (filterOptions.email_account_id !== undefined) this.filters.email_account_id = filterOptions.email_account_id;
-      if (filterOptions.platform_id !== undefined) this.filters.platform_id = filterOptions.platform_id;
-
+      // Filter state is updated by setFilter or directly via v-model binding in components.
+      // No need to pass filterOptions to this action anymore.
+      // The action will use the current state of this.filters.
+ 
       const apiParams = {
         page,
         pageSize,
@@ -87,8 +89,9 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         sortDirection,
         email_account_id: this.filters.email_account_id || undefined,
         platform_id: this.filters.platform_id || undefined,
+        username: this.filters.login_username || undefined, // Changed from login_username to username
       };
-
+ 
       try {
         const result = await platformRegistrationAPI.getAll(apiParams);
         if (result && result.data) {

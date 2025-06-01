@@ -22,6 +22,9 @@ const emailAccountFormDialog = reactive({
 // --- End Modal Dialog State ---
 
 const loading = ref(false); // Define loading state for the view
+const MIN_LOADING_TIME = 300; // Minimum loading time in milliseconds
+const isQuerying = ref(false);
+const isResetting = ref(false);
 
 // const providerFilter = ref(emailAccountStore.filters.provider || ''); // Removed, use store directly
 
@@ -83,20 +86,45 @@ const handleEmailAddressSearchChange = (value) => {
   emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
 };
 
-const triggerApplyAllFilters = () => {
-  // This is for a dedicated "Query/Search" button if present
-  // It ensures that the current state of all filters in the store is used to fetch.
-  // The individual filter handlers already call setFilter which then calls fetch.
-  // So this button might be redundant if instant filtering on change is preferred.
-  // If used, it should fetch with all current filters.
-  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+const triggerApplyAllFilters = async () => {
+  isQuerying.value = true;
+  const startTime = Date.now();
+  try {
+    // This is for a dedicated "Query/Search" button if present
+    // It ensures that the current state of all filters in the store is used to fetch.
+    // The individual filter handlers already call setFilter which then calls fetch.
+    // So this button might be redundant if instant filtering on change is preferred.
+    // If used, it should fetch with all current filters.
+    await emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isQuerying.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isQuerying.value = false;
+    }
+  }
 };
 
-const triggerClearAllFilters = () => {
-  emailAccountStore.clearFilters(); // This will clear all filters and fetch
-  // After clearing, explicitly call fetch to ensure UI updates if clearFilters doesn't auto-fetch
-  // (though the current store's clearFilters doesn't auto-fetch, setFilter does)
-  emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+const triggerClearAllFilters = async () => {
+  isResetting.value = true;
+  const startTime = Date.now();
+  try {
+    emailAccountStore.clearFilters(); // This will clear all filters
+    // After clearing, explicitly call fetch to ensure UI updates
+    await emailAccountStore.fetchEmailAccounts(1, emailAccountStore.pagination.pageSize, emailAccountStore.sort, emailAccountStore.filters);
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isResetting.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isResetting.value = false;
+    }
+  }
 };
 
 // Watch for external changes to store filters (e.g. if they were persisted and reloaded)
@@ -284,8 +312,8 @@ const handleAssociatedPageChange = (payload) => {
             </el-select>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8" :lg="6">
-            <el-button type="primary" @click="triggerApplyAllFilters">查询</el-button>
-            <el-button @click="triggerClearAllFilters">重置所有</el-button>
+            <el-button type="primary" @click="triggerApplyAllFilters" :loading="isQuerying">查询</el-button>
+            <el-button @click="triggerClearAllFilters" :loading="isResetting">重置所有</el-button>
           </el-col>
         </el-row>
       </div>

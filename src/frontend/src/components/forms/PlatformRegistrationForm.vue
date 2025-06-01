@@ -55,7 +55,11 @@
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="用户名/ID" prop="login_username">
-            <el-input v-model="form.login_username" placeholder="在该平台的登录名或ID" />
+            <el-input
+              v-model="form.login_username"
+              placeholder="请输入用户名/ID"
+              clearable
+            />
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="24" :md="12">
@@ -84,7 +88,6 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-// import { useRouter, useRoute } from 'vue-router'; // Removed
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { ElMessage } from 'element-plus';
@@ -104,8 +107,6 @@ const props = defineProps({
 // eslint-disable-next-line no-undef
 const emit = defineEmits(['submit-form', 'cancel']);
 
-// const router = useRouter(); // Removed
-// const route = useRoute(); // Removed
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
 
@@ -117,41 +118,26 @@ const form = ref({
   login_password: '',
   notes: '',
 });
-const loading = ref(false);
+const loading = ref(false); // General form loading
 
-// const isEditMode = computed(() => !!props.id || !!route.params.id); // Replaced by props.isEdit
-// const currentId = computed(() => props.id || route.params.id); // ID will come from props.platformRegistration.id
 
 const rules = ref({
   email_account_id: [{ required: false, message: '请选择邮箱账户', trigger: 'change' }], // Removed required validation
   platform_id: [{ required: true, message: '请选择平台', trigger: 'change' }],
   login_username: [{ max: 255, message: '登录用户名过长', trigger: 'blur' }],
   login_password: [
-    // Password is no longer required
     { required: false, message: '请输入登录密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少为6位', trigger: 'blur' },
   ],
 });
 
-// watch(() => form.value.login_username, (newVal) => {
-//   if (!isEditMode.value) {
-//     rules.value.login_password[0].required = newVal !== ''; // This logic is removed
-//   }
-// });
-// watch(isEditMode, (newVal) => {
-//   if (!newVal) { // Create mode
-//     rules.value.login_password[0].required = form.value.login_username !== ''; // This logic is removed
-//   } else { // Edit mode
-//      rules.value.login_password[0].required = false; // Password not required for edit unless changing
-//   }
-// }, { immediate: true });
 
 
 onMounted(async () => {
   loading.value = true;
   await Promise.all([
-    emailAccountStore.fetchEmailAccounts(1, 10000, { orderBy: 'email_address', sortDirection: 'asc' }, { provider: '', emailAddressSearch: '' }), // Fetch all for dropdown, clear filters
-    platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' }, { nameSearch: '' }) // Fetch all for dropdown, clear filters
+    emailAccountStore.fetchEmailAccounts(1, 10000, { orderBy: 'email_address', sortDirection: 'asc' }, { provider: '', emailAddressSearch: '' }),
+    platformStore.fetchPlatforms(1, 10000, { orderBy: 'name', sortDirection: 'asc' }, { nameSearch: '' })
   ]);
 
   // Populate form if in edit mode and data is provided
@@ -160,7 +146,6 @@ onMounted(async () => {
     form.value.platform_id = props.platformRegistration.platform_id;
     form.value.login_username = props.platformRegistration.login_username;
     form.value.notes = props.platformRegistration.notes;
-    // Password is not pre-filled for editing
   } else {
     // Reset form for create mode or if no data
     form.value.email_account_id = null;
@@ -188,7 +173,6 @@ watch(() => props.platformRegistration, (newVal) => {
     form.value.notes = '';
   }
 }, { immediate: true, deep: true });
-
 
 const handleSubmit = async () => {
   if (!formRef.value) return;

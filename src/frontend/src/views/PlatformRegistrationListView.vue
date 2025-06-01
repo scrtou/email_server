@@ -49,17 +49,36 @@
                 />
               </el-select>
             </el-form-item>
-            
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-form-item label="用户名">
+              <el-select
+                v-model="platformRegistrationStore.filters.login_username"
+                placeholder="搜索用户名"
+                clearable
+                filterable
+                @change="triggerFetchWithCurrentFilters"
+                @clear="triggerFetchWithCurrentFilters"
+                style="width: 180px;"
+              >
+                <el-option
+                  v-for="item in usernameOptions"
+                  :key="item"
+                  :label="item"
+                  :value="item"
+                />
+              </el-select>
+            </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="24" :md="8" :lg="6">
             <el-form-item>
-              <el-button type="primary" @click="triggerFetchWithCurrentFilters" :loading="platformRegistrationStore.loading">查询</el-button>
-              <el-button @click="triggerClearFilters" :loading="platformRegistrationStore.loading">重置</el-button>
+              <el-button type="primary" @click="triggerFetchWithCurrentFilters" :loading="isQuerying">查询</el-button>
+              <el-button @click="triggerClearFilters" :loading="isResetting">重置</el-button>
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
-      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+      <div class="table-container" style="flex-grow: 1; overflow-y: scroll;">
         <el-table
           :data="platformRegistrationStore.platformRegistrations"
           v-loading="platformRegistrationStore.loading"
@@ -138,8 +157,9 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 // import { useRouter } from 'vue-router'; // Removed
+const MIN_LOADING_TIME = 300; // 最小加载时间，单位毫秒
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
@@ -160,12 +180,20 @@ const modalTitle = ref('');
 const currentRegistration = ref(null);
 const isEditMode = ref(false); // This is already used for the form's :is-edit prop
 const platformRegistrationFormRef = ref(null); // Ref for the form component
-
+const isQuerying = ref(false); // 用于“查询”按钮的 loading 状态
+const isResetting = ref(false); // 用于“重置”按钮的 loading 状态
 
 // const filters = reactive({ // Removed, use store directly
 //   emailAccountId: null,
 //   platformId: null,
 // });
+
+const usernameOptions = computed(() => {
+  const usernames = platformRegistrationStore.platformRegistrations
+    .map(pr => pr.login_username)
+    .filter(username => username && username.trim() !== ''); // Filter out empty or null usernames
+  return [...new Set(usernames)].sort();
+});
 
 onMounted(async () => {
   // Fetch options for select dropdowns
@@ -200,14 +228,43 @@ const handlePlatformFilterChange = (value) => {
   platformRegistrationStore.setFilter('platform_id', value);
 };
 
-const triggerFetchWithCurrentFilters = () => {
-  // v-model has updated the store's filters.
-  // fetchPlatformRegistrations will use them. Reset to page 1.
-  platformRegistrationStore.fetchPlatformRegistrations(1, pageSize.value);
+const triggerFetchWithCurrentFilters = async () => {
+  if (isQuerying.value) return;
+  isQuerying.value = true;
+  const startTime = Date.now();
+
+  try {
+    // v-model has updated the store's filters.
+    // fetchPlatformRegistrations will use them. Reset to page 1.
+    await platformRegistrationStore.fetchPlatformRegistrations(1, pageSize.value);
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isQuerying.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isQuerying.value = false;
+    }
+  }
 };
 
-const triggerClearFilters = () => {
-  platformRegistrationStore.clearFilters(); // This clears filters in store and fetches
+const triggerClearFilters = async () => {
+  if (isResetting.value) return;
+  isResetting.value = true;
+  const startTime = Date.now();
+  try {
+    await platformRegistrationStore.clearFilters(); // This clears filters in store and fetches
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isResetting.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isResetting.value = false;
+    }
+  }
 };
 
 

@@ -66,8 +66,8 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="triggerFetchWithCurrentFilters" :loading="serviceSubscriptionStore.loading">查询</el-button>
-          <el-button @click="triggerClearFilters" :loading="serviceSubscriptionStore.loading">重置</el-button>
+          <el-button type="primary" @click="triggerFetchWithCurrentFilters" :loading="isQuerying">查询</el-button>
+          <el-button @click="triggerClearFilters" :loading="isResetting">重置</el-button>
         </el-form-item>
          <el-form-item label="订阅状态">
           <el-select
@@ -117,7 +117,7 @@
         </el-form-item>
       </el-form>
 
-      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+      <div class="table-container" style="flex-grow: 1; overflow-y: scroll;">
         <el-table
           :data="serviceSubscriptionStore.serviceSubscriptions"
           v-loading="serviceSubscriptionStore.loading"
@@ -223,6 +223,7 @@
 <script setup>
 import { onMounted, ref, computed, onUnmounted } from 'vue'; // Import onUnmounted
 // import { useRouter } from 'vue-router'; // Removed useRouter
+const MIN_LOADING_TIME = 300; // 最小加载时间，单位毫秒
 import { useServiceSubscriptionStore } from '@/stores/serviceSubscription';
 import { usePlatformStore } from '@/stores/platform';
 import { useEmailAccountStore } from '@/stores/emailAccount';
@@ -244,6 +245,8 @@ const modalTitle = ref('');
 const currentSubscription = ref(null);
 const formMode = ref('add'); // 'add' or 'edit' // This determines isEditMode
 const serviceSubscriptionFormRef = ref(null); // Ref for the form
+const isQuerying = ref(false); // 用于“查询”按钮的 loading 状态
+const isResetting = ref(false); // 用于“重置”按钮的 loading 状态
 
 let fetchController = null; // Variable to hold the AbortController
 
@@ -259,10 +262,27 @@ const emailOptions = computed(() => {
   return [...new Set(emails)].sort();
 });
 const usernameOptions = computed(() => {
-  const usernames = platformRegistrationStore.platformRegistrations
-    .map(pr => pr.login_username)
+  let filteredSubscriptions = serviceSubscriptionStore.serviceSubscriptions;
+
+  // Filter by selected platform name (interpreted as "service" filter)
+  if (filters.filterPlatformName) {
+    filteredSubscriptions = filteredSubscriptions.filter(
+      sub => sub.platform_name === filters.filterPlatformName
+    );
+  }
+
+  // Filter by selected email account
+  if (filters.filterEmail) {
+    filteredSubscriptions = filteredSubscriptions.filter(
+      sub => sub.email_address === filters.filterEmail
+    );
+  }
+
+  const usernames = filteredSubscriptions
+    .map(sub => sub.login_username) // Extract username from filtered subscriptions
     .filter(username => username && username.trim() !== ''); // Filter out empty or null usernames
-  return [...new Set(usernames)].sort();
+  
+  return [...new Set(usernames)].sort(); // Get unique, sorted usernames
 });
 
 // Reactive reference for filters, mirroring the store's structure for v-model binding
@@ -324,18 +344,35 @@ const renewalDateRangeFilter = computed({
 });
  
 // Centralized function to fetch data with cancellation
-const fetchData = (page, size, sort = serviceSubscriptionStore.sort, currentFilters = filters) => {
+const fetchData = async (page, size, sort = serviceSubscriptionStore.sort, currentFilters = filters, loadingStateRef = isQuerying) => {
+  if (loadingStateRef.value) return; // 如果正在加载，则不执行新的操作
+
+  loadingStateRef.value = true;
+  const startTime = Date.now();
+
   if (fetchController) {
     fetchController.abort(); // Abort previous request if exists
   }
   fetchController = new AbortController(); // Create a new controller for the new request
-  serviceSubscriptionStore.fetchServiceSubscriptions(
-    page,
-    size,
-    sort,
-    currentFilters, // Use the local/aliased filters
-    fetchController.signal // Pass the signal
-  );
+  
+  try {
+    await serviceSubscriptionStore.fetchServiceSubscriptions(
+      page,
+      size,
+      sort,
+      currentFilters, // Use the local/aliased filters
+      fetchController.signal // Pass the signal
+    );
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        loadingStateRef.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      loadingStateRef.value = false;
+    }
+  }
 };
 
 // Abort request on component unmount
@@ -363,25 +400,49 @@ const handleBillingCycleFilterChange = (value) => {
 
 const triggerFetchWithCurrentFilters = () => {
   // When triggering fetch, ensure it uses the current state of 'filters'
-  fetchData(1, pageSize.value, serviceSubscriptionStore.sort, filters);
+  fetchData(1, pageSize.value, serviceSubscriptionStore.sort, filters, isQuerying);
 };
 
-const triggerClearFilters = () => {
-  // When clearing filters, update the local/aliased 'filters' object
-  // and then call fetchData with these cleared filters.
-  filters.status = '';
-  filters.billing_cycle = '';
-  filters.renewal_date_start = '';
-  filters.renewal_date_end = '';
-  filters.filterPlatformName = '';
-  filters.filterEmail = '';
-  filters.filterUsername = '';
-  serviceSubscriptionStore.pagination.currentPage = 1;
-  // The store's clearFilters action might be more appropriate if it also handles resetting pagination and fetching.
-  // However, the current instruction is to modify this component.
-  // Let's ensure the store's filters are also cleared if 'filters' is just a local copy.
-  // Since 'filters' is a direct reference, modifying it modifies the store's filters.
-  fetchData(1, pageSize.value, serviceSubscriptionStore.sort, filters); // Fetch with cleared filters
+const triggerClearFilters = async () => {
+  if (isResetting.value) return;
+
+  // Set resetting state
+  isResetting.value = true;
+  const startTime = Date.now();
+
+  try {
+    // Clear local filters (which are reactive references to store's filters)
+    filters.status = '';
+    filters.billing_cycle = '';
+    filters.renewal_date_start = '';
+    filters.renewal_date_end = '';
+    filters.filterPlatformName = '';
+    filters.filterEmail = '';
+    filters.filterUsername = '';
+    serviceSubscriptionStore.pagination.currentPage = 1;
+
+    // Call the store's clearFiltersAndFetch action or directly fetch
+    // For consistency with PlatformRegistrationListView, we can call the store's action
+    // if it exists and handles fetching. If not, we fetch directly.
+    // Assuming serviceSubscriptionStore.clearFilters() exists and fetches:
+    // await serviceSubscriptionStore.clearFilters();
+    // OR, if we need to manage loading state here:
+    await serviceSubscriptionStore.fetchServiceSubscriptions(
+      1,
+      pageSize.value,
+      serviceSubscriptionStore.sort, // Use default sort or reset sort as needed
+      filters // Pass the now-cleared filters
+    );
+  } finally {
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < MIN_LOADING_TIME) {
+      setTimeout(() => {
+        isResetting.value = false;
+      }, MIN_LOADING_TIME - elapsedTime);
+    } else {
+      isResetting.value = false;
+    }
+  }
 };
 
 const handleSortChange = ({ prop, order }) => {
