@@ -96,9 +96,9 @@ func CreatePlatformRegistrationWithIDs(c *gin.Context) {
 		return
 	}
 
-	var hashedPassword string
+	var encryptedPassword string
 	if input.LoginPassword != "" {
-		hashedPassword, err = utils.HashPassword(input.LoginPassword)
+		encryptedPassword, err = utils.EncryptPassword(input.LoginPassword)
 		if err != nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "密码加密失败: "+err.Error())
 			return
@@ -152,7 +152,7 @@ func CreatePlatformRegistrationWithIDs(c *gin.Context) {
 		EmailAccountID:         emailAccountIDPtr,
 		PlatformID:             input.PlatformID,
 		LoginUsername:          input.LoginUsername,
-		LoginPasswordEncrypted: hashedPassword,
+		LoginPasswordEncrypted: encryptedPassword,
 		Notes:                  input.Notes,
 		PhoneNumber:            input.PhoneNumber,
 	}
@@ -294,10 +294,10 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 		// 如果不是软删除的，或者已成功恢复，则直接使用 platform
 	}
 
-	var hashedPassword string
+	var encryptedPassword string
 	// var err error // Remove this redundant declaration
 	if input.LoginPassword != "" {
-		hashedPassword, err = utils.HashPassword(input.LoginPassword)
+		encryptedPassword, err = utils.EncryptPassword(input.LoginPassword)
 		if err != nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "密码加密失败: "+err.Error())
 			return
@@ -354,7 +354,7 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 		EmailAccountID:         currentEmailAccountIDPtr,
 		PlatformID:             platform.ID,
 		LoginUsername:          input.LoginUsername,
-		LoginPasswordEncrypted: hashedPassword,
+		LoginPasswordEncrypted: encryptedPassword,
 		Notes:                  input.Notes,
 		PhoneNumber:            input.PhoneNumber,
 	}
@@ -687,12 +687,12 @@ func UpdatePlatformRegistration(c *gin.Context) {
 
 	// 更新密码（如果提供）
 	if input.LoginPassword != "" {
-		hashedPassword, err := utils.HashPassword(input.LoginPassword)
+		encryptedPassword, err := utils.EncryptPassword(input.LoginPassword)
 		if err != nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "密码加密失败: "+err.Error())
 			return
 		}
-		registration.LoginPasswordEncrypted = hashedPassword
+		registration.LoginPasswordEncrypted = encryptedPassword
 	}
 
 	// --- 新增：如果 LoginUsername 发生变化且非空，则检查冲突 ---
@@ -793,6 +793,77 @@ func UpdatePlatformRegistration(c *gin.Context) {
 		emailAccountForRespUpdate = *registration.EmailAccount
 	}
 	response := registration.ToPlatformRegistrationResponse(emailAccountForRespUpdate, registration.Platform)
+	utils.SendSuccessResponse(c, response)
+}
+
+// GetPlatformRegistrationPassword godoc
+// @Summary 获取平台注册密码
+// @Description 获取指定平台注册信息的解密密码
+// @Tags PlatformRegistrations
+// @Produce json
+// @Param id path int true "平台注册ID"
+// @Success 200 {object} models.SuccessResponse{data=map[string]string} "获取成功"
+// @Failure 400 {object} models.ErrorResponse "无效的ID格式"
+// @Failure 401 {object} models.ErrorResponse "用户未认证"
+// @Failure 403 {object} models.ErrorResponse "无权访问该资源"
+// @Failure 404 {object} models.ErrorResponse "平台注册信息未找到"
+// @Failure 500 {object} models.ErrorResponse "服务器内部错误"
+// @Router /platform-registrations/{id}/password [get]
+// @Security BearerAuth
+func GetPlatformRegistrationPassword(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	currentUserID := uint(userID)
+
+	registrationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的平台注册ID格式")
+		return
+	}
+
+	// 查询平台注册信息
+	var registration models.PlatformRegistration
+	if err := database.DB.Where("id = ? AND user_id = ?", registrationID, currentUserID).First(&registration).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "平台注册信息未找到或无权访问")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台注册信息失败: "+err.Error())
+		return
+	}
+
+	// 检查是否有密码
+	if registration.LoginPasswordEncrypted == "" {
+		utils.SendErrorResponse(c, http.StatusNotFound, "该注册信息未设置密码")
+		return
+	}
+
+	// 解密密码
+	var decryptedPassword string
+	if utils.IsEncryptedPassword(registration.LoginPasswordEncrypted) {
+		// 新的加密格式，可以解密
+		decryptedPassword, err = utils.DecryptPassword(registration.LoginPasswordEncrypted)
+		if err != nil {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "密码解密失败: "+err.Error())
+			return
+		}
+	} else {
+		// 旧的bcrypt格式，无法解密
+		utils.SendErrorResponse(c, http.StatusBadRequest, "该密码使用旧格式存储，无法查看。请重新设置密码。")
+		return
+	}
+
+	response := map[string]string{
+		"password": decryptedPassword,
+	}
 	utils.SendSuccessResponse(c, response)
 }
 

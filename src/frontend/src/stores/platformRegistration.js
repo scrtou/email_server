@@ -263,6 +263,21 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         this.loading = false;
       }
     },
+    async getPassword(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] getPassword called while not authenticated.');
+        throw new Error('请先登录再获取密码');
+      }
+
+      try {
+        const response = await platformRegistrationAPI.getPassword(id);
+        return response.password;
+      } catch (err) {
+        const errorMessage = err.response?.data?.message || err.message || '获取密码失败';
+        throw new Error(errorMessage);
+      }
+    },
     setCurrentPlatformRegistration(registration) {
         this.currentPlatformRegistration = registration;
     },

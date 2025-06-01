@@ -4,12 +4,24 @@
       <template #header>
         <div class="card-header">
           <span class="card-title">平台注册信息管理</span>
-          <el-button type="primary" :icon="Plus" @click="handleAdd">
-            添加注册信息
-          </el-button>
-          <el-button type="success" :icon="Upload" @click="handleImportBitwarden" style="margin-left: 10px;">
-            导入 Bitwarden 数据
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" :icon="Plus" @click="handleAdd">
+              添加注册信息
+            </el-button>
+            <el-dropdown @command="handleImportCommand" style="margin-left: 10px;">
+              <el-button type="success" :icon="Upload">
+                导入数据<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="bitwarden">Bitwarden CSV</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <el-button type="info" :icon="Download" style="margin-left: 10px;" @click="handleExport" disabled>
+              导出数据
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -156,23 +168,28 @@
         </div>
       </template>
     </ModalDialog>
+
+    <!-- Bitwarden 导入弹框 -->
+    <BitwardenImportDialog
+      v-model:visible="showBitwardenImportDialog"
+      @import-success="handleImportSuccess"
+    />
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router'; // Added back
 const MIN_LOADING_TIME = 300; // 最小加载时间，单位毫秒
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { useSettingsStore } from '@/stores/settings';
 import { ElMessageBox, ElMessage } from 'element-plus';
-import { Plus, Edit, Delete, Upload } from '@element-plus/icons-vue'; // Added Upload icon
+import { Plus, Edit, Delete, Upload, Download, ArrowDown } from '@element-plus/icons-vue'; // Added Upload, Download, ArrowDown icons
 import ModalDialog from '@/components/ui/ModalDialog.vue';
 import PlatformRegistrationForm from '@/components/forms/PlatformRegistrationForm.vue';
+import BitwardenImportDialog from '@/components/dialogs/BitwardenImportDialog.vue';
 
-const router = useRouter(); // Added back
 const platformRegistrationStore = usePlatformRegistrationStore();
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
@@ -186,6 +203,9 @@ const isEditMode = ref(false); // This is already used for the form's :is-edit p
 const platformRegistrationFormRef = ref(null); // Ref for the form component
 const isQuerying = ref(false); // 用于“查询”按钮的 loading 状态
 const isResetting = ref(false); // 用于“重置”按钮的 loading 状态
+
+// Bitwarden 导入弹框状态
+const showBitwardenImportDialog = ref(false);
 
 // const filters = reactive({ // Removed, use store directly
 //   emailAccountId: null,
@@ -398,8 +418,50 @@ const handleCurrentChange = (newPage) => {
   platformRegistrationStore.fetchPlatformRegistrations(newPage, platformRegistrationStore.pagination.pageSize);
 };
 
-const handleImportBitwarden = () => {
-  router.push('/import/bitwarden');
+const handleImportCommand = (command) => {
+  switch (command) {
+    case 'bitwarden':
+      showBitwardenImportDialog.value = true;
+      break;
+    case 'chrome':
+      ElMessage.info('Chrome 密码导入功能即将推出');
+      break;
+    case 'firefox':
+      ElMessage.info('Firefox 密码导入功能即将推出');
+      break;
+    default:
+      ElMessage.warning('未知的导入类型');
+  }
+};
+
+// 处理导入成功事件
+const handleImportSuccess = async (data) => {
+  ElMessage.success(`导入成功！共导入 ${data.count} 条记录`);
+
+  // 刷新下拉选项数据（导入可能创建了新的平台和邮箱账户）
+  await Promise.all([
+    // 刷新邮箱账户列表
+    emailAccountStore.fetchEmailAccounts(
+      1,
+      10000,
+      { orderBy: 'email_address', sortDirection: 'asc' },
+      { provider: '', emailAddressSearch: '' }
+    ),
+    // 刷新平台列表
+    platformStore.fetchPlatforms(1, 200, { orderBy: 'name', sortDirection: 'asc' })
+  ]);
+
+  // 刷新平台注册数据
+  await platformRegistrationStore.fetchPlatformRegistrations(
+    platformRegistrationStore.pagination.currentPage,
+    platformRegistrationStore.pagination.pageSize,
+    platformRegistrationStore.sort,
+    platformRegistrationStore.filters
+  );
+};
+
+const handleExport = () => {
+  ElMessage.info('导出功能即将推出');
 };
 </script>
 
@@ -451,6 +513,12 @@ const handleImportBitwarden = () => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0; /* 使用 margin-left 来控制间距 */
 }
 
 .card-title {
@@ -560,10 +628,20 @@ const handleImportBitwarden = () => {
   .card-header {
     flex-direction: column; /* 移动端标题和按钮垂直堆叠 */
     align-items: flex-start;
+    gap: 10px;
   }
-  .card-header .el-button {
-    margin-top: 10px; /* 移动端按钮顶部间距 */
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .header-actions .el-button,
+  .header-actions .el-dropdown {
     width: 100%; /* 按钮占满宽度 */
+    margin-left: 0 !important;
+  }
+  .header-actions .el-dropdown .el-button {
+    width: 100%;
   }
   .pagination-container {
     justify-content: center; /* 移动端分页器居中 */

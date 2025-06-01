@@ -86,6 +86,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			platformRegistrations.POST("/by-name", handlers.CreatePlatformRegistrationByNames) // 通过名称创建
 			platformRegistrations.GET("", handlers.GetPlatformRegistrations)
 			platformRegistrations.GET("/:id", handlers.GetPlatformRegistrationByID)
+			platformRegistrations.GET("/:id/password", handlers.GetPlatformRegistrationPassword) // 获取密码
 			platformRegistrations.PUT("/:id", handlers.UpdatePlatformRegistration)
 			platformRegistrations.DELETE("/:id", handlers.DeletePlatformRegistration)
 			platformRegistrations.GET("/:id/service-subscriptions", handlers.GetServiceSubscriptionsByPlatformRegistrationID)

@@ -201,15 +201,15 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 			}
 		}
 
-		// 3. Hash Password (if importPasswords is true)
-		var hashedPassword string
+		// 3. Encrypt Password (if importPasswords is true)
+		var encryptedPassword string
 		if importPasswords && item.Password != "" {
-			hashedPassword, errLoop = utils.HashPassword(item.Password)
+			encryptedPassword, errLoop = utils.EncryptPassword(item.Password)
 			if errLoop != nil {
 				errorCount++
 				errorMessages = append(errorMessages, fmt.Sprintf("第 %d 行 (平台 %s, 登录名 %s): 密码加密失败: %v. 密码未导入。", rowIndex, platform.Name, loginIdentifier, errLoop))
-				log.Printf("Import: Row %d error hashing password for login '%s', platform '%s': %v. Password not imported.", rowIndex, loginIdentifier, platform.Name, errLoop)
-				hashedPassword = "" // Ensure password is not set if hashing failed
+				log.Printf("Import: Row %d error encrypting password for login '%s', platform '%s': %v. Password not imported.", rowIndex, loginIdentifier, platform.Name, errLoop)
+				encryptedPassword = "" // Ensure password is not set if encryption failed
 			}
 		}
 
@@ -279,7 +279,7 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 			EmailAccountID:         currentEmailAccountIDPtr,
 			PlatformID:             platform.ID,
 			LoginUsername:          loginUsernameForRegistration,
-			LoginPasswordEncrypted: hashedPassword,
+			LoginPasswordEncrypted: encryptedPassword,
 			Notes:                  combinedNotes,
 			PhoneNumber:            "", // Bitwarden CSV doesn't map directly to this.
 			IsActive:               true,

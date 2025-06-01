@@ -36,6 +36,7 @@ type PlatformRegistrationResponse struct {
 	LoginUsername          string              `json:"login_username"`
 	Notes                  string              `json:"notes"`
 	PhoneNumber            string              `json:"phone_number,omitempty"`
+	HasPassword            bool                `json:"has_password"` // 指示是否已设置密码
 	CreatedAt              string              `json:"created_at"`
 	UpdatedAt              string              `json:"updated_at"`
 }
@@ -53,6 +54,7 @@ func (pr *PlatformRegistration) ToPlatformRegistrationResponse(emailAccount Emai
 		LoginUsername:  pr.LoginUsername,
 		Notes:          pr.Notes,
 		PhoneNumber:    pr.PhoneNumber,
+		HasPassword:    pr.LoginPasswordEncrypted != "", // 检查是否已设置密码
 		CreatedAt:      pr.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:      pr.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
@@ -69,6 +71,7 @@ func (pr *PlatformRegistration) ToPlatformRegistrationResponseLite() PlatformReg
         LoginUsername:  pr.LoginUsername,
         Notes:          pr.Notes,
         PhoneNumber:    pr.PhoneNumber,
+        HasPassword:    pr.LoginPasswordEncrypted != "", // 检查是否已设置密码
         CreatedAt:      pr.CreatedAt.Format("2006-01-02 15:04:05"),
         UpdatedAt:      pr.UpdatedAt.Format("2006-01-02 15:04:05"),
     }

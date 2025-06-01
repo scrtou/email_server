@@ -64,12 +64,75 @@
         </el-col>
         <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="登录密码" prop="login_password">
-            <el-input
-              type="password"
-              v-model="form.login_password"
-              :placeholder="props.isEdit ? '留空则不修改密码' : '请输入登录密码'"
-              show-password
-            />
+            <div class="password-input-container">
+              <el-input
+                type="password"
+                v-model="form.login_password"
+                :placeholder="props.isEdit ? '留空则不修改密码' : '请输入登录密码'"
+                show-password
+                class="password-input"
+              />
+              <!-- 查看现有密码按钮 -->
+              <el-button
+                v-if="props.isEdit && hasExistingPassword"
+                type="primary"
+                size="small"
+                :icon="View"
+                @click="handleViewPassword"
+                :loading="viewPasswordLoading"
+                class="view-password-btn"
+                title="查看当前密码"
+              >
+                查看
+              </el-button>
+            </div>
+
+            <!-- 密码状态指示器 -->
+            <div v-if="props.isEdit" class="password-status">
+              <el-tag
+                v-if="hasExistingPassword"
+                type="success"
+                size="small"
+                effect="plain"
+              >
+                <el-icon><Lock /></el-icon>
+                已设置密码
+              </el-tag>
+              <el-tag
+                v-else
+                type="info"
+                size="small"
+                effect="plain"
+              >
+                <el-icon><Unlock /></el-icon>
+                未设置密码
+              </el-tag>
+            </div>
+
+            <!-- 显示查看到的密码 -->
+            <div v-if="viewedPassword" class="viewed-password">
+              <el-alert
+                type="info"
+                :closable="true"
+                @close="viewedPassword = ''"
+                show-icon
+              >
+                <template #default>
+                  <div class="password-display">
+                    <span class="password-label">当前密码：</span>
+                    <span class="password-text">{{ viewedPassword }}</span>
+                    <el-button
+                      type="text"
+                      :icon="CopyDocument"
+                      @click="copyPassword"
+                      size="small"
+                    >
+                      复制
+                    </el-button>
+                  </div>
+                </template>
+              </el-alert>
+            </div>
           </el-form-item>
         </el-col>
       </el-row>
@@ -93,10 +156,12 @@
 
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
 import { ElMessage } from 'element-plus';
+import { Lock, Unlock, View, CopyDocument } from '@element-plus/icons-vue';
+import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 
 // eslint-disable-next-line no-undef
 const props = defineProps({
@@ -115,6 +180,7 @@ const emit = defineEmits(['submit-form', 'cancel']);
 
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
+const platformRegistrationStore = usePlatformRegistrationStore();
 
 const formRef = ref(null);
 const form = ref({
@@ -127,6 +193,14 @@ const form = ref({
 });
 const loading = ref(false); // General form loading
 
+// 查看密码相关状态
+const viewPasswordLoading = ref(false);
+const viewedPassword = ref('');
+
+// 计算属性：检查是否有现有密码
+const hasExistingPassword = computed(() => {
+  return props.isEdit && props.platformRegistration && props.platformRegistration.has_password;
+});
 
 const rules = ref({
   email_account_id: [{ required: false, message: '请选择邮箱账户', trigger: 'change' }], // Removed required validation
@@ -278,7 +352,54 @@ const handleSubmit = async () => {
   });
 };
 
+// 查看密码方法
+const handleViewPassword = async () => {
+  if (!props.platformRegistration?.id) {
+    ElMessage.error('无法获取密码：缺少注册信息ID');
+    return;
+  }
 
+  viewPasswordLoading.value = true;
+  try {
+    const password = await platformRegistrationStore.getPassword(props.platformRegistration.id);
+    if (password) {
+      viewedPassword.value = password;
+      ElMessage.success('密码获取成功');
+    } else {
+      ElMessage.warning('未找到密码信息');
+    }
+  } catch (error) {
+    ElMessage.error('获取密码失败：' + (error.message || '未知错误'));
+  } finally {
+    viewPasswordLoading.value = false;
+  }
+};
+
+// 复制密码方法
+const copyPassword = async () => {
+  if (!viewedPassword.value) {
+    ElMessage.warning('没有可复制的密码');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(viewedPassword.value);
+    ElMessage.success('密码已复制到剪贴板');
+  } catch (error) {
+    // 降级方案：使用传统的复制方法
+    const textArea = document.createElement('textarea');
+    textArea.value = viewedPassword.value;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      ElMessage.success('密码已复制到剪贴板');
+    } catch (fallbackError) {
+      ElMessage.error('复制失败，请手动复制');
+    }
+    document.body.removeChild(textArea);
+  }
+};
 
 // eslint-disable-next-line no-undef
 defineExpose({
@@ -293,6 +414,7 @@ defineExpose({
     form.value.login_password = '';
     form.value.phone_number = ''; // Reset phone_number
     form.value.notes = '';
+    viewedPassword.value = ''; // 清空查看的密码
   },
   formRef
 });
@@ -325,6 +447,56 @@ defineExpose({
 
 .full-width-select {
   width: 100%; /* 确保选择器占满宽度 */
+}
+
+.password-input-container {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.password-input {
+  flex: 1;
+}
+
+.view-password-btn {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+.password-status {
+  margin-top: 8px;
+}
+
+.password-status .el-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.viewed-password {
+  margin-top: 8px;
+}
+
+.password-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.password-label {
+  font-weight: 500;
+  color: #606266;
+}
+
+.password-text {
+  font-family: 'Courier New', monospace;
+  background-color: #f5f7fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
+  font-size: 14px;
+  color: #303133;
 }
 
 .form-actions {

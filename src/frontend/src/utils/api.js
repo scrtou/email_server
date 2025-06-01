@@ -172,6 +172,7 @@ export const platformRegistrationAPI = {
   update: (id, data) => api.put(`/platform-registrations/${id}`, data),
   delete: (id) => api.delete(`/platform-registrations/${id}`),
   getAssociatedServiceSubscriptions: (registrationId, params = {}) => api.get(`/platform-registrations/${registrationId}/service-subscriptions`, { params }),
+  getPassword: (id) => api.get(`/platform-registrations/${id}/password`), // 获取密码
 };
 
 // ServiceSubscription API
