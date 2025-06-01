@@ -74,7 +74,7 @@
 
       <el-pagination
         v-if="platformStore.pagination.totalItems > 0"
-        class="pagination-container"
+        class="mt-4"
         background
         layout="total, prev, pager, next, jumper"
         :total="platformStore.pagination.totalItems"

@@ -365,7 +365,7 @@ const handleAssociatedPageChange = (payload) => {
       </div>
 
       <el-pagination
-        class="mt-4"
+        class="mt-2"
         background
         layout="total, prev, pager, next, jumper"
         :total="emailAccountStore.pagination.totalItems"
