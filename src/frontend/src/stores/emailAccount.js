@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { emailAccountAPI } from '@/utils/api';
 import { ElMessage } from 'element-plus';
+import { useAuthStore } from './auth'; // 导入 Auth Store
 
 export const useEmailAccountStore = defineStore('emailAccount', {
   state: () => ({
@@ -43,6 +44,15 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       // this.fetchEmailAccounts(1, this.pagination.pageSize, this.sort, this.filters);
     },
     async fetchEmailAccounts(page = this.pagination.currentPage, pageSize = this.pagination.pageSize, sortOptions = {}, filters = {}) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] fetchEmailAccounts called while not authenticated.');
+        this.emailAccounts = []; // Clear data
+        this.pagination.totalItems = 0;
+        this.loading = false;
+        return;
+      }
+      
       this.loading = true;
       this.error = null;
 
@@ -101,6 +111,14 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       }
     },
     async fetchEmailAccountById(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] fetchEmailAccountById called while not authenticated.');
+        this.currentEmailAccount = null;
+        this.loading = false;
+        return null; // Return null or appropriate value
+      }
+
       this.loading = true;
       this.error = null;
       this.currentEmailAccount = null;
@@ -118,6 +136,14 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       }
     },
     async createEmailAccount(data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] createEmailAccount called while not authenticated.');
+        ElMessage.error('请先登录再创建邮箱账户');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -140,6 +166,14 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       }
     },
     async updateEmailAccount(id, data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] updateEmailAccount called while not authenticated.');
+        ElMessage.error('请先登录再更新邮箱账户');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -159,6 +193,14 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       }
     },
     async deleteEmailAccount(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] deleteEmailAccount called while not authenticated.');
+        ElMessage.error('请先登录再删除邮箱账户');
+        this.loading = false;
+        return false;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -179,6 +221,14 @@ export const useEmailAccountStore = defineStore('emailAccount', {
         this.currentEmailAccount = account;
     },
     async fetchAssociatedPlatformRegistrations(emailAccountId, params = { page: 1, pageSize: 5 }) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] fetchAssociatedPlatformRegistrations called while not authenticated.');
+        this.loading = false;
+        // Return empty structure consistent with success case on error
+        return { data: [], meta: { total_items: 0, current_page: 1, page_size: params.pageSize } };
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -194,6 +244,13 @@ export const useEmailAccountStore = defineStore('emailAccount', {
       }
     },
     async fetchUniqueProviders() {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] fetchUniqueProviders called while not authenticated.');
+        this.uniqueProviders = [];
+        return;
+      }
+
       // this.loading = true; // Optional: manage loading state for this specific fetch
       try {
         const providers = await emailAccountAPI.getUniqueProviders(); // Assumes this method will be added to api.js

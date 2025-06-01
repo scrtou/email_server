@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { platformAPI } from '@/utils/api';
 import { ElMessage } from 'element-plus';
+import { useAuthStore } from './auth'; // 导入 Auth Store
 
 // First, define platformAPI within api.js or ensure it's added there.
 // For now, assuming it will be added to api.js like emailAccountAPI:
@@ -50,6 +51,15 @@ export const usePlatformStore = defineStore('platform', {
       // this.fetchPlatforms(); // Example: if store should auto-fetch
     },
     async fetchPlatforms(page = this.pagination.currentPage, pageSize = this.pagination.pageSize, sortOptions = {}, filterOptions = {}) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformStore] fetchPlatforms called while not authenticated.');
+        this.platforms = [];
+        this.pagination.totalItems = 0;
+        this.loading = false;
+        return;
+      }
+
       this.loading = true;
       this.error = null;
 
@@ -100,6 +110,14 @@ export const usePlatformStore = defineStore('platform', {
       }
     },
     async fetchPlatformById(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformStore] fetchPlatformById called while not authenticated.');
+        this.currentPlatform = null;
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       this.currentPlatform = null;
@@ -116,6 +134,14 @@ export const usePlatformStore = defineStore('platform', {
       }
     },
     async createPlatform(data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformStore] createPlatform called while not authenticated.');
+        ElMessage.error('请先登录再创建平台');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -138,6 +164,14 @@ export const usePlatformStore = defineStore('platform', {
       }
     },
     async updatePlatform(id, data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformStore] updatePlatform called while not authenticated.');
+        ElMessage.error('请先登录再更新平台');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -157,6 +191,14 @@ export const usePlatformStore = defineStore('platform', {
       }
     },
     async deletePlatform(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformStore] deletePlatform called while not authenticated.');
+        ElMessage.error('请先登录再删除平台');
+        this.loading = false;
+        return false;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -176,6 +218,14 @@ export const usePlatformStore = defineStore('platform', {
         this.currentPlatform = platform;
     },
     async fetchAssociatedEmailRegistrations(platformId, params = { page: 1, pageSize: 5 }) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformStore] fetchAssociatedEmailRegistrations called while not authenticated.');
+        this.loading = false;
+        // Return empty structure consistent with success case on error
+        return { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } };
+      }
+
       this.loading = true;
       this.error = null;
       try {

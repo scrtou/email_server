@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { authAPI } from '@/utils/api';
+import { useAuthStore } from './auth'; // 导入 Auth Store
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
@@ -18,6 +19,15 @@ export const useNotificationStore = defineStore('notification', {
   },
   actions: {
     async fetchReminders(forceRefresh = false) { // 添加 forceRefresh 参数
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[NotificationStore] fetchReminders called while not authenticated.');
+        this.reminders = [];
+        this.remindersLoaded = false; // Reset loaded state if not authenticated
+        this.isLoading = false;
+        return;
+      }
+
       if (this.remindersLoaded && !forceRefresh) {
         console.log('Reminders already loaded and no force refresh requested. Skipping fetch.');
         return; // 如果已加载且非强制刷新，则不执行
@@ -64,6 +74,13 @@ export const useNotificationStore = defineStore('notification', {
       this.remindersLoaded = true;
     },
     async markAsRead(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[NotificationStore] markAsRead called while not authenticated.');
+        // Optionally show a message, but likely just failing silently is okay here
+        return;
+      }
+
       try {
         await authAPI.markReminderAsRead(id);
         const reminder = this.reminders.find(r => r.id === id);

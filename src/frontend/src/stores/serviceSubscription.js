@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { serviceSubscriptionAPI } from '@/utils/api';
 import { ElMessage } from 'element-plus';
+import { useAuthStore } from './auth'; // Import auth store
 
 // Assuming serviceSubscriptionAPI will be added to api.js:
 /*
@@ -61,8 +62,22 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
         page = this.pagination.currentPage,
         pageSize = this.pagination.pageSize,
         sortOptions = {},
-        filterOptions = {}
+        filterOptions = {},
+        signal // Add signal parameter
     ) {
+      // --- BEGIN AUTH CHECK ---
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.log('[ServiceSubscriptionStore] User not authenticated. Skipping fetchServiceSubscriptions.');
+        // We simply return early. The component's loading state might still be true
+        // if it was set before calling this action, but no API call will be made,
+        // and no error will be shown for this specific case.
+        // If necessary, we could set this.loading = false here, but it might interfere
+        // with component logic expecting loading state during transitions.
+        return; // Stop execution if not authenticated
+      }
+      // --- END AUTH CHECK ---
+
       this.loading = true;
       this.error = null;
 
@@ -93,7 +108,8 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       };
       
       try {
-        const result = await serviceSubscriptionAPI.getAll(apiParams);
+        // Pass signal to the API call
+        const result = await serviceSubscriptionAPI.getAll(apiParams, signal);
         if (result && result.data) {
           this.serviceSubscriptions = result.data;
           if (result.meta) {
@@ -108,10 +124,16 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
           this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
         }
       } catch (err) {
-        this.error = err.message || '获取服务订阅列表失败';
-        ElMessage.error(this.error);
-        this.serviceSubscriptions = [];
-        this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
+        // Check if the error is an AbortError
+        if (err.name === 'AbortError') {
+          console.log('Fetch aborted by user action.'); // Optional: log cancellation
+          // Do not set error state or show message for aborted requests
+        } else {
+          this.error = err.message || '获取服务订阅列表失败';
+          ElMessage.error(this.error);
+          this.serviceSubscriptions = [];
+          this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
+        }
       } finally {
         this.loading = false;
       }

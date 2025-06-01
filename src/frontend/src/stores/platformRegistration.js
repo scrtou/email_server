@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { platformRegistrationAPI } from '@/utils/api';
 import { ElMessage } from 'element-plus';
+import { useAuthStore } from './auth'; // 导入 Auth Store
 
 // Assuming platformRegistrationAPI will be added to api.js:
 /*
@@ -56,6 +57,15 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         sortOptions = {},
         filterOptions = {}
     ) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] fetchPlatformRegistrations called while not authenticated.');
+        this.platformRegistrations = [];
+        this.pagination.totalItems = 0;
+        this.loading = false;
+        return;
+      }
+
       this.loading = true;
       this.error = null;
       
@@ -104,6 +114,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       }
     },
     async fetchPlatformRegistrationById(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] fetchPlatformRegistrationById called while not authenticated.');
+        this.currentPlatformRegistration = null;
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       this.currentPlatformRegistration = null;
@@ -120,6 +138,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       }
     },
     async createPlatformRegistration(data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] createPlatformRegistration called while not authenticated.');
+        ElMessage.error('请先登录再创建平台注册信息');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -142,6 +168,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       }
 },
     async createPlatformRegistrationByName(data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] createPlatformRegistrationByName called while not authenticated.');
+        ElMessage.error('请先登录再创建平台注册信息');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -164,6 +198,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       }
     },
     async updatePlatformRegistration(id, data) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] updatePlatformRegistration called while not authenticated.');
+        ElMessage.error('请先登录再更新平台注册信息');
+        this.loading = false;
+        return null;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -183,6 +225,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       }
     },
     async deletePlatformRegistration(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] deletePlatformRegistration called while not authenticated.');
+        ElMessage.error('请先登录再删除平台注册信息');
+        this.loading = false;
+        return false;
+      }
+
       this.loading = true;
       this.error = null;
       try {
@@ -206,6 +256,14 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         this.currentPlatformRegistration = registration;
     },
     async fetchAssociatedServiceSubscriptions(registrationId, params = { page: 1, pageSize: 5 }) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] fetchAssociatedServiceSubscriptions called while not authenticated.');
+        this.loading = false;
+        // Return empty structure consistent with success case on error
+        return { data: [], meta: { total_records: 0, current_page: 1, page_size: params.pageSize } };
+      }
+
       // This action will call the new backend API to get service subscriptions for a specific platform registration.
       // It's similar to fetchAssociatedPlatformRegistrations in emailAccount.js
       this.loading = true;

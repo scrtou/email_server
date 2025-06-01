@@ -96,7 +96,7 @@
         <el-table-column prop="service_name" label="服务名称" min-width="180" sortable="custom" />
         <!-- <el-table-column prop="id" label="ID" width="60" /> -->
         <el-table-column prop="platform_name" label="所属平台" min-width="150" sortable="custom" />
-        <el-table-column label="平台邮箱" min-width="200" prop="email_address" sortable="custom">
+        <el-table-column label="邮箱(用户名)" min-width="200" prop="email_address" sortable="custom">
           <template #default="scope">
             <span>{{ scope.row.email_address }}</span>
             <span v-if="scope.row.login_username" style="color: #909399; margin-left: 5px;">({{ scope.row.login_username }})</span>
@@ -164,7 +164,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, computed } from 'vue';
+import { onMounted, ref, computed, onUnmounted } from 'vue'; // Import onUnmounted
 // import { useRouter } from 'vue-router'; // Removed useRouter
 import { useServiceSubscriptionStore } from '@/stores/serviceSubscription';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
@@ -184,29 +184,62 @@ const currentSubscription = ref(null);
 const formMode = ref('add'); // 'add' or 'edit' // This determines isEditMode
 const serviceSubscriptionFormRef = ref(null); // Ref for the form
 
+let fetchController = null; // Variable to hold the AbortController
+
 const isEditMode = computed(() => formMode.value === 'edit');
+
+// Centralized function to fetch data with cancellation
+const fetchData = (page, size, sort = serviceSubscriptionStore.sort, filters = serviceSubscriptionStore.filters) => {
+  if (fetchController) {
+    fetchController.abort(); // Abort previous request if exists
+  }
+  fetchController = new AbortController(); // Create a new controller for the new request
+  serviceSubscriptionStore.fetchServiceSubscriptions(
+    page,
+    size,
+    sort,
+    filters,
+    fetchController.signal // Pass the signal
+  );
+};
 
 onMounted(async () => {
   if (platformRegistrationStore.platformRegistrations.length === 0) {
+    // Consider if this fetch also needs cancellation, though less critical usually
     await platformRegistrationStore.fetchPlatformRegistrations({ page: 1, pageSize: 1000, orderBy: 'platform_name', sortDirection: 'asc' });
   }
-  serviceSubscriptionStore.fetchServiceSubscriptions(
-    serviceSubscriptionStore.pagination.currentPage,
-    pageSize.value,
-    serviceSubscriptionStore.sort
-  );
+  fetchData(serviceSubscriptionStore.pagination.currentPage, pageSize.value);
+});
+
+// Abort request on component unmount
+onUnmounted(() => {
+  if (fetchController) {
+    fetchController.abort();
+  }
 });
 
 const handlePlatformRegistrationFilterChange = (value) => {
-  serviceSubscriptionStore.setFilter('platform_registration_id', value);
+  // setFilter now triggers fetch internally, we need to modify the store action
+  // For now, let's assume setFilter doesn't auto-fetch or modify it later.
+  // If setFilter *does* fetch, this approach needs adjustment in the store.
+  // Assuming direct fetch call here for demonstration:
+  serviceSubscriptionStore.filters.platform_registration_id = value;
+  serviceSubscriptionStore.pagination.currentPage = 1;
+  fetchData(1, pageSize.value);
 };
 
 const handleStatusFilterChange = (value) => {
-  serviceSubscriptionStore.setFilter('status', value);
+  // Assuming direct fetch call here for demonstration:
+  serviceSubscriptionStore.filters.status = value;
+  serviceSubscriptionStore.pagination.currentPage = 1;
+  fetchData(1, pageSize.value);
 };
 
 const handleBillingCycleFilterChange = (value) => {
-  serviceSubscriptionStore.setFilter('billing_cycle', value);
+   // Assuming direct fetch call here for demonstration:
+  serviceSubscriptionStore.filters.billing_cycle = value;
+  serviceSubscriptionStore.pagination.currentPage = 1;
+  fetchData(1, pageSize.value);
 };
 
 const handleRenewalDateChange = (dateRange) => {
@@ -215,28 +248,29 @@ const handleRenewalDateChange = (dateRange) => {
   serviceSubscriptionStore.filters.renewal_date_start = start;
   serviceSubscriptionStore.filters.renewal_date_end = end;
   serviceSubscriptionStore.pagination.currentPage = 1;
-  serviceSubscriptionStore.fetchServiceSubscriptions(
-    serviceSubscriptionStore.pagination.currentPage,
-    pageSize.value,
-    serviceSubscriptionStore.sort
-  );
+  fetchData(1, pageSize.value); // Use fetchData
 };
 
 const triggerFetchWithCurrentFilters = () => {
-  serviceSubscriptionStore.fetchServiceSubscriptions(1, pageSize.value);
+  fetchData(1, pageSize.value); // Use fetchData
 };
 
 const triggerClearFilters = () => {
-  serviceSubscriptionStore.clearFilters();
+  // clearFilters also fetches internally. This needs adjustment in the store
+  // or here we manually clear and fetch.
+  serviceSubscriptionStore.filters.status = '';
+  serviceSubscriptionStore.filters.billing_cycle = '';
+  serviceSubscriptionStore.filters.renewal_date_start = '';
+  serviceSubscriptionStore.filters.renewal_date_end = '';
+  serviceSubscriptionStore.filters.platform_registration_id = null;
+  serviceSubscriptionStore.pagination.currentPage = 1;
+  fetchData(1, pageSize.value); // Use fetchData after manual clear
 };
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
-  serviceSubscriptionStore.fetchServiceSubscriptions(
-    1,
-    pageSize.value,
-    { orderBy: prop, sortDirection }
-  );
+  const newSort = { orderBy: prop, sortDirection };
+  fetchData(1, pageSize.value, newSort); // Use fetchData
 };
 
 const handleAdd = () => {
@@ -260,11 +294,11 @@ const handleDelete = async (id) => {
 
 const handleSizeChange = (newSize) => {
   pageSize.value = newSize;
-  serviceSubscriptionStore.fetchServiceSubscriptions(1, pageSize.value);
+  fetchData(1, pageSize.value); // Use fetchData
 };
 
 const handleCurrentChange = (newPage) => {
-  serviceSubscriptionStore.fetchServiceSubscriptions(newPage, pageSize.value);
+  fetchData(newPage, pageSize.value); // Use fetchData
 };
 
 const closeModal = () => {

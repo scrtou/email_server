@@ -1,7 +1,11 @@
-import { defineStore } from 'pinia'
-import { authAPI } from '@/utils/api'
-import { ElMessage } from 'element-plus'
-import { useNotificationStore } from './notification' // 导入 notification store
+import { defineStore } from 'pinia';
+import { authAPI } from '@/utils/api';
+import { ElMessage } from 'element-plus';
+import { useNotificationStore } from './notification'; // 导入 notification store
+
+// 自身 store 定义内部不能直接使用 useAuthStore()，需要通过 this 访问 state 和 getters
+// 但为了保持模式统一，我们可以在 action 内部定义一个局部变量引用 this
+// 或者直接使用 this.isAuthenticated
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -100,9 +104,14 @@ export const useAuthStore = defineStore('auth', {
     
     // 更新用户信息
     async updateProfile(userData) {
+      // 使用 this.isAuthenticated 进行检查，因为在 store 内部
+      if (!this.isAuthenticated) {
+        console.warn('[AuthStore] updateProfile called while not authenticated.');
+        return false; // 或者抛出错误，取决于期望的行为
+      }
       try {
-        await authAPI.updateProfile(userData)
-        await this.fetchUserProfile()
+        await authAPI.updateProfile(userData);
+        await this.fetchUserProfile(); // fetchUserProfile 内部已有检查
         ElMessage.success('个人信息更新成功')
         return true
       } catch (error) {
@@ -113,9 +122,15 @@ export const useAuthStore = defineStore('auth', {
     
     // 修改密码
     async changePassword(passwordData) {
+      // 使用 this.isAuthenticated 进行检查
+      if (!this.isAuthenticated) {
+        console.warn('[AuthStore] changePassword called while not authenticated.');
+        ElMessage.error('请先登录再修改密码');
+        return false;
+      }
       try {
-        await authAPI.changePassword(passwordData)
-        ElMessage.success('密码修改成功')
+        await authAPI.changePassword(passwordData);
+        ElMessage.success('密码修改成功');
         return true
       } catch (error) {
         ElMessage.error(error.message || '密码修改失败')

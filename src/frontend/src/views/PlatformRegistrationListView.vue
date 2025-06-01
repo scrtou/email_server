@@ -13,25 +13,6 @@
       <el-form :inline="true" :model="platformRegistrationStore.filters" class="filter-form">
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12" :md="8" :lg="6">
-            <el-form-item label="邮箱账户">
-              <el-select
-                v-model="platformRegistrationStore.filters.email_account_id"
-                placeholder="选择邮箱账户"
-                clearable
-                filterable
-                @change="handleEmailAccountFilterChange"
-                class="full-width-select"
-              >
-                <el-option
-                  v-for="item in emailAccountStore.emailAccounts"
-                  :key="item.id"
-                  :label="item.email_address"
-                  :value="item.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :xs="24" :sm="12" :md="8" :lg="6">
             <el-form-item label="平台">
               <el-select
                 v-model="platformRegistrationStore.filters.platform_id"
@@ -50,6 +31,26 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :xs="24" :sm="12" :md="8" :lg="6">
+            <el-form-item label="邮箱账户">
+              <el-select
+                v-model="platformRegistrationStore.filters.email_account_id"
+                placeholder="选择邮箱账户"
+                clearable
+                filterable
+                @change="handleEmailAccountFilterChange"
+                class="full-width-select"
+              >
+                <el-option
+                  v-for="item in emailAccountStore.emailAccounts"
+                  :key="item.id"
+                  :label="item.email_address"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            
+          </el-col>
           <el-col :xs="24" :sm="24" :md="8" :lg="6">
             <el-form-item>
               <el-button type="primary" @click="triggerFetchWithCurrentFilters">查询</el-button>
@@ -58,7 +59,6 @@
           </el-col>
         </el-row>
       </el-form>
-
       <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
         <el-table
           :data="platformRegistrationStore.platformRegistrations"
@@ -71,9 +71,9 @@
           stripe
           resizable
         >
-        <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="platform_name" label="平台" min-width="120" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="login_username" label="登录用户名/ID" min-width="170" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="login_username" label="用户名/ID" min-width="130" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
         <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />

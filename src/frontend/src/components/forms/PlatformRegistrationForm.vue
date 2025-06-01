@@ -54,7 +54,7 @@
 
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item label="登录用户名/ID" prop="login_username">
+          <el-form-item label="用户名/ID" prop="login_username">
             <el-input v-model="form.login_username" placeholder="在该平台的登录名或ID" />
           </el-form-item>
         </el-col>

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import api from '@/utils/api';
 import router from '@/router';
+import { useAuthStore } from './auth'; // 导入 Auth Store
 
 export const useSearchStore = defineStore('search', {
   state: () => ({
@@ -12,6 +13,16 @@ export const useSearchStore = defineStore('search', {
   }),
   actions: {
     async performSearch(term, type = 'all') {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[SearchStore] performSearch called while not authenticated.');
+        this.results = [];
+        this.isLoading = false;
+        // Optionally clear term and type, or show a message
+        // ElMessage.error('请先登录再执行搜索');
+        return;
+      }
+
       if (!term || term.trim() === '') {
         this.results = [];
         this.searchTerm = '';

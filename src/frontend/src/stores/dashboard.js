@@ -1,6 +1,7 @@
-import { defineStore } from 'pinia'
-import { dashboardAPI } from '@/utils/api'
-import { ElMessage } from 'element-plus'
+import { defineStore } from 'pinia';
+import { dashboardAPI } from '@/utils/api';
+import { ElMessage } from 'element-plus';
+import { useAuthStore } from './auth'; // 导入 Auth Store
 
 export const useDashboardStore = defineStore('dashboard', {
   state: () => ({
@@ -10,10 +11,20 @@ export const useDashboardStore = defineStore('dashboard', {
   }),
   actions: {
     async fetchDashboardSummary() {
-      this.loading = true
-      this.error = null
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[DashboardStore] fetchDashboardSummary called while not authenticated.');
+        // Decide what to do: return, clear data, or show message?
+        // For now, just return to prevent API call.
+        this.summaryData = null; // Clear data if not authenticated
+        this.loading = false;
+        return;
+      }
+
+      this.loading = true;
+      this.error = null;
       try {
-        const response = await dashboardAPI.getSummary()
+        const response = await dashboardAPI.getSummary();
         // The response interceptor in api.js already unwraps response.data.data
         // So, 'response' here should be the actual summary data object
         this.summaryData = response
