@@ -17,24 +17,26 @@ export const platformAPI = {
 */
 
 export const usePlatformStore = defineStore('platform', {
-  state: () => ({
-    platforms: [],
-    currentPlatform: null,
-    loading: false,
-    error: null,
-    pagination: {
-      currentPage: 1,
-      pageSize: 7,
-      totalItems: 0,
-    },
-    sort: { // New state for sorting
-      orderBy: 'name', // Default sort for platforms
-      sortDirection: 'asc',
-    },
-    filters: { // New state for filters
-      nameSearch: '',
-    },
-  }),
+  state: () => {
+    return {
+      platforms: [],
+      currentPlatform: null,
+      loading: false,
+      error: null,
+      pagination: {
+        currentPage: 1,
+        pageSize: 15, // 默认值，会在页面加载时被覆盖
+        totalItems: 0,
+      },
+      sort: { // New state for sorting
+        orderBy: 'name', // Default sort for platforms
+        sortDirection: 'asc',
+      },
+      filters: { // New state for filters
+        nameSearch: '',
+      },
+    };
+  },
   actions: {
     setFilter(filterName, value) {
       if (Object.prototype.hasOwnProperty.call(this.filters, filterName)) {

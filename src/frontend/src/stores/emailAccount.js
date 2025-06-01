@@ -4,27 +4,29 @@ import { ElMessage } from 'element-plus';
 import { useAuthStore } from './auth'; // 导入 Auth Store
 
 export const useEmailAccountStore = defineStore('emailAccount', {
-  state: () => ({
-    emailAccounts: [],
-    currentEmailAccount: null,
-// currentEmailAccount will include phone_number when fetched/set
-    loading: false,
-    error: null,
-    pagination: {
-      currentPage: 1,
-      pageSize: 7,
-      totalItems: 0,
-    },
-    sort: { // New state for sorting
-      orderBy: 'created_at',
-      sortDirection: 'desc',
-    },
-    filters: { // New state for filters
-      provider: '',
-      emailAddressSearch: '', // For email address fuzzy search
-    },
-    uniqueProviders: [], // For provider filter dropdown
-  }),
+  state: () => {
+    return {
+      emailAccounts: [],
+      currentEmailAccount: null,
+  // currentEmailAccount will include phone_number when fetched/set
+      loading: false,
+      error: null,
+      pagination: {
+        currentPage: 1,
+        pageSize: 10, // 默认值，会在页面加载时被覆盖
+        totalItems: 0,
+      },
+      sort: { // New state for sorting
+        orderBy: 'created_at',
+        sortDirection: 'desc',
+      },
+      filters: { // New state for filters
+        provider: '',
+        emailAddressSearch: '', // For email address fuzzy search
+      },
+      uniqueProviders: [], // For provider filter dropdown
+    };
+  },
   actions: {
     // Action to update filter values
     setFilter(filterName, value) {

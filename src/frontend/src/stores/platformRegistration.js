@@ -16,27 +16,29 @@ export const platformRegistrationAPI = {
 */
 
 export const usePlatformRegistrationStore = defineStore('platformRegistration', {
-  state: () => ({
-    platformRegistrations: [],
-    currentPlatformRegistration: null,
-// currentPlatformRegistration will include phone_number when fetched/set
-    loading: false,
-    error: null,
-    pagination: {
-      currentPage: 1,
-      pageSize: 7,
-      totalItems: 0,
-    },
-    sort: { // New state for sorting
-      orderBy: 'created_at', // Default sort
-      sortDirection: 'desc',
-    },
-    filters: { // New state for filters
-      email_account_id: null,
-      platform_id: null,
-      login_username: '', // 添加用户名筛选
-    }
-  }),
+  state: () => {
+    return {
+      platformRegistrations: [],
+      currentPlatformRegistration: null,
+  // currentPlatformRegistration will include phone_number when fetched/set
+      loading: false,
+      error: null,
+      pagination: {
+        currentPage: 1,
+        pageSize: 8, // 默认值，会在页面加载时被覆盖
+        totalItems: 0,
+      },
+      sort: { // New state for sorting
+        orderBy: 'created_at', // Default sort
+        sortDirection: 'desc',
+      },
+      filters: { // New state for filters
+        email_account_id: null,
+        platform_id: null,
+        login_username: '', // 添加用户名筛选
+      }
+    };
+  },
   actions: {
     // Action to update filter values
     setFilter(filterName, value) {

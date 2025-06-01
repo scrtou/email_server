@@ -24,12 +24,11 @@
         <el-button @click="triggerClearAllFilters" :loading="isResetting">重置</el-button>
       </div>
 
-      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+      <div class="table-container">
         <el-table
           :data="platformStore.platforms"
           v-loading="platformStore.loading"
-          style="width: 100%"
-          height="100%"
+          style="width: 100%; height: 100%;"
           @sort-change="handleSortChange"
           :default-sort="{ prop: platformStore.sort.orderBy, order: platformStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
           border
@@ -72,17 +71,18 @@
         </el-table>
       </div>
 
-      <el-pagination
-        v-if="platformStore.pagination.totalItems > 0"
-        class="mt-4"
-        background
-        layout="total, prev, pager, next, jumper"
-        :total="platformStore.pagination.totalItems"
-        :current-page="platformStore.pagination.currentPage"
-        :page-size="pageSize.value"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <div class="pagination-container">
+        <el-pagination
+          v-if="platformStore.pagination.totalItems > 0"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="platformStore.pagination.totalItems"
+          :current-page="platformStore.pagination.currentPage"
+          :page-size="platformStore.pagination.pageSize"
+          :page-sizes="settingsStore.getPageSizeOptions('platforms')"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
 
     <AssociatedInfoDialog
@@ -117,9 +117,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref, reactive } from 'vue';
+import { onMounted, ref, reactive, watch } from 'vue';
 // import { useRouter } from 'vue-router'; // 移除 useRouter
 import { usePlatformStore } from '@/stores/platform';
+import { useSettingsStore } from '@/stores/settings';
 import { ElMessage, ElCard, ElButton, ElInput, ElTable, ElTableColumn, ElPagination, ElMessageBox, ElLink} from 'element-plus';
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
@@ -128,7 +129,7 @@ import PlatformForm from '@/components/forms/PlatformForm.vue'; // 引入 Platfo
 
 // const router = useRouter(); // 移除 router
 const platformStore = usePlatformStore();
-const pageSize = ref(platformStore.pagination.pageSize || 10); // Initialize with store's pageSize or a default
+const settingsStore = useSettingsStore();
 const MIN_LOADING_TIME = 300; // Minimum loading time in milliseconds
 const isQuerying = ref(false);
 const isResetting = ref(false);
@@ -159,12 +160,27 @@ const associatedInfoDialog = reactive({
 });
 
 onMounted(() => {
+  // 加载设置
+  settingsStore.loadSettings();
+
+  // 同步 store 的 pageSize 与 settings store（使用平台管理页面专用设置）
+  platformStore.pagination.pageSize = settingsStore.getPageSize('platforms');
+
   fetchData();
+});
+
+// 监听平台管理页面专用的 pageSize 变化，同步到当前 store
+watch(() => settingsStore.getPageSize('platforms'), (newPageSize) => {
+  if (platformStore.pagination.pageSize !== newPageSize) {
+    platformStore.pagination.pageSize = newPageSize;
+    // 重新获取数据
+    fetchData(1, newPageSize);
+  }
 });
 
 const fetchData = async (
   page = platformStore.pagination.currentPage,
-  size = pageSize.value, // Use the new ref here
+  size = platformStore.pagination.pageSize, // Use store's pageSize
   sortOptions = { orderBy: platformStore.sort.orderBy, sortDirection: platformStore.sort.sortDirection },
   filterOptions = { nameSearch: platformStore.filters.nameSearch } // Pass current nameSearch filter
 ) => {
@@ -216,7 +232,7 @@ const triggerClearAllFilters = async () => {
 
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
-  fetchData(1, pageSize.value, { orderBy: prop, sortDirection });
+  fetchData(1, platformStore.pagination.pageSize, { orderBy: prop, sortDirection });
 };
 
 const handleAddPlatform = () => {
@@ -291,12 +307,13 @@ const confirmDeletePlatform = (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  pageSize.value = newSize;
-  fetchData(1, pageSize.value);
+  // 保存平台管理页面专用的分页设置
+  settingsStore.setPageSize('platforms', newSize);
+  fetchData(1, newSize);
 };
 
 const handleCurrentChange = (newPage) => {
-  fetchData(newPage, pageSize.value);
+  fetchData(newPage, platformStore.pagination.pageSize);
 };
 
 const fetchAssociatedEmailsData = async (platformId, page = 1, pageSize = 5) => {
@@ -334,11 +351,11 @@ const handleAssociatedPageChange = (payload) => {
 <style scoped>
 .platform-list-view {
   padding: 20px;
-  background-color: #f0f2f5; /* Light grey background for the whole view */
+  background-color: #f0f2f5;
+  height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  box-sizing: border-box;
 }
 
 .box-card {
@@ -346,8 +363,32 @@ const handleAssociatedPageChange = (payload) => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  height: calc(100vh - 40px);
   overflow: hidden;
+}
+
+.box-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.table-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pagination-container {
+  flex-shrink: 0;
+  padding: 0;
+  margin-top: 2px;
+  display: flex;
+  justify-content: center;
 }
 
 .card-header {
@@ -379,14 +420,23 @@ const handleAssociatedPageChange = (payload) => {
   width: 220px; /* Slightly wider input */
 }
 
-/* 表格核心样式 - 与 EmailAccountListView 统一 */
+/* 表格核心样式 - 关键修复 */
 :deep(.el-table) {
-  margin-top: 0px;
+  height: 100% !important;
   border-radius: 8px;
-  overflow: hidden;
-  border: none; /* 移除 Element Plus 默认边框 */
+  border: none;
 }
-:deep(.el-table::before) { /* 移除表格底部默认横线 */
+
+:deep(.el-table .el-table__body-wrapper) {
+  height: calc(100% - 40px) !important;
+  overflow-y: auto !important;
+}
+
+:deep(.el-table .el-table__header-wrapper) {
+  flex-shrink: 0;
+}
+
+:deep(.el-table::before) {
   height: 0;
 }
 

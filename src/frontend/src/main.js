@@ -13,6 +13,7 @@ App 组件的导入指向了应用程序的根组件，通常位于同级目录�
 import App from './App.vue'// 引入 App 组件
 import router from './router'// 引入 router 路由
 import { useAuthStore } from '@/stores/auth'
+import { useSettingsStore } from '@/stores/settings'
 
 //Vue 3 使用 .use() 方法来注册插件和扩展功能
 const app = createApp(App)
@@ -34,6 +35,10 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   // 初始化认证状态
   const authStore = useAuthStore()
   authStore.initAuth()
+
+  // 初始化设置状态
+  const settingsStore = useSettingsStore()
+  settingsStore.loadSettings()
 /*
 最后这行代码将配置完成的 Vue 应用程序实例挂载到 DOM 中指定的元素上。'#app' 是一个 CSS 选择器，指向 HTML 文档中 id 为 "app" 的元素，通常这个元素位于 index.html 文件中：
 挂载过程会触发以下重要步骤：

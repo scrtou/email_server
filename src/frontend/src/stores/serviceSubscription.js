@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { serviceSubscriptionAPI } from '@/utils/api';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from './auth'; // Import auth store
+import { useSettingsStore } from './settings'; // 导入 Settings Store
 
 // Assuming serviceSubscriptionAPI will be added to api.js:
 /*
@@ -16,30 +17,33 @@ export const serviceSubscriptionAPI = {
 */
 
 export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
-  state: () => ({
-    serviceSubscriptions: [],
-    currentServiceSubscription: null,
-    loading: false,
-    error: null,
-    pagination: {
-      currentPage: 1,
-      pageSize: 8,
-      totalItems: 0,
-    },
-    sort: { // New state for sorting
-      orderBy: 'created_at', // Default sort
-      sortDirection: 'desc',
-    },
-    filters: { // New state for filters
-      status: '',
-      billing_cycle: '',
-      renewal_date_start: '',
-      renewal_date_end: '',
-      filterPlatformName: '', // New filter
-      filterEmail: '', // New filter
-      filterUsername: '', // New filter
-    },
-  }),
+  state: () => {
+    const settingsStore = useSettingsStore();
+    return {
+      serviceSubscriptions: [],
+      currentServiceSubscription: null,
+      loading: false,
+      error: null,
+      pagination: {
+        currentPage: 1,
+        pageSize: settingsStore.getDefaultPageSize,
+        totalItems: 0,
+      },
+      sort: { // New state for sorting
+        orderBy: 'created_at', // Default sort
+        sortDirection: 'desc',
+      },
+      filters: { // New state for filters
+        status: '',
+        billing_cycle: '',
+        renewal_date_start: '',
+        renewal_date_end: '',
+        filterPlatformName: '', // New filter
+        filterEmail: '', // New filter
+        filterUsername: '', // New filter
+      },
+    };
+  },
   actions: {
     // Action to update filter values
     setFilter(filterName, value) {

@@ -1,8 +1,9 @@
 
 <script setup>
-import { onMounted, ref, reactive } from 'vue';
+import { onMounted, ref, reactive, watch } from 'vue';
 // import { useRouter } from 'vue-router'; // No longer needed for add/edit
 import { useEmailAccountStore } from '@/stores/emailAccount';
+import { useSettingsStore } from '@/stores/settings';
 import { ElMessage, ElMessageBox, ElButton } from 'element-plus'; // ElDialog might not be directly used if ModalDialog handles it
 import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
@@ -11,6 +12,7 @@ import EmailAccountForm from '@/components/forms/EmailAccountForm.vue'; // Impor
 
 // const router = useRouter(); // Keep for other navigation if any, or remove if not used at all
 const emailAccountStore = useEmailAccountStore();
+const settingsStore = useSettingsStore();
 
 // --- Modal Dialog State for EmailAccountForm ---
 const emailAccountFormDialog = reactive({
@@ -48,6 +50,12 @@ const associatedInfoDialog = reactive({
 });
 
 onMounted(() => {
+  // 加载设置
+  settingsStore.loadSettings();
+
+  // 同步 store 的 pageSize 与 settings store（使用邮箱账户页面专用设置）
+  emailAccountStore.pagination.pageSize = settingsStore.getPageSize('emailAccounts');
+
   // emailAccountStore.fetchEmailAccounts(); // Fetch with current store state (page, size, sort, filters)
   // If filters might be pre-populated from elsewhere (e.g. URL params in future), ensure they are set before first fetch
   // For now, direct call is fine as store initializes filters.
@@ -60,6 +68,15 @@ onMounted(() => {
     // Filters are now part of the store's fetchEmailAccounts internal logic
   );
   emailAccountStore.fetchUniqueProviders(); // Fetch providers for the dropdown
+});
+
+// 监听邮箱账户页面专用的 pageSize 变化，同步到当前 store
+watch(() => settingsStore.getPageSize('emailAccounts'), (newPageSize) => {
+  if (emailAccountStore.pagination.pageSize !== newPageSize) {
+    emailAccountStore.pagination.pageSize = newPageSize;
+    // 重新获取数据
+    emailAccountStore.fetchEmailAccounts(1, newPageSize, emailAccountStore.sort, emailAccountStore.filters);
+  }
 });
 
 // Removed local fetchData, applyFilters, clearFilters as store handles this now.
@@ -227,8 +244,9 @@ const confirmDeleteEmailAccount = (id) => {
 };
 
 const handleSizeChange = (newSize) => {
+  // 保存邮箱账户页面专用的分页设置
+  settingsStore.setPageSize('emailAccounts', newSize);
   // Store's fetchEmailAccounts will use current filters and sort
-  // pageSize.value = newSize; // No longer needed to update local ref
   emailAccountStore.fetchEmailAccounts(1, newSize, emailAccountStore.sort, emailAccountStore.filters); // Reset to page 1 when size changes
 };
 
@@ -318,12 +336,11 @@ const handleAssociatedPageChange = (payload) => {
         </el-row>
       </div>
 
-      <div class="table-container" style="flex-grow: 1; overflow-y: auto;">
+      <div class="table-container">
         <el-table
           :data="emailAccountStore.emailAccounts"
           v-loading="emailAccountStore.loading"
-          style="width: 100%;"
-          height="100%"
+          style="width: 100%; height: 100%;"
           @sort-change="handleSortChange"
           :default-sort="{ prop: emailAccountStore.sort.orderBy, order: emailAccountStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
           border
@@ -364,16 +381,17 @@ const handleAssociatedPageChange = (payload) => {
         </el-table>
       </div>
 
-      <el-pagination
-        class="mt-2"
-        background
-        layout="total, prev, pager, next, jumper"
-        :total="emailAccountStore.pagination.totalItems"
-        :current-page="emailAccountStore.pagination.currentPage"
-        :page-size="emailAccountStore.pagination.pageSize"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <div class="pagination-container">
+        <el-pagination
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="emailAccountStore.pagination.totalItems"
+          :current-page="emailAccountStore.pagination.currentPage"
+          :page-size="emailAccountStore.pagination.pageSize"
+          :page-sizes="settingsStore.getPageSizeOptions('emailAccounts')"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
 
     <AssociatedInfoDialog
@@ -410,23 +428,48 @@ const handleAssociatedPageChange = (payload) => {
 
 <style scoped>
 .email-account-list-view {
-  padding: 20px; /* This padding might need to be on the card or a content wrapper inside */
-  background-color: #f0f2f5; /* Light grey background for the whole view */
+  padding: 20px;
+  background-color: #f0f2f5;
+  height: 100vh; /* 使用全屏高度 */
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%; /* Fill parent (.main-content's router-view) */
-  box-sizing: border-box; /* Include padding in height calculation */
 }
 
-/* .el-card styling is fine, we need to ensure .box-card within the flex context behaves */
 .box-card {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  flex-grow: 1; /* Allow card to grow and fill space */
-  overflow: hidden; /* Prevent card itself from scrolling */
-  /* The padding from .email-account-list-view might be better here if that div is just a flex container */
+  height: calc(100vh - 40px); /* 减去外层padding */
+  overflow: hidden;
+}
+
+/* 卡片内容区域 */
+.box-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  overflow: hidden;
+}
+
+/* 表格容器样式 - 关键修复 */
+.table-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 分页器容器 */
+.pagination-container {
+  flex-shrink: 0;
+  padding: 0;
+  margin-top: 2px;
+  display: flex;
+  justify-content: center;
 }
 
 .card-header {
@@ -467,12 +510,20 @@ const handleAssociatedPageChange = (payload) => {
   width: 100%; /* Ensure inputs/selects take full width of their column */
 }
 
-/* 表格样式 - 移除竖线和修复多余竖线 */
+/* 表格样式 - 关键修复 */
 :deep(.el-table) {
-  margin-top: 0px; /* 原为 20px, 增加间距 */
+  height: 100% !important;
   border-radius: 8px;
-  overflow: hidden;
   border: none;
+}
+
+:deep(.el-table .el-table__body-wrapper) {
+  height: calc(100% - 40px) !important; /* 减去表头高度 */
+  overflow-y: auto !important;
+}
+
+:deep(.el-table .el-table__header-wrapper) {
+  flex-shrink: 0;
 }
 
 :deep(.el-table::before) {

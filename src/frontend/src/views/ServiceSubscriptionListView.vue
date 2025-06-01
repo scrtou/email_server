@@ -117,12 +117,11 @@
         </el-form-item>
       </el-form>
 
-      <div class="table-container" style="flex-grow: 1; overflow-y: scroll;">
+      <div class="table-container">
         <el-table
           :data="serviceSubscriptionStore.serviceSubscriptions"
           v-loading="serviceSubscriptionStore.loading"
-          style="width: 100%"
-          height="100%"
+          style="width: 100%; height: 100%;"
           @sort-change="handleSortChange"
           :default-sort="{ prop: serviceSubscriptionStore.sort.orderBy, order: serviceSubscriptionStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
           border
@@ -170,16 +169,18 @@
         </el-table>
       </div>
 
-      <el-pagination
-        v-if="serviceSubscriptionStore.pagination.totalItems > 0"
-        background
-        layout="total, prev, pager, next, jumper"
-        :total="serviceSubscriptionStore.pagination.totalItems"
-        :current-page="serviceSubscriptionStore.pagination.currentPage"
-        :page-size="pageSize.value"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <div class="pagination-container">
+        <el-pagination
+          v-if="serviceSubscriptionStore.pagination.totalItems > 0"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="serviceSubscriptionStore.pagination.totalItems"
+          :current-page="serviceSubscriptionStore.pagination.currentPage"
+          :page-size="serviceSubscriptionStore.pagination.pageSize"
+          :page-sizes="settingsStore.getPageSizeOptions('serviceSubscriptions')"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
 
     <ModalDialog
@@ -220,24 +221,25 @@
 </template>
 
 <script setup>
-import { onMounted, ref, computed, onUnmounted } from 'vue'; // Import onUnmounted
+import { onMounted, ref, computed, onUnmounted, watch } from 'vue'; // Import onUnmounted
 // import { useRouter } from 'vue-router'; // Removed useRouter
 const MIN_LOADING_TIME = 300; // 最小加载时间，单位毫秒
 import { useServiceSubscriptionStore } from '@/stores/serviceSubscription';
 import { usePlatformStore } from '@/stores/platform';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
+import { useSettingsStore } from '@/stores/settings';
 import { ElIcon, ElMessage } from 'element-plus';
 import { Plus, Edit, Delete } from '@element-plus/icons-vue';
 import ModalDialog from '@/components/ui/ModalDialog.vue';
 import ServiceSubscriptionForm from '@/components/forms/ServiceSubscriptionForm.vue';
- 
+
 // const router = useRouter(); // Removed router
 const serviceSubscriptionStore = useServiceSubscriptionStore();
 const platformStore = usePlatformStore();
 const emailAccountStore = useEmailAccountStore();
 const platformRegistrationStore = usePlatformRegistrationStore();
-const pageSize = ref(serviceSubscriptionStore.pagination.pageSize || 10);
+const settingsStore = useSettingsStore();
 
 const isModalVisible = ref(false);
 const modalTitle = ref('');
@@ -334,7 +336,7 @@ const renewalDateRangeFilter = computed({
       serviceSubscriptionStore.pagination.currentPage = 1;
       fetchData(
         1, // Reset to page 1
-        pageSize.value,
+        serviceSubscriptionStore.pagination.pageSize,
         serviceSubscriptionStore.sort,
         filters
       );
@@ -387,19 +389,19 @@ const handleStatusFilterChange = (value) => {
   // Assuming direct fetch call here for demonstration:
   filters.status = value; // Use local/aliased filters
   serviceSubscriptionStore.pagination.currentPage = 1;
-  fetchData(1, pageSize.value);
+  fetchData(1, serviceSubscriptionStore.pagination.pageSize);
 };
 
 const handleBillingCycleFilterChange = (value) => {
    // Assuming direct fetch call here for demonstration:
   filters.billing_cycle = value; // Use local/aliased filters
   serviceSubscriptionStore.pagination.currentPage = 1;
-  fetchData(1, pageSize.value);
+  fetchData(1, serviceSubscriptionStore.pagination.pageSize);
 };
 
 const triggerFetchWithCurrentFilters = () => {
   // When triggering fetch, ensure it uses the current state of 'filters'
-  fetchData(1, pageSize.value, serviceSubscriptionStore.sort, filters, isQuerying);
+  fetchData(1, serviceSubscriptionStore.pagination.pageSize, serviceSubscriptionStore.sort, filters, isQuerying);
 };
 
 const triggerClearFilters = async () => {
@@ -428,7 +430,7 @@ const triggerClearFilters = async () => {
     // OR, if we need to manage loading state here:
     await serviceSubscriptionStore.fetchServiceSubscriptions(
       1,
-      pageSize.value,
+      serviceSubscriptionStore.pagination.pageSize,
       serviceSubscriptionStore.sort, // Use default sort or reset sort as needed
       filters // Pass the now-cleared filters
     );
@@ -447,7 +449,7 @@ const triggerClearFilters = async () => {
 const handleSortChange = ({ prop, order }) => {
   const sortDirection = order === 'descending' ? 'desc' : 'asc';
   const newSort = { orderBy: prop, sortDirection };
-  fetchData(1, pageSize.value, newSort, filters); // Use fetchData
+  fetchData(1, serviceSubscriptionStore.pagination.pageSize, newSort, filters); // Use fetchData
 };
 
 const handleAdd = () => {
@@ -470,12 +472,13 @@ const handleDelete = async (id) => {
 };
 
 const handleSizeChange = (newSize) => {
-  pageSize.value = newSize;
-  fetchData(1, pageSize.value); // Use fetchData
+  // 保存服务订阅管理页面专用的分页设置
+  settingsStore.setPageSize('serviceSubscriptions', newSize);
+  fetchData(1, newSize); // Use fetchData
 };
 
 const handleCurrentChange = (newPage) => {
-  fetchData(newPage, pageSize.value); // Use fetchData
+  fetchData(newPage, serviceSubscriptionStore.pagination.pageSize); // Use fetchData
 };
 
 const closeModal = () => {
@@ -517,8 +520,14 @@ const handleFormCancel = () => {
  
 // Call fetch options on mount
 onMounted(async () => {
+  // 加载设置
+  settingsStore.loadSettings();
+
+  // 同步 store 的 pageSize 与 settings store（使用服务订阅管理页面专用设置）
+  serviceSubscriptionStore.pagination.pageSize = settingsStore.getPageSize('serviceSubscriptions');
+
   // Removed platformRegistrationStore.fetchPlatformRegistrations
-  fetchData(serviceSubscriptionStore.pagination.currentPage, pageSize.value);
+  fetchData(serviceSubscriptionStore.pagination.currentPage, serviceSubscriptionStore.pagination.pageSize);
   // Fetch all options for select dropdowns
   // Assuming these fetch actions retrieve all necessary items for the dropdowns.
   // Adjust pagination parameters (e.g., page size to a large number) if these stores'
@@ -546,25 +555,59 @@ onMounted(async () => {
   console.log('FROM COMPONENT (onMounted): platformRegistrationStore.platformRegistrations count:', platformRegistrationStore.platformRegistrations.length);
   console.log('FROM COMPONENT (onMounted): Computed usernameOptions.value:', usernameOptions.value.slice(0, 5)); // Log first 5
 });
+
+// 监听服务订阅管理页面专用的 pageSize 变化，同步到当前 store
+watch(() => settingsStore.getPageSize('serviceSubscriptions'), (newPageSize) => {
+  if (serviceSubscriptionStore.pagination.pageSize !== newPageSize) {
+    serviceSubscriptionStore.pagination.pageSize = newPageSize;
+    // 重新获取数据
+    fetchData(1, newPageSize, serviceSubscriptionStore.sort, filters);
+  }
+});
  
 </script>
  
 <style scoped>
 .service-subscription-list-view {
   padding: 20px;
-  background-color: #f0f2f5; /* Light grey background for the whole view */
+  background-color: #f0f2f5;
+  height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  box-sizing: border-box;
 }
+
 .box-card {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  height: calc(100vh - 40px);
   overflow: hidden;
+}
+
+.box-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.table-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pagination-container {
+  flex-shrink: 0;
+  padding: 0;
+  margin-top: 2px;
+  display: flex;
+  justify-content: center;
 }
 .card-header {
   display: flex;
@@ -594,16 +637,24 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
-/* 表格样式 - 移除竖线和修复多余竖线 */
+/* 表格样式 - 关键修复 */
 :deep(.el-table) {
-  margin-top: 0px;
+  height: 100% !important;
   border-radius: 8px;
-  overflow: hidden;
   border: none;
 }
 
+:deep(.el-table .el-table__body-wrapper) {
+  height: calc(100% - 40px) !important;
+  overflow-y: auto !important;
+}
+
+:deep(.el-table .el-table__header-wrapper) {
+  flex-shrink: 0;
+}
+
 :deep(.el-table::before) {
-  height: 0; /* Remove default bottom border */
+  height: 0;
 }
 
 

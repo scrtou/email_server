@@ -250,29 +250,23 @@
 
 /* Global Pagination Styles */
 .el-pagination {
-  margin-top: 20px;
+  margin-top: 0px;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 10px 0;
+  padding: 0;
 }
 
 /* Ensure .pagination-container (if used as a wrapper) also allows flex behavior */
 .pagination-container {
-  /* margin-top: 20px; */ /* Removed default margin */
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 10px 20px; /* Added padding for better spacing */
-  position: sticky; /* Fixed at the bottom */
-  bottom: 0;
-  background-color: var(--app-bg-color-light, #f9fafb); /* Ensure background */
-  border-top: 1px solid var(--color-gray-200, #e5e7eb); /* Optional: add a top border */
-  z-index: var(--z-sticky, 1020); /* Ensure it's above other content */
-  width: 100%; /* Make it full width of its container */
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  padding: 0;
+  margin-top: 2px;
+  flex-shrink: 0;
 }

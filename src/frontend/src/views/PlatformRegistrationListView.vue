@@ -81,12 +81,11 @@
           </el-col>
         </el-row>
       </el-form>
-      <div class="table-container" style="flex-grow: 1; overflow-y: scroll;">
+      <div class="table-container">
         <el-table
           :data="platformRegistrationStore.platformRegistrations"
           v-loading="platformRegistrationStore.loading"
-          style="width: 100%"
-          height="100%"
+          style="width: 100%; height: 100%;"
           @sort-change="handleSortChange"
           :default-sort="{ prop: platformRegistrationStore.sort.orderBy, order: platformRegistrationStore.sort.sortDirection === 'desc' ? 'descending' : 'ascending' }"
           border
@@ -109,17 +108,18 @@
         </el-table>
       </div>
 
-      <el-pagination
-        v-if="platformRegistrationStore.pagination.totalItems > 0"
-        class="mt-4"
-        background
-        layout="total, prev, pager, next, jumper"
-        :total="platformRegistrationStore.pagination.totalItems"
-        :current-page="platformRegistrationStore.pagination.currentPage"
-        :page-size="pageSize.value"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <div class="pagination-container">
+        <el-pagination
+          v-if="platformRegistrationStore.pagination.totalItems > 0"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="platformRegistrationStore.pagination.totalItems"
+          :current-page="platformRegistrationStore.pagination.currentPage"
+          :page-size="platformRegistrationStore.pagination.pageSize"
+          :page-sizes="settingsStore.getPageSizeOptions('platformRegistrations')"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
 
     <ModalDialog
@@ -160,12 +160,13 @@
 </template>
 
 <script setup>
-import { onMounted, ref, computed } from 'vue';
+import { onMounted, ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router'; // Added back
 const MIN_LOADING_TIME = 300; // 最小加载时间，单位毫秒
 import { usePlatformRegistrationStore } from '@/stores/platformRegistration';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { usePlatformStore } from '@/stores/platform';
+import { useSettingsStore } from '@/stores/settings';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { Plus, Edit, Delete, Upload } from '@element-plus/icons-vue'; // Added Upload icon
 import ModalDialog from '@/components/ui/ModalDialog.vue';
@@ -175,7 +176,7 @@ const router = useRouter(); // Added back
 const platformRegistrationStore = usePlatformRegistrationStore();
 const emailAccountStore = useEmailAccountStore();
 const platformStore = usePlatformStore();
-const pageSize = ref(platformRegistrationStore.pagination.pageSize || 10);
+const settingsStore = useSettingsStore();
 
 // Modal state
 const showModal = ref(false);
@@ -199,6 +200,12 @@ const usernameOptions = computed(() => {
 });
 
 onMounted(async () => {
+  // 加载设置
+  settingsStore.loadSettings();
+
+  // 同步 store 的 pageSize 与 settings store（使用平台注册管理页面专用设置）
+  platformRegistrationStore.pagination.pageSize = settingsStore.getPageSize('platformRegistrations');
+
   // Fetch options for select dropdowns
   // Consider if these lists are large, might need a paginated/searchable select component later
   if (emailAccountStore.emailAccounts.length === 0) { // Fetch only if not already populated
@@ -217,13 +224,22 @@ onMounted(async () => {
   // or at least the maximum of 100. This directly addresses the issue of the
   // dropdown showing only 8 items due to an earlier fetch with a small pageSize.
   await platformStore.fetchPlatforms(1, 200, { orderBy: 'name', sortDirection: 'asc' });
-  
+
   // Initial data fetch for the table, using current store state for filters, sort, pagination
   platformRegistrationStore.fetchPlatformRegistrations(
     platformRegistrationStore.pagination.currentPage,
-    pageSize.value, // Use the local pageSize ref
+    platformRegistrationStore.pagination.pageSize, // Use store's pageSize
     platformRegistrationStore.sort
   );
+});
+
+// 监听平台注册管理页面专用的 pageSize 变化，同步到当前 store
+watch(() => settingsStore.getPageSize('platformRegistrations'), (newPageSize) => {
+  if (platformRegistrationStore.pagination.pageSize !== newPageSize) {
+    platformRegistrationStore.pagination.pageSize = newPageSize;
+    // 重新获取数据
+    platformRegistrationStore.fetchPlatformRegistrations(1, newPageSize, platformRegistrationStore.sort);
+  }
 });
 
 // Removed local fetchData, applyFilters, resetFilters as store handles this.
@@ -244,7 +260,7 @@ const triggerFetchWithCurrentFilters = async () => {
   try {
     // v-model has updated the store's filters.
     // fetchPlatformRegistrations will use them. Reset to page 1.
-    await platformRegistrationStore.fetchPlatformRegistrations(1, pageSize.value);
+    await platformRegistrationStore.fetchPlatformRegistrations(1, platformRegistrationStore.pagination.pageSize);
   } finally {
     const elapsedTime = Date.now() - startTime;
     if (elapsedTime < MIN_LOADING_TIME) {
@@ -281,7 +297,7 @@ const handleSortChange = ({ prop, order }) => {
   // Store's fetchPlatformRegistrations will use current filters
   platformRegistrationStore.fetchPlatformRegistrations(
     1, // Reset to page 1 on sort change
-    pageSize.value,
+    platformRegistrationStore.pagination.pageSize,
     { orderBy: prop, sortDirection }
   );
 };
@@ -332,7 +348,7 @@ const handleFormSubmit = async (eventData) => {
     // Refresh data
     await platformRegistrationStore.fetchPlatformRegistrations(
       platformRegistrationStore.pagination.currentPage,
-      pageSize.value,
+      platformRegistrationStore.pagination.pageSize,
       platformRegistrationStore.sort,
       platformRegistrationStore.filters
     );
@@ -371,14 +387,15 @@ const confirmDeleteRegistration = (id) => {
 };
 
 const handleSizeChange = (newSize) => {
+  // 保存平台注册管理页面专用的分页设置
+  settingsStore.setPageSize('platformRegistrations', newSize);
   // Store's fetchPlatformRegistrations will use current filters and sort
-  pageSize.value = newSize;
-  platformRegistrationStore.fetchPlatformRegistrations(1, pageSize.value);
+  platformRegistrationStore.fetchPlatformRegistrations(1, newSize);
 };
 
 const handleCurrentChange = (newPage) => {
   // Store's fetchPlatformRegistrations will use current filters and sort
-  platformRegistrationStore.fetchPlatformRegistrations(newPage, pageSize.value);
+  platformRegistrationStore.fetchPlatformRegistrations(newPage, platformRegistrationStore.pagination.pageSize);
 };
 
 const handleImportBitwarden = () => {
@@ -388,21 +405,45 @@ const handleImportBitwarden = () => {
 
 <style scoped>
 .platform-registration-list-view {
-  padding: 20px; /* 增加整体内边距 */
-  background-color: #f0f2f5; /* Light grey background for the whole view */
+  padding: 20px;
+  background-color: #f0f2f5;
+  height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  box-sizing: border-box;
 }
 
 .box-card {
-  border-radius: 8px; /* 卡片圆角 */
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05); /* 增加阴影效果 */
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  height: calc(100vh - 40px);
   overflow: hidden;
+}
+
+.box-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.table-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pagination-container {
+  flex-shrink: 0;
+  padding: 0;
+  margin-top: 2px;
+  display: flex;
+  justify-content: center;
 }
 
 .card-header {
@@ -436,14 +477,23 @@ const handleImportBitwarden = () => {
 }
 
 
-/* 表格核心样式 - 与 EmailAccountListView 统一 */
+/* 表格核心样式 - 关键修复 */
 :deep(.el-table) {
-  margin-top: 0px;
+  height: 100% !important;
   border-radius: 8px;
-  overflow: hidden;
-  border: none; /* 移除 Element Plus 默认边框 */
+  border: none;
 }
-:deep(.el-table::before) { /* 移除表格底部默认横线 */
+
+:deep(.el-table .el-table__body-wrapper) {
+  height: calc(100% - 40px) !important;
+  overflow-y: auto !important;
+}
+
+:deep(.el-table .el-table__header-wrapper) {
+  flex-shrink: 0;
+}
+
+:deep(.el-table::before) {
   height: 0;
 }
 
