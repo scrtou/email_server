@@ -1,4 +1,6 @@
 
+version: '3.8'
+
 # 定义服务
 services:
   # 后端服务
@@ -12,14 +14,27 @@ services:
     environment:
       SERVER_PORT: "5555" # 后端服务监听端口
       SQLITE_FILE: "/data/database.db" # SQLite 数据库文件路径 (容器内)
-      JWT_SECRET: "your-super-secret-jwt-key-change-in-production" # JWT 签名密钥 (请在生产环境中修改)
-      # 根据您的后端应用需求，添加其他必要的环境变量
-      # EXAMPLE_ENV_VAR: "example_value"
+      # 生产环境请使用 .env 文件或环境变量覆盖以下配置
+      JWT_SECRET: "${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}"
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN:-24}"
+      LINUXDO_CLIENT_ID: "${LINUXDO_CLIENT_ID}"
+      LINUXDO_CLIENT_SECRET: "${LINUXDO_CLIENT_SECRET}"
+      LINUXDO_REDIRECT_URI: "${LINUXDO_REDIRECT_URI:-http://localhost:5555/api/v1/auth/oauth2/linuxdo/callback}"
+      LINUXDO_AUTH_URL: "${LINUXDO_AUTH_URL:-https://connect.linux.do/oauth2/authorize}"
+      LINUXDO_TOKEN_URL: "${LINUXDO_TOKEN_URL:-https://connect.linux.do/oauth2/token}"
+      LINUXDO_USER_INFO_URL: "${LINUXDO_USER_INFO_URL:-https://connect.linux.do/api/user}"
     volumes:
       - ./data/backend:/data # 持久化数据库文件：宿主机路径:容器内路径
     restart: unless-stopped # 容器退出时自动重启
     networks:
       - email_server_network # 连接到自定义网络
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5555/api/v1/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # 前端服务
   frontend:
@@ -28,14 +43,15 @@ services:
       dockerfile: Dockerfile
       args:
         # 构建时注入环境变量，用于API基础URL
-        # 确保后端服务可以通过 http://backend:5555 访问
-        VUE_APP_API_BASE_URL: "http://localhost:5555/api/v1" # 或者使用服务名: "http://backend:5555/api/v1"
+        # 生产环境请修改为您的实际域名
+        VUE_APP_API_BASE_URL: "${VUE_APP_API_BASE_URL:-http://localhost:5555/api/v1}"
     container_name: email_server_frontend # 容器名称
     ports:
       - "8081:80" # 映射端口：宿主机:容器 (Nginx 默认监听80)
     restart: unless-stopped # 容器退出时自动重启
-    depends_on: # （可选）依赖后端服务
-      - backend
+    depends_on:
+      backend:
+        condition: service_healthy # 等待后端健康检查通过
     networks:
       - email_server_network # 连接到自定义网络
 
