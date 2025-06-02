@@ -175,7 +175,11 @@ func LinuxDoOAuth2Callback(c *gin.Context) {
 
 	// 重定向到前端页面，并在URL中携带token
 	// 注意：在生产环境中，应该使用更安全的方式传递token，比如设置HttpOnly cookie
-	redirectURL := fmt.Sprintf("http://localhost:8080/oauth2/callback?token=%s&expires_in=%d", token, config.AppConfig.JWT.ExpiresIn)
+	frontendURL := config.AppConfig.Frontend.BaseURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:8080" // 默认值，仅用于开发环境
+	}
+	redirectURL := fmt.Sprintf("%s/oauth2/callback?token=%s&expires_in=%d", frontendURL, token, config.AppConfig.JWT.ExpiresIn)
 	c.Redirect(302, redirectURL)
 }
 

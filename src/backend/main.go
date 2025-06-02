@@ -37,7 +37,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 				oauth2.GET("/stats", handlers.GetOAuth2StateStats) // 监控端点
 			}
 		}
-		
+
 		// 健康检查
 		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok", "timestamp": time.Now()})
@@ -52,9 +52,9 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		// user := protected.Group("/user") // Grouping /users together
 		// {
 		// user.GET("/profile", handlers.GetProfile) // Old path
-		protected.GET("/users/me", handlers.GetProfile) // New path as per plan /api/v1/users/me
-		// user.PUT("/profile", handlers.UpdateProfile) // Will be /users/me (PUT) later
-		// user.POST("/change-password", handlers.ChangePassword) // Will be /users/me/change-password later
+		protected.GET("/users/me", handlers.GetProfile)                      // New path as per plan /api/v1/users/me
+		protected.PUT("/users/me", handlers.UpdateProfile)                   // 更新用户资料路由
+		protected.POST("/users/me/change-password", handlers.ChangePassword) // 修改密码路由
 		// user.POST("/logout", handlers.Logout) // Moved to /auth/logout
 		// }
 
@@ -72,7 +72,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			emailAccounts.GET("/:id", handlers.GetEmailAccountByID)
 			emailAccounts.PUT("/:id", handlers.UpdateEmailAccount)
 			emailAccounts.DELETE("/:id", handlers.DeleteEmailAccount)
-			emailAccounts.GET("/providers", handlers.GetEmailAccountProviders) // 新增：获取唯一服务商列表
+			emailAccounts.GET("/providers", handlers.GetEmailAccountProviders)                                  // 新增：获取唯一服务商列表
 			emailAccounts.GET("/:id/platform-registrations", handlers.GetPlatformRegistrationsByEmailAccountID) // 修改参数名
 		}
 
@@ -90,7 +90,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		// PlatformRegistration 模块
 		platformRegistrations := protected.Group("/platform-registrations")
 		{
-			platformRegistrations.POST("", handlers.CreatePlatformRegistrationWithIDs) // 通过ID创建
+			platformRegistrations.POST("", handlers.CreatePlatformRegistrationWithIDs)         // 通过ID创建
 			platformRegistrations.POST("/by-name", handlers.CreatePlatformRegistrationByNames) // 通过名称创建
 			platformRegistrations.GET("", handlers.GetPlatformRegistrations)
 			platformRegistrations.GET("/:id", handlers.GetPlatformRegistrationByID)
@@ -118,9 +118,9 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		{
 			importerGroup.POST("/bitwarden-csv", handlers.ImportBitwardenCSVHandler)
 		}
- 
+
 		// 仪表板
-		protected.GET("/dashboard", handlers.GetDashboard) // 旧的仪表盘API，已在handler中标记为弃用
+		protected.GET("/dashboard", handlers.GetDashboard)                // 旧的仪表盘API，已在handler中标记为弃用
 		protected.GET("/dashboard/summary", handlers.GetDashboardSummary) // 新的仪表盘摘要API
 
 		// 全局搜索
@@ -129,7 +129,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		// 用户提醒
 		protected.GET("/users/me/reminders", handlers.GetUserReminders)
 		protected.PUT("/users/me/reminders/:id/read", handlers.MarkReminderAsRead) // 新增：标记提醒为已读
-	
+
 		// 邮箱管理 (DEPRECATED - Use /email-accounts)
 		// emails := protected.Group("/emails")
 		// {
@@ -181,11 +181,11 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 func main() {
 	// 初始化配置
 	config.Init()
-	
+
 	// 初始化数据库
 	database.Init(config.AppConfig.Database.File) // Pass SQLite file path
 	// defer database.Close() // GORM typically doesn't require explicit close in this manner for app lifecycle
-   
+
 	// 初始化并启动定时任务
 	handlers.StartSubscriptionReminderJob() // 新增：启动定时任务
 

@@ -40,41 +40,75 @@ export default {
     const router = useRouter()
     const route = useRoute()
     const authStore = useAuthStore()
-    
+
     const loading = ref(true)
     const error = ref(false)
     const errorMessage = ref('')
-    
+    const processed = ref(false) // 防止重复处理
+
     const handleCallback = async () => {
+      // 使用全局标志防止重复处理（跨组件实例）
+      if (window.oauth2CallbackProcessing) {
+        console.log('OAuth2Callback: 全局处理中，跳过重复处理')
+        return
+      }
+
+      // 防止重复处理
+      if (processed.value) {
+        console.log('OAuth2Callback: 已处理过，跳过重复处理')
+        return
+      }
+
+      window.oauth2CallbackProcessing = true
+      processed.value = true
+      console.log('OAuth2Callback: 开始处理回调')
+
       try {
         const token = route.query.token
         const errorParam = route.query.error
-        
+
         if (errorParam) {
           throw new Error(getErrorMessage(errorParam))
         }
-        
+
         if (!token) {
           throw new Error('未收到登录凭证，请重试')
         }
-        
+
+        console.log('OAuth2Callback: 保存token到store')
         // 保存token到store
         authStore.setToken(token)
-        
+
+        console.log('OAuth2Callback: 获取用户信息')
         // 获取用户信息
         await authStore.fetchUserProfile()
 
-        ElMessage.success('LinuxDo登录成功！')
+        console.log('OAuth2Callback: 显示成功消息')
+        // 使用全局标志防止重复显示
+        if (!window.oauth2LoginMessageShown) {
+          window.oauth2LoginMessageShown = true
+          ElMessage.success('LinuxDo登录成功！')
+          // 5秒后重置标志
+          setTimeout(() => {
+            window.oauth2LoginMessageShown = false
+          }, 5000)
+        }
 
+        console.log('OAuth2Callback: 跳转到主页')
         // 直接跳转到主页
         router.push('/')
-        
+
       } catch (err) {
         console.error('OAuth2回调处理失败:', err)
         loading.value = false
         error.value = true
         errorMessage.value = err.message || '登录处理失败，请重试'
         ElMessage.error(errorMessage.value)
+      } finally {
+        // 重置全局标志
+        setTimeout(() => {
+          window.oauth2CallbackProcessing = false
+        }, 2000)
       }
     }
     

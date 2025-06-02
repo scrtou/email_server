@@ -233,40 +233,33 @@ export default {
     
     // 初始化时检查认证状态并获取提醒
     onMounted(async () => {
+      console.log('App.vue onMounted: 开始初始化')
       if (authStore.isAuthenticated) { // Check isAuthenticated instead of token directly
+        console.log('App.vue onMounted: 用户已认证，用户信息:', authStore.user)
         if (!authStore.user) { // Fetch user profile if not already loaded
+          console.log('App.vue onMounted: 获取用户信息')
           await authStore.fetchUserProfile();
         }
-        console.log('App.vue onMounted: notificationStore object:', notificationStore);
-        console.log('App.vue onMounted: typeof notificationStore.fetchReminders:', typeof notificationStore.fetchReminders);
+        console.log('App.vue onMounted: 获取提醒')
         await notificationStore.fetchReminders();
-        console.log('Initial reminders fetched:', JSON.parse(JSON.stringify(notificationStore.reminders)));
-        console.log('Initial notification store state:', {
-          isLoading: notificationStore.isLoading,
-          error: notificationStore.error,
-          reminders: notificationStore.reminders, // Log the raw reminders
-          remindersCount: Array.isArray(notificationStore.reminders) ? notificationStore.reminders.length : 'not an array'
-        });
       }
     });
 
     // 监听认证状态变化
-    watch(() => authStore.isAuthenticated, async (isAuth) => {
-      if (isAuth) {
+    watch(() => authStore.isAuthenticated, async (isAuth, oldIsAuth) => {
+      console.log('App.vue watch: 认证状态变化', { isAuth, oldIsAuth, hasUser: !!authStore.user })
+
+      // 只有在从未认证变为已认证时才执行初始化
+      if (isAuth && !oldIsAuth) {
+        console.log('App.vue watch: 用户刚刚登录，执行初始化')
         if (!authStore.user) {
-         await authStore.fetchUserProfile(); // Ensure user profile is loaded on login
-       }
-       console.log('App.vue watch: notificationStore object:', notificationStore);
-       console.log('App.vue watch: typeof notificationStore.fetchReminders:', typeof notificationStore.fetchReminders);
-       await notificationStore.fetchReminders();
-       console.log('Reminders fetched on auth change:', JSON.parse(JSON.stringify(notificationStore.reminders)));
-       console.log('Notification store state on auth change:', {
-          isLoading: notificationStore.isLoading,
-          error: notificationStore.error,
-          reminders: notificationStore.reminders, // Log the raw reminders
-          remindersCount: Array.isArray(notificationStore.reminders) ? notificationStore.reminders.length : 'not an array'
-        });
-      } else {
+          console.log('App.vue watch: 获取用户信息')
+          await authStore.fetchUserProfile(); // Ensure user profile is loaded on login
+        }
+        console.log('App.vue watch: 获取提醒')
+        await notificationStore.fetchReminders();
+      } else if (!isAuth && oldIsAuth) {
+        console.log('App.vue watch: 用户退出登录，清除提醒')
         notificationStore.clearReminders(); // Clear reminders on logout
       }
     });

@@ -13,6 +13,7 @@ type Config struct {
     Server   ServerConfig
     JWT      JWTConfig
     OAuth2   OAuth2Config
+    Frontend FrontendConfig // 新增前端配置
 }
 
 type DatabaseConfig struct {
@@ -40,6 +41,10 @@ type LinuxDoOAuth2Config struct {
     AuthURL      string
     TokenURL     string
     UserInfoURL  string
+}
+
+type FrontendConfig struct {
+    BaseURL string // 前端基础URL
 }
 
 var AppConfig *Config
@@ -71,6 +76,9 @@ func Init() {
                 TokenURL:     getEnv("LINUXDO_TOKEN_URL", "https://connect.linux.do/oauth2/token"),
                 UserInfoURL:  getEnv("LINUXDO_USER_INFO_URL", "https://connect.linux.do/api/user"),
             },
+        },
+        Frontend: FrontendConfig{
+            BaseURL: getEnv("FRONTEND_BASE_URL", "http://localhost:8080"),
         },
     }
 }
