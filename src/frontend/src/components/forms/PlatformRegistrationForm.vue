@@ -9,6 +9,7 @@
       v-loading="loading"
       class="platform-registration-form"
     >
+      <!-- 第一行：平台和邮箱账户 -->
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="平台" prop="platform_id">
@@ -31,7 +32,6 @@
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="24" :md="12">
-
           <el-form-item label="邮箱账户" prop="email_account_id">
             <el-select
               v-model="form.email_account_id"
@@ -52,6 +52,7 @@
         </el-col>
       </el-row>
 
+      <!-- 第二行：用户名和手机号，对齐上一行 -->
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="12">
           <el-form-item label="用户名/ID" prop="login_username">
@@ -63,50 +64,62 @@
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item label="登录密码" prop="login_password">
-            <div class="password-input-container">
-              <el-input
-                type="password"
-                v-model="form.login_password"
-                :placeholder="props.isEdit ? '留空则不修改密码' : '请输入登录密码'"
-                show-password
-                class="password-input"
-              />
-              <!-- 查看现有密码按钮 -->
-              <el-button
-                v-if="props.isEdit && hasExistingPassword"
-                type="primary"
-                size="small"
-                :icon="View"
-                @click="handleViewPassword"
-                :loading="viewPasswordLoading"
-                class="view-password-btn"
-                title="查看当前密码"
-              >
-                查看
-              </el-button>
-            </div>
+          <el-form-item label="手机号" prop="phone_number">
+            <el-input v-model="form.phone_number" placeholder="请输入手机号" clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
 
-            <!-- 密码状态指示器 -->
-            <div v-if="props.isEdit" class="password-status">
-              <el-tag
-                v-if="hasExistingPassword"
-                type="success"
-                size="small"
-                effect="plain"
-              >
-                <el-icon><Lock /></el-icon>
-                已设置密码
-              </el-tag>
-              <el-tag
-                v-else
-                type="info"
-                size="small"
-                effect="plain"
-              >
-                <el-icon><Unlock /></el-icon>
-                未设置密码
-              </el-tag>
+      <!-- 第三行：登录密码 -->
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="24" :md="24">
+          <el-form-item label="登录密码" prop="login_password">
+            <!-- 密码输入区域和状态指示器水平对齐 -->
+            <div class="password-main-container">
+              <div class="password-input-container">
+                <el-input
+                  type="password"
+                  v-model="form.login_password"
+                  :placeholder="props.isEdit ? '留空则不修改密码' : '请输入登录密码'"
+                  show-password
+                  class="password-input"
+                />
+                <!-- 查看现有密码按钮 -->
+                <el-button
+                  v-if="props.isEdit && hasExistingPassword"
+                  type="primary"
+                  size="small"
+                  :icon="View"
+                  @click="handleViewPassword"
+                  :loading="viewPasswordLoading"
+                  class="view-password-btn"
+                  title="查看当前密码"
+                >
+                  查看
+                </el-button>
+              </div>
+
+              <!-- 密码状态指示器 - 与输入框和按钮水平对齐 -->
+              <div v-if="props.isEdit" class="password-status-inline">
+                <el-tag
+                  v-if="hasExistingPassword"
+                  type="success"
+                  size="small"
+                  effect="plain"
+                >
+                  <el-icon><Lock /></el-icon>
+                  已设置密码
+                </el-tag>
+                <el-tag
+                  v-else
+                  type="info"
+                  size="small"
+                  effect="plain"
+                >
+                  <el-icon><Unlock /></el-icon>
+                  未设置密码
+                </el-tag>
+              </div>
             </div>
 
             <!-- 显示查看到的密码 -->
@@ -137,14 +150,10 @@
         </el-col>
       </el-row>
 
+      <!-- 第四行：备注字段，占据全宽，左侧对齐 -->
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item label="手机号" prop="phone_number">
-            <el-input v-model="form.phone_number" placeholder="请输入手机号" clearable />
-          </el-form-item>
-        </el-col>
-        <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item label="备注" prop="notes">
+        <el-col :span="24">
+          <el-form-item label="备注" prop="notes" class="notes-form-item">
             <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="填写备注信息" />
           </el-form-item>
         </el-col>
@@ -421,6 +430,12 @@ defineExpose({
 </script>
 
 <style scoped>
+/* 弹框内容统一边距 - 移除额外的padding，因为ModalDialog已经有20px的padding */
+.platform-registration-form {
+  padding: 0; /* 移除额外的左右内边距 */
+  box-sizing: border-box;
+}
+
 .platform-registration-form-card {
   max-width: 800px; /* 增加最大宽度 */
   margin: 30px auto; /* 增加上下边距 */
@@ -445,14 +460,59 @@ defineExpose({
   margin-bottom: 22px; /* 增加表单项间距 */
 }
 
+/* 确保所有行都有一致的边距 */
+.platform-registration-form .el-row {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.platform-registration-form .el-col {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* 第一列和最后一列的特殊处理 */
+.platform-registration-form .el-row .el-col:first-child {
+  padding-left: 0;
+}
+
+.platform-registration-form .el-row .el-col:last-child {
+  padding-right: 0;
+}
+
+/* 单列布局时不需要左右padding */
+.platform-registration-form .el-row .el-col[class*="24"] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
 .full-width-select {
   width: 100%; /* 确保选择器占满宽度 */
+}
+
+/* 备注字段左侧对齐 */
+.notes-form-item :deep(.el-form-item__content) {
+  text-align: left;
+}
+
+.notes-form-item :deep(.el-textarea__inner) {
+  text-align: left;
+}
+
+/* 密码主容器 - 水平布局 */
+.password-main-container {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .password-input-container {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
+  flex: 1;
+  min-width: 300px; /* 确保输入框有最小宽度 */
 }
 
 .password-input {
@@ -464,14 +524,34 @@ defineExpose({
   margin-top: 0;
 }
 
-.password-status {
-  margin-top: 8px;
+/* 密码状态指示器 - 内联显示 */
+.password-status-inline {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
-.password-status .el-tag {
+.password-status-inline .el-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* 响应式：小屏幕时垂直排列 */
+@media (max-width: 768px) {
+  .password-main-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .password-input-container {
+    min-width: auto;
+  }
+
+  .password-status-inline {
+    justify-content: flex-start;
+  }
 }
 
 .viewed-password {
@@ -527,19 +607,34 @@ defineExpose({
 
 /* 响应式调整 */
 @media (max-width: 768px) {
+  .platform-registration-form {
+    padding: 0 12px; /* 移动端进一步减少左右内边距 */
+  }
+
   .platform-registration-form-card {
     margin: 15px; /* 移动端左右边距 */
     padding: 15px;
   }
+
   .card-title {
     font-size: 20px;
   }
+
   .platform-registration-form .el-form-item {
     margin-bottom: 18px;
   }
+
+  /* 移动端列间距调整 */
+  .platform-registration-form .el-col {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-bottom: 16px;
+  }
+
   .form-actions {
     text-align: center; /* 移动端按钮居中 */
   }
+
   .form-actions .el-button {
     width: 100%;
     margin-bottom: 10px;

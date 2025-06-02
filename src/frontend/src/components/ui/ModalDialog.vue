@@ -82,7 +82,7 @@ const handleCancel = () => {
 }
 
 .modal-dialog :deep(.el-dialog__body) {
-  padding: 20px;
+  padding: 20px 30px; /* 增加左右内边距以确保内容居中 */
   max-height: 60vh;
   overflow-y: auto;
 }

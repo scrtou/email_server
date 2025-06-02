@@ -603,11 +603,12 @@ watch(() => settingsStore.getPageSize('serviceSubscriptions'), (newPageSize) => 
 }
 
 .pagination-container {
-  flex-shrink: 0;
-  padding: 0;
-  margin-top: 2px;
+   flex-shrink: 0;
+  padding: 10px 0;
   display: flex;
   justify-content: center;
+  align-items: center;
+  max-height: 30px;
 }
 .card-header {
   display: flex;
