@@ -85,10 +85,10 @@ FRONTEND_HTTPS_PORT=443 # HTTPS标准端口
 - **前端**: 80 (HTTP) 或 443 (HTTPS) 用于生产环境
 - **后端**: 5555 (默认) 或其他非标准端口
 
-## 🔧 生产环境部署
+## 🔧 部署
 
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker-compose up -d
 # 包含资源限制、日志配置等生产环境优化
 ```
 
@@ -106,16 +106,16 @@ sudo ufw enable
 
 ```bash
 # 查看服务状态
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
+docker-compose ps
 
 # 查看日志
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
+docker-compose logs -f
 
 # 重启服务
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml restart
+docker-compose restart
 
 # 停止服务
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+docker-compose down
 
 # 数据备份
 ./backup.sh
@@ -134,7 +134,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
 ### 前端无法访问后端API
 ```bash
 # 检查后端服务状态
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs backend
+docker-compose logs backend
 
 # 检查网络连通性
 curl http://localhost:5555/api/v1/health
@@ -148,7 +148,7 @@ curl http://localhost:5555/api/v1/health
 ### 容器启动失败
 ```bash
 # 查看详细错误信息
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs
+docker-compose logs
 
 # 检查端口占用
 sudo netstat -tlnp | grep :80

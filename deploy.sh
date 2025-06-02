@@ -79,15 +79,15 @@ deploy_services() {
     
     # 停止现有服务
     log_info "停止现有服务..."
-    docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
-    
+    docker-compose down
+
     # 构建镜像
     log_info "构建Docker镜像..."
-    docker-compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
-    
+    docker-compose build --no-cache
+
     # 启动服务
     log_info "启动服务..."
-    docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+    docker-compose up -d
     
     log_success "服务部署完成"
 }
@@ -99,12 +99,12 @@ check_services() {
     sleep 10  # 等待服务启动
     
     # 检查容器状态
-    if docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps | grep -q "Up"; then
+    if docker-compose ps | grep -q "Up"; then
         log_success "服务启动成功"
-        docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
+        docker-compose ps
     else
         log_error "服务启动失败"
-        docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs
+        docker-compose logs
         exit 1
     fi
 }
@@ -118,9 +118,9 @@ show_deployment_info() {
     log_info "  后端API: http://localhost:\${BACKEND_PORT:-5555}/api/v1"
     echo ""
     log_info "常用命令:"
-    log_info "  查看日志: docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f"
-    log_info "  停止服务: docker-compose -f docker-compose.yml -f docker-compose.prod.yml down"
-    log_info "  重启服务: docker-compose -f docker-compose.yml -f docker-compose.prod.yml restart"
+    log_info "  查看日志: docker-compose logs -f"
+    log_info "  停止服务: docker-compose down"
+    log_info "  重启服务: docker-compose restart"
     echo ""
     log_warning "生产环境部署注意事项:"
     log_warning "  1. 请配置防火墙，开放配置的端口 (默认: 前端80, 后端5555)"
