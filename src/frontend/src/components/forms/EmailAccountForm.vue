@@ -21,7 +21,7 @@
             <el-input
               type="password"
               v-model="form.password"
-              :placeholder="isEditMode ? '留空则不修改密码' : '请输入密码'"
+              :placeholder="isEditMode ? '留空则不修改密码' : '密码可选，留空则不设置密码'"
               show-password
             />
           </el-form-item>
@@ -107,19 +107,16 @@ phone_number: [
     }
   ],
   password: [
-    // Password is required in create mode, optional in edit mode (if empty, not changed)
-    {
-      required: !isEditMode.value, // Required only in create mode
-      message: '请输入密码',
-      trigger: 'blur'
-    },
+    // Password is optional in both create and edit modes
     {
       validator: (rule, value, callback) => {
+        // 密码在创建和编辑模式下都是可选的
+        // 如果提供了密码，检查长度
         if (value && value.length < 6) {
           callback(new Error('密码长度至少为6位'));
-        } else {
-          callback();
+          return;
         }
+        callback();
       },
       trigger: 'blur'
     },

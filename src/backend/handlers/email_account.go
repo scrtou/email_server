@@ -40,11 +40,11 @@ func CreateEmailAccount(c *gin.Context) {
 	actualUserID := uint(userID) // Convert to uint
 
 	var input struct {
-		EmailAddress    string `json:"email_address" binding:"required,email"`
-		Password        string `json:"password" binding:"omitempty,min=6"`       // 密码可选
+		EmailAddress string `json:"email_address" binding:"required,email"`
+		Password     string `json:"password" binding:"omitempty,min=6"` // 密码可选
 		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
-		Notes           string `json:"notes"`
-		PhoneNumber     string `json:"phone_number"` // 手机号码，可选
+		Notes       string `json:"notes"`
+		PhoneNumber string `json:"phone_number"` // 手机号码，可选
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -195,7 +195,7 @@ func GetEmailAccounts(c *gin.Context) {
 	if filterEmailAddress != "" {
 		query = query.Where("LOWER(email_address) LIKE ?", "%"+filterEmailAddress+"%")
 	}
-	
+
 	countQuery := query // Create a new query builder for count to avoid issues with Order, Limit, Offset
 	if err := countQuery.Count(&totalRecords).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户总数失败: "+err.Error())
@@ -208,14 +208,13 @@ func GetEmailAccounts(c *gin.Context) {
 		// 如果 totalRecords 为 0，pageSize 也为 0，这是合理的
 	}
 
-
 	// Fetch records
 	dbQuery := query.Order(orderClause)
 	if limitApplied { // 只有当 limitApplied 为 true 时才应用 Offset 和 Limit
 		dbQuery = dbQuery.Offset(offset).Limit(pageSize)
 	}
 	// 如果 limitApplied 为 false，则不应用 Limit 和 Offset，获取所有记录
-	
+
 	if err := dbQuery.Find(&emailAccounts).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户列表失败: "+err.Error())
 		return
@@ -228,38 +227,37 @@ func GetEmailAccounts(c *gin.Context) {
 		if err := database.DB.Model(&models.PlatformRegistration{}).Where("email_account_id = ?", ea.ID).Count(&platformCount).Error; err != nil {
 			platformCount = 0
 		}
-		
+
 		response := ea.ToEmailAccountResponse()
 		response.PlatformCount = platformCount
 		responses = append(responses, response)
 	}
-	   
-	   // API响应的 meta 数据中返回实际使用的 pageSize 值
-	   // finalPageSizeForMeta 现在就是 pageSize，因为它已经被正确设置
-	   var finalPageSizeForMeta int = pageSize
-	   // 如果 pageSize 为 0 (例如 totalRecords 为 0 且之前 pageSize <= 0),
-	   // CreatePaginationMeta 应该能处理这种情况，或者我们在这里确保它至少为1（如果需要分页）。
-	   // 但如果 totalRecords 为 0，那么 pageSize 为 0 是合理的，表示没有数据，每页0条。
-	   // 如果 totalRecords > 0 但 pageSize 仍然是0（这不应该发生，因为如果 limitApplied=false, pageSize=totalRecords），
-	   // 那么 CreatePaginationMeta 可能会出问题。
-	   // 确保 finalPageSizeForMeta 在 totalRecords > 0 时至少为 1，除非我们确实想表示“所有”（此时 pageSize = totalRecords）。
-	   if totalRecords > 0 && finalPageSizeForMeta == 0 {
-		   // 这种情况理论上不应该发生，因为如果 limitApplied 为 false，pageSize 会被设为 totalRecords。
-		   // 如果 limitApplied 为 true，pageSize > 0。
-		   // 但作为安全措施，如果 totalRecords > 0 而 pageSize 仍然是0，则设为 totalRecords。
-		   finalPageSizeForMeta = int(totalRecords)
-	   } else if totalRecords == 0 && finalPageSizeForMeta == 0 {
-		   // 如果没有记录，pageSize 为 0 是可以接受的。
-		   // 但 CreatePaginationMeta 可能期望 pageSize 至少为 1 来计算 totalPages。
-		   // 如果 CreatePaginationMeta 能够处理 pageSize 为 0 的情况，则无需更改。
-		   // 假设 CreatePaginationMeta 在 pageSize 为 0 时，totalPages 也为 0 或 1（取决于实现）。
-		   // 为了安全，如果 pageSize 为0，且有记录，则设为 totalRecords。如果没记录，pageSize 为0。
-		   // 如果 CreatePaginationMeta 要求 pageSize >= 1，那么即使 totalRecords = 0，也应设为1。
-		   // 暂时维持 pageSize 可能为0的情况，依赖 CreatePaginationMeta 的处理。
-		   // 或者，如果 CreatePaginationMeta 要求 pageSize >= 1:
-		   // if finalPageSizeForMeta == 0 { finalPageSizeForMeta = 1 }
-	   }
 
+	// API响应的 meta 数据中返回实际使用的 pageSize 值
+	// finalPageSizeForMeta 现在就是 pageSize，因为它已经被正确设置
+	var finalPageSizeForMeta int = pageSize
+	// 如果 pageSize 为 0 (例如 totalRecords 为 0 且之前 pageSize <= 0),
+	// CreatePaginationMeta 应该能处理这种情况，或者我们在这里确保它至少为1（如果需要分页）。
+	// 但如果 totalRecords 为 0，那么 pageSize 为 0 是合理的，表示没有数据，每页0条。
+	// 如果 totalRecords > 0 但 pageSize 仍然是0（这不应该发生，因为如果 limitApplied=false, pageSize=totalRecords），
+	// 那么 CreatePaginationMeta 可能会出问题。
+	// 确保 finalPageSizeForMeta 在 totalRecords > 0 时至少为 1，除非我们确实想表示“所有”（此时 pageSize = totalRecords）。
+	if totalRecords > 0 && finalPageSizeForMeta == 0 {
+		// 这种情况理论上不应该发生，因为如果 limitApplied 为 false，pageSize 会被设为 totalRecords。
+		// 如果 limitApplied 为 true，pageSize > 0。
+		// 但作为安全措施，如果 totalRecords > 0 而 pageSize 仍然是0，则设为 totalRecords。
+		finalPageSizeForMeta = int(totalRecords)
+	} else if totalRecords == 0 && finalPageSizeForMeta == 0 {
+		// 如果没有记录，pageSize 为 0 是可以接受的。
+		// 但 CreatePaginationMeta 可能期望 pageSize 至少为 1 来计算 totalPages。
+		// 如果 CreatePaginationMeta 能够处理 pageSize 为 0 的情况，则无需更改。
+		// 假设 CreatePaginationMeta 在 pageSize 为 0 时，totalPages 也为 0 或 1（取决于实现）。
+		// 为了安全，如果 pageSize 为0，且有记录，则设为 totalRecords。如果没记录，pageSize 为0。
+		// 如果 CreatePaginationMeta 要求 pageSize >= 1，那么即使 totalRecords = 0，也应设为1。
+		// 暂时维持 pageSize 可能为0的情况，依赖 CreatePaginationMeta 的处理。
+		// 或者，如果 CreatePaginationMeta 要求 pageSize >= 1:
+		// if finalPageSizeForMeta == 0 { finalPageSizeForMeta = 1 }
+	}
 
 	pagination := utils.CreatePaginationMeta(page, finalPageSizeForMeta, int(totalRecords))
 	utils.SendSuccessResponseWithMeta(c, responses, pagination)
@@ -357,11 +355,11 @@ func UpdateEmailAccount(c *gin.Context) {
 	}
 
 	var input struct {
-		EmailAddress    string `json:"email_address" binding:"omitempty,email"`    // omitempty 允许部分更新
-		Password        string `json:"password" binding:"omitempty,min=6"`         // 密码可选
+		EmailAddress string `json:"email_address" binding:"omitempty,email"` // omitempty 允许部分更新
+		Password     string `json:"password" binding:"omitempty,min=6"`      // 密码可选
 		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
-		Notes           string `json:"notes"`
-		PhoneNumber     string `json:"phone_number"` // 手机号码，可选，如果提供则更新
+		Notes       string `json:"notes"`
+		PhoneNumber string `json:"phone_number"` // 手机号码，可选，如果提供则更新
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -389,7 +387,6 @@ func UpdateEmailAccount(c *gin.Context) {
 	emailAccount.Notes = input.Notes
 	// PhoneNumber 总是更新，即使是空字符串，允许用户清空或设置
 	emailAccount.PhoneNumber = input.PhoneNumber
-
 
 	if err := database.DB.Save(&emailAccount).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "更新邮箱账户失败: "+err.Error())
@@ -442,7 +439,7 @@ func DeleteEmailAccount(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待删除邮箱账户失败: "+err.Error())
 		return
 	}
-	
+
 	// 使用事务确保操作的原子性
 	tx := database.DB.Begin()
 	if tx.Error != nil {
