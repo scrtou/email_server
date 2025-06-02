@@ -15,11 +15,10 @@ RUN npm install
 COPY . .
 
 # Build the application for production
-# To inject build-time environment variables, you can use ARG and ENV:
-# ARG VUE_APP_API_BASE_URL
-# ENV VUE_APP_API_BASE_URL=${VUE_APP_API_BASE_URL}
-# Then, when building the image, pass the argument:
-# docker build --build-arg VUE_APP_API_BASE_URL=your_api_url -t your-image-name .
+# Inject build-time environment variables
+ARG VUE_APP_API_BASE_URL
+ENV VUE_APP_API_BASE_URL=${VUE_APP_API_BASE_URL}
+
 RUN npm run build
 
 # Stage 2: Serve the application with Nginx

@@ -33,7 +33,7 @@ services:
       - email_server_network # 连接到自定义网络
     # 健康检查
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5555/api/v1/health", "||", "exit", "1"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--quiet", "-O", "/dev/null", "http://localhost:5555/api/v1/health", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -68,8 +68,7 @@ services:
       - "${FRONTEND_PORT:-80}:80" # 映射端口：宿主机:容器 (可通过.env配置)
     restart: unless-stopped # 容器退出时自动重启
     depends_on:
-      backend:
-        condition: service_healthy # 等待后端健康检查通过
+      - backend # 简化依赖，不等待健康检查
     networks:
       - email_server_network # 连接到自定义网络
     # 资源限制
