@@ -1,14 +1,18 @@
 package config
 
 import (
+    "log"
     "os"
     "strconv"
+
+    "github.com/joho/godotenv"
 )
 
 type Config struct {
     Database DatabaseConfig
     Server   ServerConfig
     JWT      JWTConfig
+    OAuth2   OAuth2Config
 }
 
 type DatabaseConfig struct {
@@ -25,9 +29,27 @@ type JWTConfig struct {
     ExpiresIn int // 小时
 }
 
+type OAuth2Config struct {
+    LinuxDo LinuxDoOAuth2Config
+}
+
+type LinuxDoOAuth2Config struct {
+    ClientID     string
+    ClientSecret string
+    RedirectURI  string
+    AuthURL      string
+    TokenURL     string
+    UserInfoURL  string
+}
+
 var AppConfig *Config
 
 func Init() {
+    // 加载.env文件
+    if err := godotenv.Load(); err != nil {
+        log.Printf("警告: 无法加载.env文件: %v", err)
+    }
+
     AppConfig = &Config{
     	Database: DatabaseConfig{
     		// DSN: getEnv("DATABASE_URL", "avnadmin:AVNS_icoPVWCDqQgoAM4nCH1@tcp(mysql-yxmysql.c.aivencloud.com:19894)/email-server?charset=utf8mb4&parseTime=True&loc=Local"),
@@ -39,6 +61,16 @@ func Init() {
         JWT: JWTConfig{
             SecretKey: getEnv("JWT_SECRET", "your-super-secret-jwt-key-change-in-production"),
             ExpiresIn: getEnvInt("JWT_EXPIRES_IN", 24),
+        },
+        OAuth2: OAuth2Config{
+            LinuxDo: LinuxDoOAuth2Config{
+                ClientID:     getEnv("LINUXDO_CLIENT_ID", ""),
+                ClientSecret: getEnv("LINUXDO_CLIENT_SECRET", ""),
+                RedirectURI:  getEnv("LINUXDO_REDIRECT_URI", "http://localhost:5555/api/v1/auth/oauth2/linuxdo/callback"),
+                AuthURL:      getEnv("LINUXDO_AUTH_URL", "https://connect.linux.do/oauth2/authorize"),
+                TokenURL:     getEnv("LINUXDO_TOKEN_URL", "https://connect.linux.do/oauth2/token"),
+                UserInfoURL:  getEnv("LINUXDO_USER_INFO_URL", "https://connect.linux.do/api/user"),
+            },
         },
     }
 }

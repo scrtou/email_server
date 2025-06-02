@@ -49,7 +49,33 @@
             </el-button>
           </el-form-item>
         </el-form>
-        
+
+        <!-- 第三方登录 -->
+        <div class="third-party-login">
+          <div class="third-party-title">
+          </div>
+
+          <div class="third-party-icons">
+            <div
+              class="oauth-icon-button linuxdo-icon"
+              :class="{ 'loading': oauthLoading }"
+              @click="handleLinuxDoLogin"
+              title="使用 Linux.do 登录"
+            >
+              <div class="icon-wrapper">
+                <div v-if="!oauthLoading" class="linuxdo-logo">
+                  <div class="logo-top"></div>
+                  <div class="logo-middle"></div>
+                  <div class="logo-bottom"></div>
+                </div>
+                <el-icon v-else class="loading-icon" :size="20">
+                  <Loading />
+                </el-icon>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="login-footer">
           <p>
             还没有账户？
@@ -61,22 +87,30 @@
   </template>
   
   <script>
-  import { ref, reactive } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { ref, reactive, onMounted } from 'vue'
+  import { useRouter, useRoute } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
-  
+  import { ElMessage } from 'element-plus'
+  import { Loading } from '@element-plus/icons-vue'
+  import api from '@/utils/api'
+
   export default {
     name: 'LoginPage',
+    components: {
+      Loading
+    },
     setup() {
       const router = useRouter()
+      const route = useRoute()
       const authStore = useAuthStore()
       const loginFormRef = ref()
-      
+      const oauthLoading = ref(false)
+
       const loginForm = reactive({
         username: '',
         password: ''
       })
-      
+
       const loginRules = {
         username: [
           { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -86,14 +120,14 @@
           { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
         ]
       }
-      
+
       const handleLogin = async () => {
         if (!loginFormRef.value) return
-        
+
         try {
           const valid = await loginFormRef.value.validate()
           if (!valid) return
-          
+
           const success = await authStore.login(loginForm)
           if (success) {
             router.push('/')
@@ -102,13 +136,61 @@
           console.error('登录表单验证失败:', error)
         }
       }
-      
+
+      const handleLinuxDoLogin = async () => {
+        try {
+          oauthLoading.value = true
+          console.log('开始LinuxDo OAuth2登录...')
+
+          const response = await api.get('/auth/oauth2/linuxdo/login')
+          console.log('OAuth2登录响应:', response)
+
+          if (response && response.auth_url) {
+            console.log('跳转到授权页面:', response.auth_url)
+            // 跳转到LinuxDo授权页面
+            window.location.href = response.auth_url
+          } else {
+            console.error('响应格式错误:', response)
+            ElMessage.error('获取授权链接失败')
+          }
+        } catch (error) {
+          console.error('LinuxDo登录失败:', error)
+          console.error('错误详情:', error.response?.data || error.message)
+          ElMessage.error(`LinuxDo登录失败: ${error.message}`)
+        } finally {
+          oauthLoading.value = false
+        }
+      }
+
+      // 处理OAuth2回调 - 已移除，现在由专门的OAuth2Callback页面处理
+
+      onMounted(() => {
+        // OAuth2回调现在由专门的OAuth2Callback页面处理
+        // 检查是否有错误参数
+        if (route.query.error) {
+          const errorMessages = {
+            'invalid_state': 'OAuth2状态验证失败，请重新登录',
+            'token_exchange_failed': '获取访问令牌失败，请重试',
+            'user_info_failed': '获取用户信息失败，请重试',
+            'user_creation_failed': '用户账号创建失败，请重试',
+            'token_generation_failed': '生成登录凭证失败，请重试'
+          }
+          const errorMessage = errorMessages[route.query.error] || '登录过程中发生错误，请重试'
+          ElMessage.error(errorMessage)
+
+          // 清除URL中的错误参数
+          router.replace('/auth/login')
+        }
+      })
+
       return {
         loginFormRef,
         loginForm,
         loginRules,
         authStore,
-        handleLogin
+        oauthLoading,
+        handleLogin,
+        handleLinuxDoLogin
       }
     }
   }
@@ -251,6 +333,119 @@
 
   :deep(.el-button--primary:active) {
     transform: translateY(0);
+  }
+
+  /* 第三方登录样式 */
+  .third-party-login {
+    padding: var(--space-6) var(--space-6) var(--space-4);
+    text-align: center;
+  }
+
+  .third-party-title {
+    margin-bottom: var(--space-6);
+  }
+
+  .third-party-title span {
+    color: var(--color-gray-700);
+    font-size: var(--text-base);
+    font-weight: var(--font-medium);
+  }
+
+  .third-party-icons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .oauth-icon-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border: 2px solid var(--color-gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .oauth-icon-button:hover {
+    background: linear-gradient(135deg, #e9ecef, #dee2e6);
+    border-color: var(--color-gray-300);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  .oauth-icon-button.loading {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  .icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .linuxdo-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    transition: all var(--transition-base);
+  }
+
+  .logo-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 33.33%;
+    background-color: #2c3e50;
+  }
+
+  .logo-middle {
+    position: absolute;
+    top: 33.33%;
+    left: 0;
+    width: 100%;
+    height: 33.34%;
+    background-color: #ffffff;
+  }
+
+  .logo-bottom {
+    position: absolute;
+    top: 66.67%;
+    left: 0;
+    width: 100%;
+    height: 33.33%;
+    background-color: #ff8c00;
+  }
+
+  .linuxdo-icon:hover .linuxdo-logo {
+    transform: scale(1.1);
+  }
+
+  .loading-icon {
+    color: var(--color-blue-500);
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .login-footer {

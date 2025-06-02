@@ -8,6 +8,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 // Page Components
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
+import OAuth2Callback from '../views/OAuth2Callback.vue'
 import Dashboard from '../views/Dashboard.vue'
 // import EmailList from '../views/EmailList.vue'; // Removed as it's not found and likely deprecated
 import ServiceList from '../views/ServiceList.vue'
@@ -161,6 +162,14 @@ const routes = [
     ]
   },
   
+  // OAuth2 callback route (不需要认证)
+  {
+    path: '/oauth2/callback',
+    name: 'OAuth2Callback',
+    component: OAuth2Callback,
+    meta: { requiresGuest: false, requiresAuth: false }
+  },
+
   // Redirect /login and /register to /auth/login and /auth/register for old paths
   { path: '/login', redirect: '/auth/login' },
   { path: '/register', redirect: '/auth/register' },

@@ -143,6 +143,17 @@ export const useAuthStore = defineStore('auth', {
       if (this.token) {
         await this.fetchUserProfile()
       }
+    },
+
+    // 设置token（用于OAuth2登录）
+    setToken(token) {
+      this.token = token
+      localStorage.setItem('token', token)
+    },
+
+    // 设置用户信息（用于OAuth2登录）
+    setUser(user) {
+      this.user = user
     }
   }
 })
