@@ -36,15 +36,14 @@ WORKDIR /app
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/email_server_app /app/email_server_app
 
-# 创建非root用户
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
-
 # 创建数据目录并设置权限
-RUN mkdir -p /data && chown -R appuser:appgroup /data /app
+RUN mkdir -p /data && chmod -R 777 /data
 
-# 切换到非root用户
-USER appuser
+# 注意: 生产环境建议使用非root用户，但为了避免权限问题，暂时使用root
+# 如需使用非root用户，请取消注释以下行：
+# RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup
+# RUN chown -R appuser:appgroup /data /app
+# USER appuser
 
 # Expose port 5555 to the outside world.
 # This is the default port the application listens on, configured via SERVER_PORT environment variable.

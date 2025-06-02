@@ -10,6 +10,7 @@ services:
     container_name: email_server_backend # 容器名称
     ports:
       - "${BACKEND_PORT:-5555}:5555" # 映射端口：宿主机:容器 (可通过.env配置)
+    user: "0:0" # 使用root用户避免权限问题
     environment:
       SERVER_PORT: "5555" # 后端服务监听端口
       SQLITE_FILE: "/data/database.db" # SQLite 数据库文件路径 (容器内)
@@ -25,6 +26,8 @@ services:
       LINUXDO_USER_INFO_URL: "${LINUXDO_USER_INFO_URL:-https://connect.linux.do/api/user}"
     volumes:
       - ./data/backend:/data # 持久化数据库文件：宿主机路径:容器内路径
+      # 或者使用Docker管理的volume（推荐）:
+      # - email_server_data:/data
     restart: unless-stopped # 容器退出时自动重启
     networks:
       - email_server_network # 连接到自定义网络
@@ -89,3 +92,8 @@ services:
 networks:
   email_server_network: # 自定义桥接网络
     driver: bridge
+
+# 定义数据卷（可选，用于替代宿主机目录挂载）
+# volumes:
+#   email_server_data:
+#     driver: local
