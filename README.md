@@ -56,12 +56,17 @@ cp .env.example .env
 nano .env
 ```
 
+> ⚠️ **安全提醒**：
+> - `.env`文件包含敏感信息，已被`.gitignore`忽略，请勿提交到版本控制
+> - 生产环境必须修改所有默认密钥和敏感配置
+> - 定期更换JWT密钥和OAuth2密钥
+
 **重要配置项**：
 ```env
-# JWT密钥（生产环境必须修改）
+# JWT密钥（生产环境必须修改为强密钥）
 JWT_SECRET=your-production-super-secret-jwt-key-at-least-32-characters-long
 
-# LinuxDo OAuth2配置（可选）
+# LinuxDo OAuth2配置（需要到 https://connect.linux.do 申请）
 LINUXDO_CLIENT_ID=your_client_id
 LINUXDO_CLIENT_SECRET=your_client_secret
 LINUXDO_REDIRECT_URI=https://yourdomain.com/api/v1/auth/oauth2/linuxdo/callback
