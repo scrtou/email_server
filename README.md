@@ -50,7 +50,7 @@ cd email_server
 ### 2. 配置环境变量
 ```bash
 # 复制环境变量模板
-cp .env.production.example .env
+cp .env.example .env
 
 # 编辑配置文件
 nano .env
