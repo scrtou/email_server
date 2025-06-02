@@ -43,11 +43,11 @@ services:
       dockerfile: Dockerfile
       args:
         # 构建时注入环境变量，用于API基础URL
-        # 生产环境请修改为您的实际域名
+        # 开发环境使用localhost，生产环境请修改为您的实际域名
         VUE_APP_API_BASE_URL: "${VUE_APP_API_BASE_URL:-http://localhost:5555/api/v1}"
     container_name: email_server_frontend # 容器名称
     ports:
-      - "8081:80" # 映射端口：宿主机:容器 (Nginx 默认监听80)
+      - "8081:80" # 映射端口：宿主机:容器 (开发环境端口)
     restart: unless-stopped # 容器退出时自动重启
     depends_on:
       backend:

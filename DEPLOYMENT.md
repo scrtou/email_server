@@ -42,12 +42,8 @@ nano .env
 - `LINUXDO_REDIRECT_URI`: 修改为您的域名
 - `VUE_APP_API_BASE_URL`: 修改为您的API地址
 
-### 3. 修改域名配置
-```bash
-# 编辑 Nginx 配置
-nano nginx/conf.d/default.conf
-# 将 yourdomain.com 替换为您的实际域名
-```
+### 3. 配置跨域访问
+确保前端能正确访问后端API。在生产环境中，前端和后端运行在不同端口，需要注意跨域配置。
 
 ### 4. 执行部署
 ```bash
@@ -62,7 +58,7 @@ chmod +x deploy.sh
 
 ### 1. 创建必要目录
 ```bash
-mkdir -p data/backend logs/nginx ssl
+mkdir -p data/backend
 ```
 
 ### 2. 构建和启动服务
@@ -82,23 +78,20 @@ docker-compose logs -f
 
 ## 🔒 HTTPS 配置
 
-### 1. 获取 SSL 证书
-```bash
-# 使用 Let's Encrypt (推荐)
-sudo apt install certbot
-sudo certbot certonly --standalone -d yourdomain.com
-```
+如果需要HTTPS支持，建议使用以下方案之一：
 
-### 2. 配置证书
-```bash
-# 复制证书到项目目录
-sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ./ssl/cert.pem
-sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ./ssl/key.pem
-sudo chown $USER:$USER ./ssl/*.pem
-```
+### 方案1: 使用云服务商的负载均衡器
+- 阿里云SLB、腾讯云CLB等
+- 在负载均衡器配置SSL证书
+- 后端服务保持HTTP
 
-### 3. 启用 HTTPS
-编辑 `nginx/conf.d/default.conf`，取消注释 HTTPS 服务器配置部分。
+### 方案2: 使用Cloudflare等CDN
+- 配置Cloudflare代理
+- 启用SSL/TLS加密
+- 源站使用HTTP
+
+### 方案3: 在前端容器配置SSL
+需要修改前端的nginx配置文件，添加SSL配置。
 
 ## 📊 监控和维护
 
@@ -110,7 +103,6 @@ docker-compose logs -f
 # 查看特定服务日志
 docker-compose logs -f backend
 docker-compose logs -f frontend
-docker-compose logs -f nginx
 ```
 
 ### 2. 数据备份
@@ -141,15 +133,15 @@ docker-compose up -d
 ### 1. 防火墙设置
 ```bash
 # Ubuntu/Debian
-sudo ufw allow 22    # SSH
-sudo ufw allow 80    # HTTP
-sudo ufw allow 443   # HTTPS
+sudo ufw allow 22     # SSH
+sudo ufw allow 80     # 前端HTTP
+sudo ufw allow 5555   # 后端API
 sudo ufw enable
 
 # CentOS/RHEL
 sudo firewall-cmd --permanent --add-service=ssh
-sudo firewall-cmd --permanent --add-service=http
-sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=5555/tcp
 sudo firewall-cmd --reload
 ```
 

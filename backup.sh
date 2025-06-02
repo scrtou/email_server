@@ -64,10 +64,12 @@ backup_configs() {
         cp "docker-compose.prod.yml" "${BACKUP_PATH}/"
     fi
     
-    # 备份Nginx配置
-    if [ -d "nginx" ]; then
-        cp -r "nginx" "${BACKUP_PATH}/"
-        log_success "Nginx配置备份完成"
+    # 备份其他配置文件
+    if [ -f "deploy.sh" ]; then
+        cp "deploy.sh" "${BACKUP_PATH}/"
+    fi
+    if [ -f "backup.sh" ]; then
+        cp "backup.sh" "${BACKUP_PATH}/"
     fi
     
     log_success "配置文件备份完成"
@@ -87,7 +89,7 @@ Email Server 备份信息
 - 数据库文件 (database.db)
 - 环境变量配置 (.env)
 - Docker配置文件
-- Nginx配置文件
+- 部署脚本
 
 恢复说明:
 1. 停止当前服务: docker-compose down
