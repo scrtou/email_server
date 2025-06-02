@@ -22,6 +22,10 @@ nano .env
 
 **必须修改的配置**:
 ```bash
+# 端口配置 (可选，使用默认值即可)
+FRONTEND_PORT=80        # 前端端口，默认80
+BACKEND_PORT=5555       # 后端端口，默认5555
+
 # 强JWT密钥 (至少32个字符)
 JWT_SECRET=your-production-super-secret-jwt-key-at-least-32-characters-long
 
@@ -29,10 +33,10 @@ JWT_SECRET=your-production-super-secret-jwt-key-at-least-32-characters-long
 LINUXDO_CLIENT_ID=your_client_id
 LINUXDO_CLIENT_SECRET=your_client_secret
 
-# 回调地址 (修改为您的域名)
+# 回调地址 (修改为您的域名，注意端口号)
 LINUXDO_REDIRECT_URI=http://yourdomain.com:5555/api/v1/auth/oauth2/linuxdo/callback
 
-# 前端API地址 (修改为您的域名)
+# 前端API地址 (修改为您的域名，注意端口号)
 VUE_APP_API_BASE_URL=http://yourdomain.com:5555/api/v1
 ```
 
@@ -57,23 +61,35 @@ chmod +x deploy.sh
 
 ## 🌐 访问地址
 
-- **前端**: `http://yourdomain.com:80` 或 `http://yourdomain.com`
-- **后端API**: `http://yourdomain.com:5555/api/v1`
+- **前端**: `http://yourdomain.com:${FRONTEND_PORT}` (默认80端口可省略)
+- **后端API**: `http://yourdomain.com:${BACKEND_PORT}/api/v1` (默认5555)
 
-## 🔧 手动部署
+## ⚙️ 端口配置
 
-### 开发环境
+您可以在 `.env` 文件中自定义端口：
+
 ```bash
-docker-compose up -d
-# 前端: http://localhost:8081
-# 后端: http://localhost:5555
+# 前端端口配置
+FRONTEND_PORT=80        # 生产环境推荐80 (HTTP标准端口)
+FRONTEND_PORT=8080      # 或者使用其他端口
+
+# 后端端口配置
+BACKEND_PORT=5555       # 默认端口
+BACKEND_PORT=3000       # 或者使用其他端口
+
+# HTTPS端口 (可选)
+FRONTEND_HTTPS_PORT=443 # HTTPS标准端口
 ```
 
-### 生产环境
+**端口选择建议**:
+- **前端**: 80 (HTTP) 或 443 (HTTPS) 用于生产环境
+- **后端**: 5555 (默认) 或其他非标准端口
+
+## 🔧 生产环境部署
+
 ```bash
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-# 前端: http://localhost:80
-# 后端: http://localhost:5555
+# 包含资源限制、日志配置等生产环境优化
 ```
 
 ## 🛡️ 防火墙配置
@@ -90,16 +106,16 @@ sudo ufw enable
 
 ```bash
 # 查看服务状态
-docker-compose ps
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
 
 # 查看日志
-docker-compose logs -f
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
 
 # 重启服务
-docker-compose restart
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml restart
 
 # 停止服务
-docker-compose down
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
 
 # 数据备份
 ./backup.sh
@@ -118,7 +134,7 @@ docker-compose down
 ### 前端无法访问后端API
 ```bash
 # 检查后端服务状态
-docker-compose logs backend
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs backend
 
 # 检查网络连通性
 curl http://localhost:5555/api/v1/health
@@ -127,12 +143,12 @@ curl http://localhost:5555/api/v1/health
 ### OAuth2登录失败
 1. 检查LinuxDo应用配置中的回调地址
 2. 确认环境变量中的CLIENT_ID和SECRET正确
-3. 检查防火墙是否阻止了5555端口
+3. 检查防火墙是否阻止了配置的端口
 
 ### 容器启动失败
 ```bash
 # 查看详细错误信息
-docker-compose logs
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs
 
 # 检查端口占用
 sudo netstat -tlnp | grep :80

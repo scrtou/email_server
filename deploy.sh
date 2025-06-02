@@ -114,8 +114,8 @@ show_deployment_info() {
     log_success "部署完成！"
     echo ""
     log_info "服务访问信息:"
-    log_info "  前端: http://localhost:8081 (开发环境) 或 http://localhost:80 (生产环境)"
-    log_info "  后端API: http://localhost:5555/api/v1"
+    log_info "  前端: http://localhost:\${FRONTEND_PORT:-80}"
+    log_info "  后端API: http://localhost:\${BACKEND_PORT:-5555}/api/v1"
     echo ""
     log_info "常用命令:"
     log_info "  查看日志: docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f"
@@ -123,11 +123,12 @@ show_deployment_info() {
     log_info "  重启服务: docker-compose -f docker-compose.yml -f docker-compose.prod.yml restart"
     echo ""
     log_warning "生产环境部署注意事项:"
-    log_warning "  1. 请配置防火墙，开放端口 80 (前端) 和 5555 (后端API)"
+    log_warning "  1. 请配置防火墙，开放配置的端口 (默认: 前端80, 后端5555)"
     log_warning "  2. 如需HTTPS，建议在前端容器或负载均衡器配置SSL"
     log_warning "  3. 定期备份数据库文件"
     log_warning "  4. 监控服务运行状态"
     log_warning "  5. 确保前端能正确访问后端API (跨域配置)"
+    log_warning "  6. 端口配置可在.env文件中修改 (FRONTEND_PORT, BACKEND_PORT)"
 }
 
 # 主函数

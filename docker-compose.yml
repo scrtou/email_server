@@ -1,7 +1,5 @@
 version: '3.8'
 
-# 生产环境 Docker Compose 配置
-# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
   # 后端服务 - 生产环境配置
@@ -19,10 +17,9 @@ services:
       LINUXDO_CLIENT_ID: "${LINUXDO_CLIENT_ID}"
       LINUXDO_CLIENT_SECRET: "${LINUXDO_CLIENT_SECRET}"
       LINUXDO_REDIRECT_URI: "${LINUXDO_REDIRECT_URI}"
-    # 生产环境端口配置 - 不直接暴露到公网
-    ports: []
-    expose:
-      - "5555"
+    # 生产环境端口配置 - 直接暴露后端端口
+    ports:
+      - "${BACKEND_PORT:-5555}:5555"  # 后端API端口 (可通过.env配置)
     # 资源限制
     deploy:
       resources:
@@ -49,8 +46,9 @@ services:
         VUE_APP_API_BASE_URL: "${VUE_APP_API_BASE_URL:-http://yourdomain.com:5555/api/v1}"
     # 生产环境端口配置 - 直接暴露前端端口
     ports:
-      - "80:80"   # HTTP端口
-      - "443:80"  # 如果需要HTTPS，可以在前端配置SSL
+      - "${FRONTEND_PORT:-80}:80"   # HTTP端口 (可通过.env配置，默认80)
+      # 如果需要HTTPS，可以添加:
+      # - "${FRONTEND_HTTPS_PORT:-443}:80"  # 将HTTPS流量转发到容器的80端口
     # 资源限制
     deploy:
       resources:
@@ -78,6 +76,4 @@ networks:
 # 生产环境数据卷
 volumes:
   backend_data:
-    driver: local
-  nginx_logs:
     driver: local
