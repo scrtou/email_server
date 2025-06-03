@@ -28,6 +28,9 @@ const MIN_LOADING_TIME = 300; // Minimum loading time in milliseconds
 const isQuerying = ref(false);
 const isResetting = ref(false);
 
+// Ref for EmailAccountForm component
+const emailAccountFormRef = ref(null);
+
 // const providerFilter = ref(emailAccountStore.filters.provider || ''); // Removed, use store directly
 
 const currentEmailAccountForDialog = ref(null); // To store the email account context for pagination
@@ -183,19 +186,24 @@ const handleEdit = (row) => {
 };
 
 const handleFormSubmit = async (payloadFromForm) => {
+  console.log('[EmailAccountListView] handleFormSubmit called with payload:', payloadFromForm);
   // payloadFromForm is the object emitted by EmailAccountForm's submit-form event
   loading.value = true; // Consider adding a loading state to the view if not already present
   let success = false;
   if (emailAccountFormDialog.isEditMode && emailAccountFormDialog.currentAccount && emailAccountFormDialog.currentAccount.id) {
+    console.log('[EmailAccountListView] Updating email account:', emailAccountFormDialog.currentAccount.id);
     success = await emailAccountStore.updateEmailAccount(emailAccountFormDialog.currentAccount.id, payloadFromForm);
   } else if (!emailAccountFormDialog.isEditMode) {
+    console.log('[EmailAccountListView] Creating new email account');
     success = await emailAccountStore.createEmailAccount(payloadFromForm);
   } else {
+    console.log('[EmailAccountListView] Invalid mode or missing ID');
     ElMessage.error('操作失败：无法确定是新增还是编辑模式，或编辑ID丢失。');
     loading.value = false;
     return;
   }
   loading.value = false;
+  console.log('[EmailAccountListView] Operation success:', success);
   if (success) {
     emailAccountFormDialog.visible = false;
     // Data is refreshed by store actions, or we can call fetch here if needed.
@@ -408,7 +416,7 @@ const handleAssociatedPageChange = (payload) => {
     <ModalDialog
       v-model:visible="emailAccountFormDialog.visible"
       :title="emailAccountFormDialog.title"
-      @confirm="() => { emailAccountFormRef?.triggerSubmit(); }"
+      @confirm="() => { console.log('[EmailAccountListView] Modal confirm clicked, calling triggerSubmit'); emailAccountFormRef?.triggerSubmit(); }"
       @cancel="handleFormCancel"
       :confirm-button-text="emailAccountFormDialog.isEditMode ? '保存更新' : '立即创建'"
     >

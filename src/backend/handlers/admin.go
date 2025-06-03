@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"strconv"
-	// "database/sql" // GORM handles this
-	"gorm.io/gorm"
+
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
 	"email_server/database"
 	"email_server/models"
 	"email_server/utils"
@@ -14,7 +15,8 @@ import (
 func GetAllUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	// status := c.Query("status") // Status field removed from User model
+	status := c.Query("status")
+	role := c.Query("role")
 	keyword := c.Query("keyword")
 
 	offset := (page - 1) * pageSize
@@ -22,9 +24,15 @@ func GetAllUsers(c *gin.Context) {
 	dbQuery := database.DB.Model(&models.User{})
 
 	// Build base query for filtering
-	// if status != "" { // Status field removed from User model
-	// 	dbQuery = dbQuery.Where("status = ?", status)
-	// }
+	if status != "" {
+		if statusInt, err := strconv.Atoi(status); err == nil {
+			dbQuery = dbQuery.Where("status = ?", statusInt)
+		}
+	}
+
+	if role != "" {
+		dbQuery = dbQuery.Where("role = ?", role)
+	}
 
 	if keyword != "" {
 		likeKeyword := "%" + keyword + "%"
@@ -65,42 +73,115 @@ func GetAllUsers(c *gin.Context) {
 }
 
 // UpdateUserStatus 更新用户状态（管理员功能）
-// Note: This function is commented out because the 'Status' field has been removed from the 'User' model.
-// If user status management is required, the 'User' model and this function will need to be updated accordingly.
-/*
 func UpdateUserStatus(c *gin.Context) {
-	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	userIDStr := c.Param("id")
+	userID, err := strconv.ParseUint(userIDStr, 10, 32)
 	if err != nil {
-		utils.SendErrorResponse(c, 400, "用户ID错误")
+		utils.SendErrorResponse(c, 400, "无效的用户ID")
 		return
 	}
 
 	var req struct {
-		Status int `json:"status" binding:"required,oneof=0 1"` // This Status field no longer exists in models.User
+		Status int `json:"status" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.SendErrorResponse(c, 400, "参数错误: "+err.Error())
+		utils.SendErrorResponse(c, 400, "参数错误")
 		return
 	}
 
-	// The 'status' column does not exist in the 'users' table anymore.
-	// result := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("status", req.Status)
-	// if result.Error != nil {
-	// 	utils.SendError(c, 500, "更新用户状态失败: "+result.Error.Error())
-	// 	return
-	// }
-	// if result.RowsAffected == 0 {
-	// 	utils.SendError(c, 404, "未找到用户或状态未改变")
-	// 	return
-	// }
-
-
-	statusText := "启用" // This logic is now obsolete
-	if req.Status == 0 {
-		statusText = "禁用"
+	// 验证状态值
+	if req.Status != models.StatusActive && req.Status != models.StatusBanned {
+		utils.SendErrorResponse(c, 400, "无效的状态值")
+		return
 	}
 
-	utils.SendSuccessResponse(c, "用户状态更新操作已停用 (用户模型已简化)") // Placeholder message
+	// 检查用户是否存在
+	var user models.User
+	if err := database.DB.First(&user, uint(userID)).Error; err != nil {
+		if err.Error() == "record not found" {
+			utils.SendErrorResponse(c, 404, "用户不存在")
+		} else {
+			utils.SendErrorResponse(c, 500, "系统错误")
+		}
+		return
+	}
+
+	// 不能修改自己的状态
+	currentUserID, _ := c.Get("user_id")
+	if currentUserID.(int64) == int64(userID) {
+		utils.SendErrorResponse(c, 400, "不能修改自己的状态")
+		return
+	}
+
+	// 更新用户状态
+	if err := database.DB.Model(&user).Update("status", req.Status).Error; err != nil {
+		utils.SendErrorResponse(c, 500, "更新失败")
+		return
+	}
+
+	statusText := "激活"
+	if req.Status == models.StatusBanned {
+		statusText = "封禁"
+	}
+
+	utils.SendSuccessResponse(c, gin.H{
+		"message":     "用户状态更新成功",
+		"status":      req.Status,
+		"status_text": statusText,
+	})
 }
-*/
+
+// UpdateUserRole 更新用户角色（管理员功能）
+func UpdateUserRole(c *gin.Context) {
+	userIDStr := c.Param("id")
+	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, 400, "无效的用户ID")
+		return
+	}
+
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendErrorResponse(c, 400, "参数错误")
+		return
+	}
+
+	// 验证角色值
+	if req.Role != models.RoleAdmin && req.Role != models.RoleUser {
+		utils.SendErrorResponse(c, 400, "无效的角色值")
+		return
+	}
+
+	// 检查用户是否存在
+	var user models.User
+	if err := database.DB.First(&user, uint(userID)).Error; err != nil {
+		if err.Error() == "record not found" {
+			utils.SendErrorResponse(c, 404, "用户不存在")
+		} else {
+			utils.SendErrorResponse(c, 500, "系统错误")
+		}
+		return
+	}
+
+	// 不能修改自己的角色
+	currentUserID, _ := c.Get("user_id")
+	if currentUserID.(int64) == int64(userID) {
+		utils.SendErrorResponse(c, 400, "不能修改自己的角色")
+		return
+	}
+
+	// 更新用户角色
+	if err := database.DB.Model(&user).Update("role", req.Role).Error; err != nil {
+		utils.SendErrorResponse(c, 500, "更新失败")
+		return
+	}
+
+	utils.SendSuccessResponse(c, gin.H{
+		"message": "用户角色更新成功",
+		"role":    req.Role,
+	})
+}

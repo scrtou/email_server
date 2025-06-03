@@ -63,11 +63,13 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 创建用户 (Using GORM, only core fields)
+	// 创建用户 (Using GORM, including new fields)
 	newUser := models.User{
 		Username: req.Username,
 		Email:    req.Email,
 		Password: hashedPassword,
+		Role:     models.RoleUser,     // 默认为普通用户
+		Status:   models.StatusActive, // 默认为激活状态
 	}
 
 	// Use a new variable for GORM operation result
@@ -80,20 +82,23 @@ func Register(c *gin.Context) {
 
 	// 生成token
 	// newUser.ID is uint, GenerateToken might expect int64.
-	token, err := utils.GenerateToken(int64(newUser.ID), newUser.Username, "user") // Assuming default role "user"
+	token, err := utils.GenerateToken(int64(newUser.ID), newUser.Username, newUser.Role) // 使用用户的实际角色
 	if err != nil {
 		log.Printf("生成token失败: %v", err)
 		utils.SendErrorResponse(c, 500, "系统错误")
 		return
 	}
-	
+
 	// Construct user for response, ensuring it matches the LoginResponse.User type and omits sensitive data.
 	// The User model itself has json:"-" for Password.
 	// newUser already contains GORM-populated ID, CreatedAt, UpdatedAt.
 	responseUser := &models.User{
-		Model:    newUser.Model, // This includes ID, CreatedAt, UpdatedAt, DeletedAt
-		Username: newUser.Username,
-		Email:    newUser.Email,
+		Model:     newUser.Model, // This includes ID, CreatedAt, UpdatedAt, DeletedAt
+		Username:  newUser.Username,
+		Email:     newUser.Email,
+		Role:      newUser.Role,
+		Status:    newUser.Status,
+		LastLogin: newUser.LastLogin,
 		// Password is not included due to json:"-" in the model or by not explicitly setting it here.
 	}
 
@@ -116,9 +121,6 @@ func Login(c *gin.Context) {
 
 	var user models.User
 	// 查询用户 (Using GORM)
-	// Assuming 'status = 1' means active user. If User model has no Status field, this condition might change or be removed.
-	// For now, sticking to core User model which doesn't have Status. If status is a business rule, it should be handled.
-	// Let's assume for login, we only check username. Active status check can be added if User model supports it.
 	dbErr := database.DB.Where("username = ?", req.Username).First(&user).Error
 
 	if dbErr != nil {
@@ -131,6 +133,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 检查用户状态
+	if !user.IsActive() {
+		utils.SendErrorResponse(c, 401, "账户已被封禁")
+		return
+	}
+
 	// 验证密码
 	// user.Password from DB is the hashed password
 	if !utils.CheckPassword(req.Password, user.Password) {
@@ -138,22 +146,18 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 更新最后登录时间 - This was part of the original logic.
-	// The core User model from optimization_proposal.md does not have LastLogin.
-	// If this is required, the User model needs to be extended, or this logic removed/rethought.
-	// For now, I will comment it out to align with the strict core User model.
-	/*
+	// 更新最后登录时间
 	now := time.Now()
-	// GORM update: database.DB.Model(&user).Update("last_login", now)
-	// However, last_login is not in the core User model.
-	// If we were to update it, it would be:
-	// database.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("last_login", now)
-	// user.LastLogin = &now // This would also require LastLogin field in models.User
-	*/
+	updateResult := database.DB.Model(&user).Update("last_login", now)
+	if updateResult.Error != nil {
+		log.Printf("更新最后登录时间失败: %v", updateResult.Error)
+		// 不阻断登录流程，只记录错误
+	} else {
+		user.LastLogin = &now // 更新本地变量以便响应中包含最新时间
+	}
 
 	// 生成token
-	// user.Role is not in the core User model. Assuming "user" role for token generation.
-	token, err := utils.GenerateToken(int64(user.ID), user.Username, "user") // Use user.ID from GORM
+	token, err := utils.GenerateToken(int64(user.ID), user.Username, user.Role) // 使用用户的实际角色
 	if err != nil {
 		log.Printf("生成token失败: %v", err)
 		utils.SendErrorResponse(c, 500, "系统错误")
@@ -162,9 +166,12 @@ func Login(c *gin.Context) {
 
 	// Prepare user data for response, adhering to the core User model.
 	responseUser := &models.User{
-		Model:    user.Model, // Includes ID, CreatedAt, UpdatedAt
-		Username: user.Username,
-		Email:    user.Email,
+		Model:     user.Model, // Includes ID, CreatedAt, UpdatedAt
+		Username:  user.Username,
+		Email:     user.Email,
+		Role:      user.Role,
+		Status:    user.Status,
+		LastLogin: user.LastLogin,
 		// Password is not included (json:"-")
 	}
 
@@ -212,16 +219,19 @@ func GetProfile(c *gin.Context) {
 	// Prepare user data for response, adhering to the core User model.
 	// The User model itself has json:"-" for Password.
 	// user variable already contains GORM-populated ID, CreatedAt, UpdatedAt, Username, Email.
-	
+
 	// If UserResponse struct is preferred and aligned with core model:
 	// utils.Success(c, user.ToResponse())
 	// For now, directly returning the core user model fields (GORM model + Username, Email)
 	// The User struct itself will be marshalled to JSON, respecting `json:"-"` for Password.
-	
+
 	responseUser := models.UserResponse{
 		ID:        user.ID, // user.ID is uint, UserResponse.ID is uint
 		Username:  user.Username,
 		Email:     user.Email,
+		Role:      user.Role,
+		Status:    user.Status,
+		LastLogin: user.LastLogin,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}
@@ -233,8 +243,7 @@ func UpdateProfile(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
 	var req struct {
-		
-		Email    string `json:"email" binding:"required,email"`
+		Email string `json:"email" binding:"required,email"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -262,7 +271,6 @@ func UpdateProfile(c *gin.Context) {
 		}
 		userIDUint = uint(idFromContext)
 	}
-
 
 	err := database.DB.Model(&models.User{}).Where("email = ? AND id != ?", req.Email, userIDUint).Count(&count).Error
 	if err != nil {
