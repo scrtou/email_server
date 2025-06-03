@@ -30,8 +30,8 @@ type OAuth2State struct {
 
 // 内存中存储state，用于验证OAuth2回调
 var (
-	stateStore = make(map[string]*OAuth2State)
-	stateMutex = sync.RWMutex{}
+	stateStore    = make(map[string]*OAuth2State)
+	stateMutex    = sync.RWMutex{}
 	cleanupTicker *time.Ticker
 )
 
@@ -162,8 +162,25 @@ func LinuxDoOAuth2Callback(c *gin.Context) {
 		return
 	}
 
+	// 检查用户状态
+	if !user.IsActive() {
+		log.Printf("用户账户已被封禁: user_id=%d, username=%s", user.ID, user.Username)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=account_banned")
+		return
+	}
+
+	// 更新最后登录时间
+	now := time.Now()
+	updateResult := database.DB.Model(user).Update("last_login", now)
+	if updateResult.Error != nil {
+		log.Printf("更新最后登录时间失败: %v", updateResult.Error)
+		// 不阻断登录流程，只记录错误
+	} else {
+		user.LastLogin = &now
+	}
+
 	// 生成JWT token
-	token, err := utils.GenerateToken(int64(user.ID), user.Username, "user")
+	token, err := utils.GenerateToken(int64(user.ID), user.Username, user.Role)
 	if err != nil {
 		log.Printf("生成token失败: %v", err)
 		// 重定向到前端错误页面
@@ -311,6 +328,8 @@ func findOrCreateLinuxDoUser(userInfo *models.LinuxDoUserInfo) (*models.User, er
 		Email:     userInfo.Email,
 		LinuxDoID: &userInfo.ID,
 		Provider:  &provider,
+		Role:      models.RoleUser,     // 默认为普通用户
+		Status:    models.StatusActive, // 默认为激活状态
 		// Password留空，因为是OAuth用户
 	}
 
@@ -337,10 +356,10 @@ func GetOAuth2StateStats(c *gin.Context) {
 	}
 
 	stats := gin.H{
-		"total_states": total,
-		"expired_states": expired,
-		"active_states": total - expired,
-		"memory_usage_estimate": fmt.Sprintf("~%d KB", total * 100 / 1024), // 粗略估算
+		"total_states":          total,
+		"expired_states":        expired,
+		"active_states":         total - expired,
+		"memory_usage_estimate": fmt.Sprintf("~%d KB", total*100/1024), // 粗略估算
 	}
 
 	utils.SendSuccessResponse(c, stats)

@@ -54,17 +54,16 @@ func CreateServiceSubscription(c *gin.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
-			panic(r) 
+			panic(r)
 		} else if tx.Error != nil {
 			// tx.Rollback() // 已经被 tx.Commit() 尝试处理或已回滚
 		}
 	}()
 
 	var platform models.Platform
-	var platformReg models.PlatformRegistration 
-	var emailAccount models.EmailAccount 
-	var emailAccountIDToUse uint        
-
+	var platformReg models.PlatformRegistration
+	var emailAccount models.EmailAccount
+	var emailAccountIDToUse uint
 
 	// 1. 尝试通过 ID 加载 PlatformRegistration
 	if input.PlatformRegistrationID != nil && *input.PlatformRegistrationID != 0 {
@@ -113,14 +112,14 @@ func CreateServiceSubscription(c *gin.Context) {
 		emailInfoProvided := input.EmailAccountID != 0 || input.EmailAddress != ""
 		loginUsernameStringProvided := input.LoginUsername != ""
 		if !emailInfoProvided && !loginUsernameStringProvided {
-			tx.Rollback() 
+			tx.Rollback()
 			utils.SendErrorResponse(c, http.StatusBadRequest, "当未通过ID指定平台注册时，必须提供邮箱信息(ID或地址)或登录用户名字符串中的至少一个")
 			return
 		}
 	}
-	
+
 	// 3. 确定 emailAccountIDToUse (如果尚未通过已加载的 platformReg 确定)
-	if platformReg.ID == 0 && emailAccountIDToUse == 0 { 
+	if emailAccountIDToUse == 0 {
 		if input.EmailAccountID != 0 {
 			if err := tx.Where("id = ? AND user_id = ?", input.EmailAccountID, currentUserID).First(&emailAccount).Error; err != nil {
 				if err == gorm.ErrRecordNotFound {
@@ -134,21 +133,46 @@ func CreateServiceSubscription(c *gin.Context) {
 			}
 			emailAccountIDToUse = emailAccount.ID
 		} else if input.EmailAddress != "" {
-			if err := tx.Where("email_address = ? AND user_id = ?", input.EmailAddress, currentUserID).First(&emailAccount).Error; err != nil {
-				if err != gorm.ErrRecordNotFound { 
+			// 首先检查是否存在同邮箱地址的软删除记录
+			err := tx.Unscoped().Where("email_address = ? AND user_id = ?", input.EmailAddress, currentUserID).First(&emailAccount).Error
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					// 邮箱账户不存在，创建新的
+					emailAccount = models.EmailAccount{
+						UserID:       currentUserID,
+						EmailAddress: input.EmailAddress,
+						Provider:     utils.ExtractProviderFromEmail(input.EmailAddress),
+					}
+					if createErr := tx.Create(&emailAccount).Error; createErr != nil {
+						tx.Rollback()
+						utils.SendErrorResponse(c, http.StatusInternalServerError, "创建邮箱账户失败: "+createErr.Error())
+						return
+					}
+					emailAccountIDToUse = emailAccount.ID
+				} else {
 					tx.Rollback()
 					utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败 (by Address): "+err.Error())
 					return
 				}
 			} else {
+				// 找到了邮箱账户记录
+				if emailAccount.DeletedAt.Valid {
+					// 记录被软删除，恢复它
+					emailAccount.DeletedAt = gorm.DeletedAt{}
+					if updateErr := tx.Unscoped().Save(&emailAccount).Error; updateErr != nil {
+						tx.Rollback()
+						utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复邮箱账户失败: "+updateErr.Error())
+						return
+					}
+				}
 				emailAccountIDToUse = emailAccount.ID
 			}
 		}
 	}
 
 	// 4. 平台处理 (如果尚未通过已加载的 platformReg 确定 platform)
-	if platformReg.ID == 0 || platform.ID == 0 { 
-		if input.PlatformID != nil && *input.PlatformID > 0 { 
+	if platformReg.ID == 0 || platform.ID == 0 {
+		if input.PlatformID != nil && *input.PlatformID > 0 {
 			if err := tx.Where("id = ? AND user_id = ?", *input.PlatformID, currentUserID).First(&platform).Error; err != nil {
 				if err == gorm.ErrRecordNotFound {
 					tx.Rollback()
@@ -159,10 +183,10 @@ func CreateServiceSubscription(c *gin.Context) {
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
 				return
 			}
-		} else if input.PlatformName != "" { 
+		} else if input.PlatformName != "" {
 			err := tx.Where("name = ? AND user_id = ?", input.PlatformName, currentUserID).First(&platform).Error
 			if err != nil {
-				if err == gorm.ErrRecordNotFound { 
+				if err == gorm.ErrRecordNotFound {
 					platform = models.Platform{
 						Name:   input.PlatformName,
 						UserID: currentUserID,
@@ -172,14 +196,14 @@ func CreateServiceSubscription(c *gin.Context) {
 						utils.SendErrorResponse(c, http.StatusInternalServerError, "创建新平台失败: "+createErr.Error())
 						return
 					}
-				} else { 
+				} else {
 					tx.Rollback()
 					utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
 					return
 				}
 			}
 		} else {
-			if platformReg.ID == 0 { 
+			if platformReg.ID == 0 {
 				tx.Rollback()
 				utils.SendErrorResponse(c, http.StatusBadRequest, "必须提供平台ID或平台名称")
 				return
@@ -189,7 +213,7 @@ func CreateServiceSubscription(c *gin.Context) {
 
 	// 5. 通过组件查找/创建 PlatformRegistration (如果 platformReg.ID == 0 且上述校验通过后执行)
 	if platformReg.ID == 0 {
-		if platform.ID == 0 { 
+		if platform.ID == 0 {
 			tx.Rollback()
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "未能确定或创建平台信息")
 			return
@@ -199,17 +223,17 @@ func CreateServiceSubscription(c *gin.Context) {
 		if input.LoginUsername != "" {
 			query = query.Where("login_username = ?", input.LoginUsername)
 		}
-		
+
 		if emailAccountIDToUse != 0 {
 			query = query.Where("email_account_id = ?", emailAccountIDToUse)
 		} else {
 			query = query.Where("email_account_id IS NULL")
 		}
-		
+
 		err := query.Preload("Platform").Preload("EmailAccount").First(&platformReg).Error
 
 		if err != nil {
-			if err == gorm.ErrRecordNotFound { 
+			if err == gorm.ErrRecordNotFound {
 				var eaIDForNewReg *uint
 				if emailAccountIDToUse != 0 {
 					eaIDForNewReg = &emailAccountIDToUse
@@ -219,7 +243,7 @@ func CreateServiceSubscription(c *gin.Context) {
 					UserID:         currentUserID,
 					EmailAccountID: eaIDForNewReg,
 					PlatformID:     platform.ID,
-					LoginUsername:  input.LoginUsername, 
+					LoginUsername:  input.LoginUsername,
 				}
 				if createErr := tx.Create(&platformReg).Error; createErr != nil {
 					tx.Rollback()
@@ -243,13 +267,13 @@ func CreateServiceSubscription(c *gin.Context) {
 					return
 				}
 				platformReg.Platform = platform
-				if emailAccountIDToUse != 0 && emailAccount.ID != 0 { 
+				if emailAccountIDToUse != 0 && emailAccount.ID != 0 {
 					platformReg.EmailAccount = &emailAccount
 				} else {
-					platformReg.EmailAccount = nil 
+					platformReg.EmailAccount = nil
 				}
 
-			} else { 
+			} else {
 				tx.Rollback()
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "查询或创建平台注册信息失败: "+err.Error())
 				return
@@ -263,14 +287,13 @@ func CreateServiceSubscription(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "未能确定或创建平台注册信息")
 		return
 	}
-	
+
 	if platformReg.Platform.ID == 0 && platform.ID != 0 {
 		platformReg.Platform = platform
 	}
 	if platformReg.EmailAccount == nil && emailAccountIDToUse != 0 && emailAccount.ID != 0 {
 		platformReg.EmailAccount = &emailAccount
 	}
-
 
 	// 7. 处理下次续费日期
 	var nextRenewalDate *time.Time
@@ -288,15 +311,15 @@ func CreateServiceSubscription(c *gin.Context) {
 	var subscription models.ServiceSubscription
 	err := tx.Unscoped().Where(models.ServiceSubscription{
 		UserID:                 currentUserID,
-		PlatformRegistrationID: platformReg.ID, 
+		PlatformRegistrationID: platformReg.ID,
 		ServiceName:            input.ServiceName,
 	}).First(&subscription).Error
 
 	if err != nil {
-		if err == gorm.ErrRecordNotFound { 
+		if err == gorm.ErrRecordNotFound {
 			subscription = models.ServiceSubscription{
 				UserID:                 currentUserID,
-				PlatformRegistrationID: platformReg.ID, 
+				PlatformRegistrationID: platformReg.ID,
 				ServiceName:            input.ServiceName,
 				Description:            input.Description,
 				Status:                 input.Status,
@@ -310,26 +333,26 @@ func CreateServiceSubscription(c *gin.Context) {
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建服务订阅失败: "+createErr.Error())
 				return
 			}
-		} else { 
+		} else {
 			tx.Rollback()
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询服务订阅失败: "+err.Error())
 			return
 		}
-	} else { 
-		if subscription.DeletedAt.Valid { 
+	} else {
+		if subscription.DeletedAt.Valid {
 			subscription.Description = input.Description
 			subscription.Status = input.Status
 			subscription.Cost = input.Cost
 			subscription.BillingCycle = input.BillingCycle
 			subscription.NextRenewalDate = nextRenewalDate
 			subscription.PaymentMethodNotes = input.PaymentMethodNotes
-			subscription.DeletedAt = gorm.DeletedAt{} 
+			subscription.DeletedAt = gorm.DeletedAt{}
 			if updateErr := tx.Unscoped().Save(&subscription).Error; updateErr != nil {
 				tx.Rollback()
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新服务订阅失败: "+updateErr.Error())
 				return
 			}
-		} else { 
+		} else {
 			tx.Rollback()
 			utils.SendErrorResponse(c, http.StatusConflict, "该服务订阅已存在。")
 			return
@@ -341,23 +364,21 @@ func CreateServiceSubscription(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "提交事务失败: "+err.Error())
 		return
 	}
-	
+
 	// 准备响应数据
 	finalPlatformForResp := models.Platform{}
-	if platformReg.Platform.ID != 0 { 
+	if platformReg.Platform.ID != 0 {
 		finalPlatformForResp = platformReg.Platform
-	} else if platform.ID != 0 { 
+	} else if platform.ID != 0 {
 		finalPlatformForResp = platform
 	}
 
-
 	finalEmailAccountForResp := models.EmailAccount{}
-	if platformReg.EmailAccount != nil && platformReg.EmailAccount.ID != 0 { 
+	if platformReg.EmailAccount != nil && platformReg.EmailAccount.ID != 0 {
 		finalEmailAccountForResp = *platformReg.EmailAccount
-	} else if emailAccount.ID != 0 { 
+	} else if emailAccount.ID != 0 {
 		finalEmailAccountForResp = emailAccount
 	}
-	
 
 	response := subscription.ToServiceSubscriptionResponse(platformReg, finalPlatformForResp, finalEmailAccountForResp)
 	c.JSON(http.StatusCreated, gin.H{"status": "success", "data": response})
@@ -452,7 +473,9 @@ func GetServiceSubscriptions(c *gin.Context) {
 	}
 	orderClause := dbOrderByField + " " + sortDirection
 
-	if page <= 0 { page = 1 }
+	if page <= 0 {
+		page = 1
+	}
 	// 移除旧的 pageSize <= 0 和 > 100 的限制
 	// if pageSize <= 0 { pageSize = 10 } // 由上面的新逻辑处理
 	// if pageSize > 100 { pageSize = 100 } // 移除上限
@@ -543,7 +566,7 @@ func GetServiceSubscriptions(c *gin.Context) {
 		if ss.PlatformRegistration.EmailAccount != nil {
 			emailAccountForResp = *ss.PlatformRegistration.EmailAccount
 		}
-		platformForResp := models.Platform{} // Assuming Platform is models.Platform in PlatformRegistration
+		platformForResp := models.Platform{}          // Assuming Platform is models.Platform in PlatformRegistration
 		if ss.PlatformRegistration.Platform.ID != 0 { // Corrected: Check ID for value type
 			platformForResp = ss.PlatformRegistration.Platform // Corrected: No indirection for value type
 		} else {
@@ -553,7 +576,7 @@ func GetServiceSubscriptions(c *gin.Context) {
 		}
 		responses = append(responses, ss.ToServiceSubscriptionResponse(ss.PlatformRegistration, platformForResp, emailAccountForResp))
 	}
-	
+
 	metaPageSize := pageSize
 	if fetchAll {
 		metaPageSize = int(totalRecords) // 如果获取所有，meta 中的 pageSize 为总数
@@ -608,7 +631,7 @@ func GetServiceSubscriptionByID(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取服务订阅详情失败: "+err.Error())
 		return
 	}
-	
+
 	emailAccountForRespGetByID := models.EmailAccount{}
 	if ss.PlatformRegistration.EmailAccount != nil {
 		emailAccountForRespGetByID = *ss.PlatformRegistration.EmailAccount
@@ -789,8 +812,8 @@ func UpdateServiceSubscription(c *gin.Context) {
 					newDate = &parsedDate
 					changed = true
 				} else if ss.NextRenewalDate != nil && ss.NextRenewalDate.Equal(parsedDate) {
-                    // No change if dates are the same
-                }
+					// No change if dates are the same
+				}
 			}
 		} else {
 			// utils.SendErrorResponse(c, http.StatusBadRequest, "next_renewal_date 格式错误")
@@ -801,14 +824,14 @@ func UpdateServiceSubscription(c *gin.Context) {
 			updated = true
 		}
 	}
-	
+
 	if updated { // Only save if there were actual changes to prevent unnecessary DB write and updated_at bump
 		if err := database.DB.Save(&ss).Error; err != nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "更新服务订阅失败: "+err.Error())
 			return
 		}
 	}
-	
+
 	emailAccountForRespUpdate := models.EmailAccount{}
 	if ss.PlatformRegistration.EmailAccount != nil {
 		emailAccountForRespUpdate = *ss.PlatformRegistration.EmailAccount
@@ -863,7 +886,7 @@ func DeleteServiceSubscription(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待删除服务订阅失败: "+err.Error())
 		return
 	}
-	
+
 	if err := database.DB.Delete(&ss).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "删除服务订阅失败: "+err.Error())
 		return
@@ -1012,7 +1035,7 @@ func GetServiceSubscriptionsByPlatformRegistrationID(c *gin.Context) {
 		// pr.EmailAccount is *models.EmailAccount
 		// pr.Platform is *models.Platform (based on Preload("Platform") behavior with GORM, it usually preloads into a pointer field if the field is a pointer, or directly if not)
 		// Let's assume pr.Platform is *models.Platform for consistency with other fixes.
-		
+
 		emailAccountForRespLoop := models.EmailAccount{}
 		if pr.EmailAccount != nil {
 			emailAccountForRespLoop = *pr.EmailAccount

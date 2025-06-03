@@ -21,16 +21,20 @@ ENV VUE_APP_API_BASE_URL=${VUE_APP_API_BASE_URL}
 
 RUN npm run build
 
-# Stage 2: Serve the application with Nginx
-FROM nginx:alpine
+# Stage 2: Serve the application with a simple static server
+FROM node:20-alpine
 
-# Copy the build output from the builder stage to Nginx's web root
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Install serve globally for serving static files
+RUN npm install -g serve
 
-# (Optional) Copy a custom Nginx configuration file
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Set the working directory
+WORKDIR /app
+
+# Copy the build output from the builder stage
+COPY --from=builder /app/dist ./dist
 
 # Expose port 80
 EXPOSE 80
 
-# Nginx will start automatically when the container launches
+# Start the static server
+CMD ["serve", "-s", "dist", "-l", "80"]

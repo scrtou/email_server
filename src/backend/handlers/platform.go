@@ -50,6 +50,37 @@ func CreatePlatform(c *gin.Context) {
 		return
 	}
 
+	// 首先检查是否存在同名的软删除记录
+	var existingPlatform models.Platform
+	err := database.DB.Unscoped().Where("user_id = ? AND name = ?", currentUserID, input.Name).First(&existingPlatform).Error
+
+	if err == nil {
+		// 找到了同名记录
+		if existingPlatform.DeletedAt.Valid {
+			// 记录被软删除，恢复它并更新信息
+			existingPlatform.DeletedAt = gorm.DeletedAt{}
+			existingPlatform.WebsiteURL = input.WebsiteURL
+			existingPlatform.Notes = input.Notes
+
+			if err := database.DB.Unscoped().Save(&existingPlatform).Error; err != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复平台失败: "+err.Error())
+				return
+			}
+
+			utils.SendSuccessResponse(c, existingPlatform.ToPlatformResponse())
+			return
+		} else {
+			// 记录存在且未被删除
+			utils.SendErrorResponse(c, http.StatusConflict, "您已创建过同名平台")
+			return
+		}
+	} else if err != gorm.ErrRecordNotFound {
+		// 查询出错
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "检查平台是否存在失败: "+err.Error())
+		return
+	}
+
+	// 没有找到同名记录，创建新平台
 	platform := models.Platform{
 		UserID:     currentUserID,
 		Name:       input.Name,
@@ -270,18 +301,18 @@ func GetPlatformByID(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取平台详情失败: "+err.Error())
 		return
 	}
-   // 计算当前用户在此平台上的注册数量
-   var emailAccountCount int64
-   // 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
-   if errDb := database.DB.Model(&models.PlatformRegistration{}).
-  Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
-  Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
-  Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
-  Count(&emailAccountCount).Error; errDb != nil {
-       emailAccountCount = 0 // Keep count as 0 on error
-   }
-   response := platform.ToPlatformResponse()
-   response.EmailAccountCount = emailAccountCount
+	// 计算当前用户在此平台上的注册数量
+	var emailAccountCount int64
+	// 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
+	if errDb := database.DB.Model(&models.PlatformRegistration{}).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
+		Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
+		Count(&emailAccountCount).Error; errDb != nil {
+		emailAccountCount = 0 // Keep count as 0 on error
+	}
+	response := platform.ToPlatformResponse()
+	response.EmailAccountCount = emailAccountCount
 	utils.SendSuccessResponse(c, response)
 }
 
@@ -347,46 +378,46 @@ func UpdatePlatform(c *gin.Context) {
 	// Allow clearing WebsiteURL and Notes by providing them, even if empty
 	if c.GetHeader("Content-Type") == "application/json" { // Check if fields were actually sent
 		if _, ok := c.GetPostForm("website_url"); ok || input.WebsiteURL != "" || platform.WebsiteURL != "" && input.WebsiteURL == "" && c.Request.ContentLength > 0 { // More robust check needed
-             // A bit complex to detect if a field was explicitly sent as empty string vs not sent.
-             // For simplicity, if omitempty is not used, it means we always update.
-             // If omitempty is used, empty means "don't update".
-             // Here, we assume if name is sent, other fields are also intended for update.
-        }
+			// A bit complex to detect if a field was explicitly sent as empty string vs not sent.
+			// For simplicity, if omitempty is not used, it means we always update.
+			// If omitempty is used, empty means "don't update".
+			// Here, we assume if name is sent, other fields are also intended for update.
+		}
 	}
-    // Simpler: always update if field is in input struct, even if empty string (allows clearing)
-    // For omitempty fields, they won't be in 'input' if not sent or empty.
-    // Let's adjust binding and logic for clarity.
+	// Simpler: always update if field is in input struct, even if empty string (allows clearing)
+	// For omitempty fields, they won't be in 'input' if not sent or empty.
+	// Let's adjust binding and logic for clarity.
 
-    updateData := make(map[string]interface{})
-    if input.Name != "" {
-        updateData["name"] = input.Name
-    }
-    if input.WebsiteURL != "" || (input.WebsiteURL == "" && platform.WebsiteURL != "") { // Allow clearing
-         updateData["website_url"] = input.WebsiteURL
-    }
-    // For notes, always update from input if provided
-    // This logic for partial updates can be tricky. GORM's Update vs Updates.
-    // Using struct for updates:
-    updates := models.Platform{Notes: input.Notes} // Default to updating notes
-    if input.Name != "" {
-        updates.Name = input.Name
-    }
-    if input.WebsiteURL != "" || (input.WebsiteURL == "" && platform.WebsiteURL != "") { // If input URL is empty and existing is not, it's an attempt to clear
-         updates.WebsiteURL = input.WebsiteURL
-    } else if input.WebsiteURL == "" && platform.WebsiteURL == "" {
-        // If both are empty, do nothing for URL to avoid GORM trying to set it to empty again if not in struct
-    } else if input.WebsiteURL != "" { // If input URL is not empty, update
-        updates.WebsiteURL = input.WebsiteURL
-    }
-    // A cleaner way for partial updates with GORM is to use a map[string]interface{}
-    // or to fetch the record, modify fields, and then Save().
+	updateData := make(map[string]interface{})
+	if input.Name != "" {
+		updateData["name"] = input.Name
+	}
+	if input.WebsiteURL != "" || (input.WebsiteURL == "" && platform.WebsiteURL != "") { // Allow clearing
+		updateData["website_url"] = input.WebsiteURL
+	}
+	// For notes, always update from input if provided
+	// This logic for partial updates can be tricky. GORM's Update vs Updates.
+	// Using struct for updates:
+	updates := models.Platform{Notes: input.Notes} // Default to updating notes
+	if input.Name != "" {
+		updates.Name = input.Name
+	}
+	if input.WebsiteURL != "" || (input.WebsiteURL == "" && platform.WebsiteURL != "") { // If input URL is empty and existing is not, it's an attempt to clear
+		updates.WebsiteURL = input.WebsiteURL
+	} else if input.WebsiteURL == "" && platform.WebsiteURL == "" {
+		// If both are empty, do nothing for URL to avoid GORM trying to set it to empty again if not in struct
+	} else if input.WebsiteURL != "" { // If input URL is not empty, update
+		updates.WebsiteURL = input.WebsiteURL
+	}
+	// A cleaner way for partial updates with GORM is to use a map[string]interface{}
+	// or to fetch the record, modify fields, and then Save().
 
-    // Let's use the fetch, modify, save pattern for clarity
-    if input.Name != "" {
-        platform.Name = input.Name
-    }
-    platform.WebsiteURL = input.WebsiteURL // Allow clearing
-    platform.Notes = input.Notes           // Allow clearing
+	// Let's use the fetch, modify, save pattern for clarity
+	if input.Name != "" {
+		platform.Name = input.Name
+	}
+	platform.WebsiteURL = input.WebsiteURL // Allow clearing
+	platform.Notes = input.Notes           // Allow clearing
 
 	if err := database.DB.Save(&platform).Error; err != nil {
 		if utils.IsUniqueConstraintError(err) {
@@ -396,18 +427,18 @@ func UpdatePlatform(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "更新平台失败: "+err.Error())
 		return
 	}
-	   // 计算当前用户在此平台上的注册数量
-	   var emailAccountCount int64
-	   // 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
-	   if errDb := database.DB.Model(&models.PlatformRegistration{}).
-	  Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
-	  Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
-	  Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
-	  Count(&emailAccountCount).Error; errDb != nil {
-	       emailAccountCount = 0 // Keep count as 0 on error
-	   }
-	   response := platform.ToPlatformResponse()
-	   response.EmailAccountCount = emailAccountCount
+	// 计算当前用户在此平台上的注册数量
+	var emailAccountCount int64
+	// 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
+	if errDb := database.DB.Model(&models.PlatformRegistration{}).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
+		Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
+		Count(&emailAccountCount).Error; errDb != nil {
+		emailAccountCount = 0 // Keep count as 0 on error
+	}
+	response := platform.ToPlatformResponse()
+	response.EmailAccountCount = emailAccountCount
 	utils.SendSuccessResponse(c, response)
 }
 
@@ -451,8 +482,8 @@ func DeletePlatform(c *gin.Context) {
 			return
 		}
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询待删除平台失败: "+err.Error())
-			return
-		}
+		return
+	}
 
 	// 使用事务确保操作的原子性
 	tx := database.DB.Begin()

@@ -167,9 +167,10 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 	admin.Use(middleware.AuthRequired())
 	admin.Use(middleware.AdminRequired())
 	{
-		// 管理员可以查看所有用户的数据
+		// 用户管理
 		admin.GET("/users", handlers.GetAllUsers)
-		// admin.PUT("/users/:id/status", handlers.UpdateUserStatus) // 用户状态功能已移除
+		admin.PUT("/users/:id/status", handlers.UpdateUserStatus) // 更新用户状态
+		admin.PUT("/users/:id/role", handlers.UpdateUserRole)     // 更新用户角色
 	}
 
 	// 静态文件服务

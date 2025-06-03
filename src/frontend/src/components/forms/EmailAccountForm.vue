@@ -162,8 +162,13 @@ onMounted(() => {
 });
 
 const handleSubmit = async () => {
-  if (!emailAccountFormRef.value) return;
+  console.log('[EmailAccountForm] handleSubmit called');
+  if (!emailAccountFormRef.value) {
+    console.log('[EmailAccountForm] emailAccountFormRef is null');
+    return;
+  }
   await emailAccountFormRef.value.validate(async (valid) => {
+    console.log('[EmailAccountForm] Form validation result:', valid);
     if (valid) {
       loading.value = true; // Keep loading state for visual feedback if needed
       const payload = {
@@ -175,10 +180,12 @@ phone_number: form.value.phone_number,
       if (form.value.password) {
         payload.password = form.value.password;
       }
+      console.log('[EmailAccountForm] Emitting submit-form with payload:', payload);
       // The actual store call will be handled by the parent component
       emit('submit-form', payload);
       loading.value = false; // Reset loading state after emitting
     } else {
+      console.log('[EmailAccountForm] Form validation failed');
       ElMessage.error('请检查表单输入');
       // Optionally emit an error event or let the parent handle UI feedback
       return false;

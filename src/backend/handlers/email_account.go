@@ -65,6 +65,39 @@ func CreateEmailAccount(c *gin.Context) {
 	// 从 EmailAddress 提取 Provider
 	provider := utils.ExtractProviderFromEmail(input.EmailAddress)
 
+	// 首先检查是否存在同邮箱地址的软删除记录
+	var existingEmailAccount models.EmailAccount
+	err = database.DB.Unscoped().Where("user_id = ? AND email_address = ?", actualUserID, input.EmailAddress).First(&existingEmailAccount).Error
+
+	if err == nil {
+		// 找到了同邮箱地址记录
+		if existingEmailAccount.DeletedAt.Valid {
+			// 记录被软删除，恢复它并更新信息
+			existingEmailAccount.DeletedAt = gorm.DeletedAt{}
+			existingEmailAccount.PasswordEncrypted = hashedPassword
+			existingEmailAccount.Provider = provider
+			existingEmailAccount.Notes = input.Notes
+			existingEmailAccount.PhoneNumber = input.PhoneNumber
+
+			if err := database.DB.Unscoped().Save(&existingEmailAccount).Error; err != nil {
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复邮箱账户失败: "+err.Error())
+				return
+			}
+
+			utils.SendCreatedResponse(c, existingEmailAccount.ToEmailAccountResponse())
+			return
+		} else {
+			// 记录存在且未被删除
+			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱地址已被注册")
+			return
+		}
+	} else if err != gorm.ErrRecordNotFound {
+		// 查询出错
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "检查邮箱账户是否存在失败: "+err.Error())
+		return
+	}
+
+	// 没有找到同邮箱地址记录，创建新邮箱账户
 	emailAccount := models.EmailAccount{
 		UserID:            actualUserID,
 		EmailAddress:      input.EmailAddress,
@@ -75,10 +108,10 @@ func CreateEmailAccount(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&emailAccount).Error; err != nil {
-		// 检查是否是唯一约束冲突 (例如邮箱地址已存在)
-		// GORM 对于 SQLite 的唯一约束错误可能不会返回特定的错误类型，需要更通用的错误检查
-		// 或者在模型层面使用 gorm:"uniqueIndex" 并依赖数据库返回错误
-		// 对于更复杂的错误处理，可能需要检查 err.Error() 的内容
+		if utils.IsUniqueConstraintError(err) {
+			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱地址已被注册")
+			return
+		}
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "创建邮箱账户失败: "+err.Error())
 		return
 	}
