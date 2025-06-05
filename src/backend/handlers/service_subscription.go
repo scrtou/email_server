@@ -4,6 +4,7 @@ import (
 	"email_server/database"
 	"email_server/models"
 	"email_server/utils"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,242 +61,74 @@ func CreateServiceSubscription(c *gin.Context) {
 		}
 	}()
 
+	// 根据数据处理原则简化逻辑
+	// 1. 查询前端传递的平台名称是否存在，不存在则新增平台记录
 	var platform models.Platform
-	var platformReg models.PlatformRegistration
-	var emailAccount models.EmailAccount
-	var emailAccountIDToUse uint
-
-	// 1. 尝试通过 ID 加载 PlatformRegistration
-	if input.PlatformRegistrationID != nil && *input.PlatformRegistrationID != 0 {
-		if err := tx.Where("id = ? AND user_id = ?", *input.PlatformRegistrationID, currentUserID).
-			Preload("Platform").Preload("EmailAccount").First(&platformReg).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusBadRequest, "提供的 PlatformRegistrationID 无效或不属于当前用户")
-				return
-			}
-			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败 (by PlatformRegistrationID): "+err.Error())
-			return
-		}
-		if platformReg.Platform.ID != 0 {
-			platform = platformReg.Platform
-		}
-		if platformReg.EmailAccount != nil && platformReg.EmailAccount.ID != 0 {
-			emailAccount = *platformReg.EmailAccount
-			emailAccountIDToUse = emailAccount.ID
-		}
-
-	} else if input.SelectedUsernameRegistrationID != 0 {
-		if err := tx.Where("id = ? AND user_id = ?", input.SelectedUsernameRegistrationID, currentUserID).
-			Preload("Platform").Preload("EmailAccount").First(&platformReg).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusBadRequest, "提供的 SelectedUsernameRegistrationID 无效或不属于当前用户")
-				return
-			}
-			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败 (by SelectedUsernameRegistrationID): "+err.Error())
-			return
-		}
-		if platformReg.Platform.ID != 0 {
-			platform = platformReg.Platform
-		}
-		if platformReg.EmailAccount != nil && platformReg.EmailAccount.ID != 0 {
-			emailAccount = *platformReg.EmailAccount
-			emailAccountIDToUse = emailAccount.ID
-		}
-	}
-
-	// 2. 自定义校验逻辑 (如果 platformReg 未通过 ID 加载)
-	if platformReg.ID == 0 {
-		emailInfoProvided := input.EmailAccountID != 0 || input.EmailAddress != ""
-		loginUsernameStringProvided := input.LoginUsername != ""
-		if !emailInfoProvided && !loginUsernameStringProvided {
-			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusBadRequest, "当未通过ID指定平台注册时，必须提供邮箱信息(ID或地址)或登录用户名字符串中的至少一个")
-			return
-		}
-	}
-
-	// 3. 确定 emailAccountIDToUse (如果尚未通过已加载的 platformReg 确定)
-	if emailAccountIDToUse == 0 {
-		if input.EmailAccountID != 0 {
-			if err := tx.Where("id = ? AND user_id = ?", input.EmailAccountID, currentUserID).First(&emailAccount).Error; err != nil {
-				if err == gorm.ErrRecordNotFound {
-					tx.Rollback()
-					utils.SendErrorResponse(c, http.StatusBadRequest, "提供的邮箱账户ID无效或不属于当前用户")
-					return
-				}
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败 (by ID): "+err.Error())
-				return
-			}
-			emailAccountIDToUse = emailAccount.ID
-		} else if input.EmailAddress != "" {
-			// 首先检查是否存在同邮箱地址的软删除记录
-			err := tx.Unscoped().Where("email_address = ? AND user_id = ?", input.EmailAddress, currentUserID).First(&emailAccount).Error
-			if err != nil {
-				if err == gorm.ErrRecordNotFound {
-					// 邮箱账户不存在，创建新的
-					emailAccount = models.EmailAccount{
-						UserID:       currentUserID,
-						EmailAddress: input.EmailAddress,
-						Provider:     utils.ExtractProviderFromEmail(input.EmailAddress),
-					}
-					if createErr := tx.Create(&emailAccount).Error; createErr != nil {
-						tx.Rollback()
-						utils.SendErrorResponse(c, http.StatusInternalServerError, "创建邮箱账户失败: "+createErr.Error())
-						return
-					}
-					emailAccountIDToUse = emailAccount.ID
-				} else {
-					tx.Rollback()
-					utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败 (by Address): "+err.Error())
-					return
-				}
-			} else {
-				// 找到了邮箱账户记录
-				if emailAccount.DeletedAt.Valid {
-					// 记录被软删除，恢复它
-					emailAccount.DeletedAt = gorm.DeletedAt{}
-					if updateErr := tx.Unscoped().Save(&emailAccount).Error; updateErr != nil {
-						tx.Rollback()
-						utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复邮箱账户失败: "+updateErr.Error())
-						return
-					}
-				}
-				emailAccountIDToUse = emailAccount.ID
-			}
-		}
-	}
-
-	// 4. 平台处理 (如果尚未通过已加载的 platformReg 确定 platform)
-	if platformReg.ID == 0 || platform.ID == 0 {
-		if input.PlatformID != nil && *input.PlatformID > 0 {
-			if err := tx.Where("id = ? AND user_id = ?", *input.PlatformID, currentUserID).First(&platform).Error; err != nil {
-				if err == gorm.ErrRecordNotFound {
-					tx.Rollback()
-					utils.SendErrorResponse(c, http.StatusBadRequest, "指定的平台ID不存在或不属于当前用户")
-					return
-				}
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
-				return
-			}
-		} else if input.PlatformName != "" {
-			err := tx.Where("name = ? AND user_id = ?", input.PlatformName, currentUserID).First(&platform).Error
-			if err != nil {
-				if err == gorm.ErrRecordNotFound {
-					platform = models.Platform{
-						Name:   input.PlatformName,
-						UserID: currentUserID,
-					}
-					if createErr := tx.Create(&platform).Error; createErr != nil {
-						tx.Rollback()
-						utils.SendErrorResponse(c, http.StatusInternalServerError, "创建新平台失败: "+createErr.Error())
-						return
-					}
-				} else {
-					tx.Rollback()
-					utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
-					return
-				}
-			}
-		} else {
-			if platformReg.ID == 0 {
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusBadRequest, "必须提供平台ID或平台名称")
-				return
-			}
-		}
-	}
-
-	// 5. 通过组件查找/创建 PlatformRegistration (如果 platformReg.ID == 0 且上述校验通过后执行)
-	if platformReg.ID == 0 {
-		if platform.ID == 0 {
-			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "未能确定或创建平台信息")
-			return
-		}
-
-		query := tx.Where("user_id = ? AND platform_id = ?", currentUserID, platform.ID)
-		if input.LoginUsername != "" {
-			query = query.Where("login_username = ?", input.LoginUsername)
-		}
-
-		if emailAccountIDToUse != 0 {
-			query = query.Where("email_account_id = ?", emailAccountIDToUse)
-		} else {
-			query = query.Where("email_account_id IS NULL")
-		}
-
-		err := query.Preload("Platform").Preload("EmailAccount").First(&platformReg).Error
-
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				var eaIDForNewReg *uint
-				if emailAccountIDToUse != 0 {
-					eaIDForNewReg = &emailAccountIDToUse
-				}
-
-				platformReg = models.PlatformRegistration{
-					UserID:         currentUserID,
-					EmailAccountID: eaIDForNewReg,
-					PlatformID:     platform.ID,
-					LoginUsername:  input.LoginUsername,
-				}
-				if createErr := tx.Create(&platformReg).Error; createErr != nil {
-					tx.Rollback()
-					if strings.Contains(createErr.Error(), "UNIQUE constraint failed") {
-						// 根据输入推断是哪个约束冲突
-						// 优先判断 EmailAccountID 是否可能导致冲突
-						if emailAccountIDToUse > 0 {
-							// 实际冲突可能是 (UserID, PlatformID, EmailAccountID, IsActive)
-							utils.SendErrorResponse(c, http.StatusConflict, "创建关联平台注册失败：此邮箱账户已在该平台注册。")
-							return
-						} else if input.LoginUsername != "" {
-							// 如果 EmailAccountID 为 0 或 nil，再判断 LoginUsername 是否导致冲突
-							utils.SendErrorResponse(c, http.StatusConflict, "创建关联平台注册失败：此用户名已在该平台注册。")
-							return
-						}
-						// 通用冲突消息
-						utils.SendErrorResponse(c, http.StatusConflict, "创建关联平台注册失败：注册信息与现有记录冲突。")
-					} else {
-						utils.SendErrorResponse(c, http.StatusInternalServerError, "创建平台注册信息失败: "+createErr.Error())
-					}
-					return
-				}
-				platformReg.Platform = platform
-				if emailAccountIDToUse != 0 && emailAccount.ID != 0 {
-					platformReg.EmailAccount = &emailAccount
-				} else {
-					platformReg.EmailAccount = nil
-				}
-
-			} else {
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "查询或创建平台注册信息失败: "+err.Error())
-				return
-			}
-		}
-	}
-
-	// 6. 最终检查 platformReg
-	if platformReg.ID == 0 {
+	if input.PlatformName == "" {
 		tx.Rollback()
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "未能确定或创建平台注册信息")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "平台名称不能为空")
 		return
 	}
 
-	if platformReg.Platform.ID == 0 && platform.ID != 0 {
-		platformReg.Platform = platform
-	}
-	if platformReg.EmailAccount == nil && emailAccountIDToUse != 0 && emailAccount.ID != 0 {
-		platformReg.EmailAccount = &emailAccount
+	// 查询平台
+	err := tx.Where("name = ? AND user_id = ?", input.PlatformName, currentUserID).First(&platform).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 平台不存在，创建新平台
+			platform = models.Platform{
+				Name:   input.PlatformName,
+				UserID: currentUserID,
+			}
+			if createErr := tx.Create(&platform).Error; createErr != nil {
+				tx.Rollback()
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "创建新平台失败: "+createErr.Error())
+				return
+			}
+		} else {
+			tx.Rollback()
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台失败: "+err.Error())
+			return
+		}
 	}
 
-	// 7. 处理下次续费日期
+	// 2. 根据数据处理原则的三种情况处理
+	emailAddress := input.EmailAddress
+	loginUsername := input.LoginUsername
+
+	var platformReg models.PlatformRegistration
+	var emailAccount models.EmailAccount
+
+	if emailAddress == "" && loginUsername != "" {
+		// 情况1: 邮箱地址为空，用户名不为空
+		err := createServiceSubscriptionCase1(tx, currentUserID, platform, loginUsername, &platformReg)
+		if err != nil {
+			tx.Rollback()
+			utils.SendErrorResponse(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	} else if emailAddress != "" && loginUsername == "" {
+		// 情况2: 邮箱地址不为空，用户名为空
+		err := createServiceSubscriptionCase2(tx, currentUserID, platform, emailAddress, &platformReg, &emailAccount)
+		if err != nil {
+			tx.Rollback()
+			utils.SendErrorResponse(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	} else if emailAddress != "" && loginUsername != "" {
+		// 情况3: 邮箱地址和用户名都不为空
+		err := createServiceSubscriptionCase3(tx, currentUserID, platform, emailAddress, loginUsername, &platformReg, &emailAccount)
+		if err != nil {
+			tx.Rollback()
+			utils.SendErrorResponse(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	} else {
+		tx.Rollback()
+		utils.SendErrorResponse(c, http.StatusBadRequest, "邮箱地址和用户名不能都为空")
+		return
+	}
+
+	// 3. 处理下次续费日期
 	var nextRenewalDate *time.Time
 	if input.NextRenewalDateStr != nil && *input.NextRenewalDateStr != "" {
 		parsedDate, errDate := time.Parse("2006-01-02", *input.NextRenewalDateStr)
@@ -307,9 +140,9 @@ func CreateServiceSubscription(c *gin.Context) {
 		nextRenewalDate = &parsedDate
 	}
 
-	// 8. 查找或创建/恢复 ServiceSubscription 记录
+	// 4. 创建服务订阅记录
 	var subscription models.ServiceSubscription
-	err := tx.Unscoped().Where(models.ServiceSubscription{
+	err = tx.Where(models.ServiceSubscription{
 		UserID:                 currentUserID,
 		PlatformRegistrationID: platformReg.ID,
 		ServiceName:            input.ServiceName,
@@ -339,24 +172,9 @@ func CreateServiceSubscription(c *gin.Context) {
 			return
 		}
 	} else {
-		if subscription.DeletedAt.Valid {
-			subscription.Description = input.Description
-			subscription.Status = input.Status
-			subscription.Cost = input.Cost
-			subscription.BillingCycle = input.BillingCycle
-			subscription.NextRenewalDate = nextRenewalDate
-			subscription.PaymentMethodNotes = input.PaymentMethodNotes
-			subscription.DeletedAt = gorm.DeletedAt{}
-			if updateErr := tx.Unscoped().Save(&subscription).Error; updateErr != nil {
-				tx.Rollback()
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复并更新服务订阅失败: "+updateErr.Error())
-				return
-			}
-		} else {
-			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusConflict, "该服务订阅已存在。")
-			return
-		}
+		tx.Rollback()
+		utils.SendErrorResponse(c, http.StatusConflict, "该服务订阅已存在。")
+		return
 	}
 
 	// --- 提交事务 ---
@@ -366,19 +184,8 @@ func CreateServiceSubscription(c *gin.Context) {
 	}
 
 	// 准备响应数据
-	finalPlatformForResp := models.Platform{}
-	if platformReg.Platform.ID != 0 {
-		finalPlatformForResp = platformReg.Platform
-	} else if platform.ID != 0 {
-		finalPlatformForResp = platform
-	}
-
-	finalEmailAccountForResp := models.EmailAccount{}
-	if platformReg.EmailAccount != nil && platformReg.EmailAccount.ID != 0 {
-		finalEmailAccountForResp = *platformReg.EmailAccount
-	} else if emailAccount.ID != 0 {
-		finalEmailAccountForResp = emailAccount
-	}
+	finalPlatformForResp := platform
+	finalEmailAccountForResp := emailAccount
 
 	response := subscription.ToServiceSubscriptionResponse(platformReg, finalPlatformForResp, finalEmailAccountForResp)
 	c.JSON(http.StatusCreated, gin.H{"status": "success", "data": response})
@@ -488,11 +295,11 @@ func GetServiceSubscriptions(c *gin.Context) {
 	var totalRecords int64
 
 	query := database.DB.Model(&models.ServiceSubscription{}).
-		Joins("JOIN platform_registrations ON platform_registrations.id = service_subscriptions.platform_registration_id AND platform_registrations.deleted_at IS NULL"). // Ensure platform_registration is not soft-deleted
+		Joins("JOIN platform_registrations ON platform_registrations.id = service_subscriptions.platform_registration_id").
 		Where("service_subscriptions.user_id = ?", currentUserID)
 
 	countQuery := database.DB.Model(&models.ServiceSubscription{}).
-		Joins("JOIN platform_registrations ON platform_registrations.id = service_subscriptions.platform_registration_id AND platform_registrations.deleted_at IS NULL").
+		Joins("JOIN platform_registrations ON platform_registrations.id = service_subscriptions.platform_registration_id").
 		Where("service_subscriptions.user_id = ?", currentUserID)
 
 	if prIDFilter > 0 {
@@ -526,15 +333,15 @@ func GetServiceSubscriptions(c *gin.Context) {
 
 	// New filters for platform_name, email, username
 	if platformNameFilter != "" {
-		query = query.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id AND platforms.deleted_at IS NULL").
+		query = query.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id").
 			Where("LOWER(platforms.name) LIKE ?", "%"+strings.ToLower(platformNameFilter)+"%")
-		countQuery = countQuery.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id AND platforms.deleted_at IS NULL").
+		countQuery = countQuery.Joins("JOIN platforms ON platforms.id = platform_registrations.platform_id").
 			Where("LOWER(platforms.name) LIKE ?", "%"+strings.ToLower(platformNameFilter)+"%")
 	}
 	if emailFilter != "" {
-		query = query.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+		query = query.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
 			Where("LOWER(email_accounts.email_address) LIKE ?", "%"+strings.ToLower(emailFilter)+"%")
-		countQuery = countQuery.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
+		countQuery = countQuery.Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
 			Where("LOWER(email_accounts.email_address) LIKE ?", "%"+strings.ToLower(emailFilter)+"%")
 	}
 	if usernameFilter != "" {
@@ -887,7 +694,7 @@ func DeleteServiceSubscription(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Delete(&ss).Error; err != nil {
+	if err := database.DB.Unscoped().Delete(&ss).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "删除服务订阅失败: "+err.Error())
 		return
 	}
@@ -1080,9 +887,9 @@ func GetDistinctPlatformNames(c *gin.Context) {
 	var platformNames []string
 	query := database.DB.Table("service_subscriptions ss").
 		Select("DISTINCT p.name").
-		Joins("JOIN platform_registrations pr ON pr.id = ss.platform_registration_id AND pr.deleted_at IS NULL").
-		Joins("JOIN platforms p ON p.id = pr.platform_id AND p.deleted_at IS NULL").
-		Where("ss.user_id = ? AND ss.deleted_at IS NULL", currentUserID).
+		Joins("JOIN platform_registrations pr ON pr.id = ss.platform_registration_id").
+		Joins("JOIN platforms p ON p.id = pr.platform_id").
+		Where("ss.user_id = ?", currentUserID).
 		Where("p.name IS NOT NULL AND p.name != ''").
 		Order("p.name ASC")
 
@@ -1122,9 +929,9 @@ func GetDistinctEmails(c *gin.Context) {
 	var emailAddresses []string
 	query := database.DB.Table("service_subscriptions ss").
 		Select("DISTINCT ea.email_address").
-		Joins("JOIN platform_registrations pr ON pr.id = ss.platform_registration_id AND pr.deleted_at IS NULL").
-		Joins("JOIN email_accounts ea ON ea.id = pr.email_account_id AND ea.deleted_at IS NULL").
-		Where("ss.user_id = ? AND ss.deleted_at IS NULL", currentUserID).
+		Joins("JOIN platform_registrations pr ON pr.id = ss.platform_registration_id").
+		Joins("JOIN email_accounts ea ON ea.id = pr.email_account_id").
+		Where("ss.user_id = ?", currentUserID).
 		Where("ea.email_address IS NOT NULL AND ea.email_address != ''").
 		Order("ea.email_address ASC")
 
@@ -1136,6 +943,164 @@ func GetDistinctEmails(c *gin.Context) {
 		emailAddresses = []string{}
 	}
 	utils.SendSuccessResponse(c, emailAddresses)
+}
+
+// 根据数据处理原则实现的辅助函数
+
+// createServiceSubscriptionCase1 处理情况1: 邮箱地址为空，用户名不为空
+func createServiceSubscriptionCase1(tx *gorm.DB, userID uint, platform models.Platform, loginUsername string, platformReg *models.PlatformRegistration) error {
+	// 查询平台注册表中该平台和用户名是否存在
+	err := tx.Where("user_id = ? AND platform_id = ? AND login_username = ?", userID, platform.ID, loginUsername).
+		Preload("Platform").Preload("EmailAccount").First(platformReg).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 不存在，新增一条平台和用户名的注册记录
+			*platformReg = models.PlatformRegistration{
+				UserID:        userID,
+				PlatformID:    platform.ID,
+				LoginUsername: &loginUsername,
+			}
+			if createErr := tx.Create(platformReg).Error; createErr != nil {
+				return fmt.Errorf("创建平台注册记录失败: %v", createErr)
+			}
+			platformReg.Platform = platform
+		} else {
+			return fmt.Errorf("查询平台注册记录失败: %v", err)
+		}
+	}
+	// 如果存在，直接使用现有记录
+	return nil
+}
+
+// createServiceSubscriptionCase2 处理情况2: 邮箱地址不为空，用户名为空
+func createServiceSubscriptionCase2(tx *gorm.DB, userID uint, platform models.Platform, emailAddress string, platformReg *models.PlatformRegistration, emailAccount *models.EmailAccount) error {
+	// 查询邮箱表中该邮箱是否存在
+	err := tx.Where("user_id = ? AND email_address = ?", userID, emailAddress).First(emailAccount).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 邮箱不存在，新增一条邮箱记录
+			*emailAccount = models.EmailAccount{
+				UserID:       userID,
+				EmailAddress: emailAddress,
+				Provider:     utils.ExtractProviderFromEmail(emailAddress),
+			}
+			if createErr := tx.Create(emailAccount).Error; createErr != nil {
+				return fmt.Errorf("创建邮箱记录失败: %v", createErr)
+			}
+		} else {
+			return fmt.Errorf("查询邮箱记录失败: %v", err)
+		}
+	}
+
+	// 查询平台注册表中该平台和邮箱是否存在
+	err = tx.Where("user_id = ? AND platform_id = ? AND email_account_id = ?", userID, platform.ID, emailAccount.ID).
+		Preload("Platform").Preload("EmailAccount").First(platformReg).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 不存在，新增一条平台和邮箱的注册记录
+			*platformReg = models.PlatformRegistration{
+				UserID:         userID,
+				PlatformID:     platform.ID,
+				EmailAccountID: &emailAccount.ID,
+			}
+			if createErr := tx.Create(platformReg).Error; createErr != nil {
+				return fmt.Errorf("创建平台注册记录失败: %v", createErr)
+			}
+			platformReg.Platform = platform
+			platformReg.EmailAccount = emailAccount
+		} else {
+			return fmt.Errorf("查询平台注册记录失败: %v", err)
+		}
+	}
+	// 如果存在，直接使用现有记录
+	return nil
+}
+
+// createServiceSubscriptionCase3 处理情况3: 邮箱地址和用户名都不为空
+func createServiceSubscriptionCase3(tx *gorm.DB, userID uint, platform models.Platform, emailAddress, loginUsername string, platformReg *models.PlatformRegistration, emailAccount *models.EmailAccount) error {
+	// 查询平台注册表中该平台、邮箱和用户名的组合是否存在
+	err := tx.Where("user_id = ? AND platform_id = ? AND login_username = ?", userID, platform.ID, loginUsername).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+		Where("email_accounts.email_address = ?", emailAddress).
+		Preload("Platform").Preload("EmailAccount").First(platformReg).Error
+
+	if err == nil {
+		// 存在完整组合，直接使用
+		return nil
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("查询平台注册记录失败: %v", err)
+	}
+
+	// 不存在，检查是否存在冲突
+	var conflictReg models.PlatformRegistration
+
+	// 检查平台和邮箱是否存在（用户名不同）
+	err = tx.Where("user_id = ? AND platform_id = ?", userID, platform.ID).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+		Where("email_accounts.email_address = ? AND (platform_registrations.login_username != ? OR platform_registrations.login_username IS NULL)", emailAddress, loginUsername).
+		First(&conflictReg).Error
+
+	if err == nil {
+		return fmt.Errorf("该邮箱已注册在该平台，但用户名不一致")
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("检查邮箱冲突失败: %v", err)
+	}
+
+	// 检查平台和用户名是否存在（邮箱不同）
+	err = tx.Where("user_id = ? AND platform_id = ? AND login_username = ?", userID, platform.ID, loginUsername).
+		Joins("LEFT JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+		Where("email_accounts.email_address != ? OR email_accounts.email_address IS NULL", emailAddress).
+		First(&conflictReg).Error
+
+	if err == nil {
+		return fmt.Errorf("该用户名已注册在该平台，但邮箱不一致")
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("检查用户名冲突失败: %v", err)
+	}
+
+	// 都不存在冲突，查询邮箱表中该邮箱是否存在
+	err = tx.Where("user_id = ? AND email_address = ?", userID, emailAddress).First(emailAccount).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 邮箱不存在，新增一条邮箱记录
+			*emailAccount = models.EmailAccount{
+				UserID:       userID,
+				EmailAddress: emailAddress,
+				Provider:     utils.ExtractProviderFromEmail(emailAddress),
+			}
+			if createErr := tx.Create(emailAccount).Error; createErr != nil {
+				return fmt.Errorf("创建邮箱记录失败: %v", createErr)
+			}
+		} else {
+			return fmt.Errorf("查询邮箱记录失败: %v", err)
+		}
+	}
+
+	// 新增一条平台注册记录（包含平台、邮箱、用户名）
+	*platformReg = models.PlatformRegistration{
+		UserID:         userID,
+		PlatformID:     platform.ID,
+		EmailAccountID: &emailAccount.ID,
+		LoginUsername:  &loginUsername,
+	}
+	if createErr := tx.Create(platformReg).Error; createErr != nil {
+		return fmt.Errorf("创建平台注册记录失败: %v", createErr)
+	}
+
+	platformReg.Platform = platform
+	platformReg.EmailAccount = emailAccount
+
+	return nil
 }
 
 // GetDistinctUsernames godoc
@@ -1163,8 +1128,8 @@ func GetDistinctUsernames(c *gin.Context) {
 	var usernames []string
 	query := database.DB.Table("service_subscriptions ss").
 		Select("DISTINCT pr.login_username").
-		Joins("JOIN platform_registrations pr ON pr.id = ss.platform_registration_id AND pr.deleted_at IS NULL").
-		Where("ss.user_id = ? AND ss.deleted_at IS NULL", currentUserID).
+		Joins("JOIN platform_registrations pr ON pr.id = ss.platform_registration_id").
+		Where("ss.user_id = ?", currentUserID).
 		Where("pr.login_username IS NOT NULL AND pr.login_username != ''").
 		Order("pr.login_username ASC")
 
