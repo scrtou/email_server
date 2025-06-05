@@ -134,7 +134,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 检查用户状态
-	if !user.IsActive() {
+	if !user.IsStatusActive() {
 		utils.SendErrorResponse(c, 401, "账户已被封禁")
 		return
 	}

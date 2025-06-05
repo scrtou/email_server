@@ -9,12 +9,12 @@ import (
 // User model based on optimization_proposal.md
 type User struct {
 	gorm.Model        // Embeds ID, CreatedAt, UpdatedAt, DeletedAt
-	Username   string `json:"username" gorm:"unique;not null"`
-	Email      string `json:"email" gorm:"unique;not null"`
+	Username   string `json:"username" gorm:"uniqueIndex:uq_username,priority:1;not null"`
+	Email      string `json:"email" gorm:"uniqueIndex:uq_email,priority:1;not null"`
 	Password   string `json:"-" gorm:""` // Password hash, json:"-" to omit from JSON responses by default, nullable for OAuth users
 	// OAuth2 fields
-	LinuxDoID *int64  `json:"-" gorm:"unique"`    // LinuxDo user ID, nullable
-	Provider  *string `json:"provider,omitempty"` // OAuth provider (e.g., "linuxdo")
+	LinuxDoID *int64  `json:"-" gorm:"uniqueIndex:uq_linuxdo_id,priority:1"` // LinuxDo user ID, nullable
+	Provider  *string `json:"provider,omitempty"`                            // OAuth provider (e.g., "linuxdo")
 	// Extended fields
 	Role      string     `json:"role" gorm:"default:user"` // 用户角色: admin=管理员, user=普通用户
 	Status    int        `json:"status" gorm:"default:1"`  // 用户状态: 1=激活, 0=封禁
@@ -105,7 +105,7 @@ func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
 }
 
-// 检查用户是否激活
-func (u *User) IsActive() bool {
+// 检查用户状态是否激活
+func (u *User) IsStatusActive() bool {
 	return u.Status == StatusActive
 }

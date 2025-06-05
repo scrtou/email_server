@@ -65,32 +65,14 @@ func CreateEmailAccount(c *gin.Context) {
 	// 从 EmailAddress 提取 Provider
 	provider := utils.ExtractProviderFromEmail(input.EmailAddress)
 
-	// 首先检查是否存在同邮箱地址的软删除记录
+	// 检查是否存在同邮箱地址的记录
 	var existingEmailAccount models.EmailAccount
-	err = database.DB.Unscoped().Where("user_id = ? AND email_address = ?", actualUserID, input.EmailAddress).First(&existingEmailAccount).Error
+	err = database.DB.Where("user_id = ? AND email_address = ?", actualUserID, input.EmailAddress).First(&existingEmailAccount).Error
 
 	if err == nil {
-		// 找到了同邮箱地址记录
-		if existingEmailAccount.DeletedAt.Valid {
-			// 记录被软删除，恢复它并更新信息
-			existingEmailAccount.DeletedAt = gorm.DeletedAt{}
-			existingEmailAccount.PasswordEncrypted = hashedPassword
-			existingEmailAccount.Provider = provider
-			existingEmailAccount.Notes = input.Notes
-			existingEmailAccount.PhoneNumber = input.PhoneNumber
-
-			if err := database.DB.Unscoped().Save(&existingEmailAccount).Error; err != nil {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复邮箱账户失败: "+err.Error())
-				return
-			}
-
-			utils.SendCreatedResponse(c, existingEmailAccount.ToEmailAccountResponse())
-			return
-		} else {
-			// 记录存在且未被删除
-			utils.SendErrorResponse(c, http.StatusConflict, "该邮箱地址已被注册")
-			return
-		}
+		// 记录存在
+		utils.SendErrorResponse(c, http.StatusConflict, "该邮箱地址已被注册")
+		return
 	} else if err != gorm.ErrRecordNotFound {
 		// 查询出错
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "检查邮箱账户是否存在失败: "+err.Error())
@@ -480,7 +462,7 @@ func DeleteEmailAccount(c *gin.Context) {
 		return
 	}
 
-	// 1. 查找并软删除关联的 PlatformRegistrations 及其下的 ServiceSubscriptions
+	// 1. 查找并硬删除关联的 PlatformRegistrations 及其下的 ServiceSubscriptions
 	var registrations []models.PlatformRegistration
 	if err := tx.Where("email_account_id = ?", emailAccount.ID).Find(&registrations).Error; err != nil {
 		tx.Rollback()
@@ -489,22 +471,22 @@ func DeleteEmailAccount(c *gin.Context) {
 	}
 
 	for _, reg := range registrations {
-		// 1a. 软删除关联的 ServiceSubscriptions
-		if err := tx.Where("platform_registration_id = ?", reg.ID).Delete(&models.ServiceSubscription{}).Error; err != nil {
+		// 1a. 硬删除关联的 ServiceSubscriptions
+		if err := tx.Unscoped().Where("platform_registration_id = ?", reg.ID).Delete(&models.ServiceSubscription{}).Error; err != nil {
 			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "软删除服务订阅失败: "+err.Error())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "删除服务订阅失败: "+err.Error())
 			return
 		}
-		// 1b. 软删除 PlatformRegistration
-		if err := tx.Delete(&reg).Error; err != nil {
+		// 1b. 硬删除 PlatformRegistration
+		if err := tx.Unscoped().Delete(&reg).Error; err != nil {
 			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "软删除平台注册信息失败: "+err.Error())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "删除平台注册信息失败: "+err.Error())
 			return
 		}
 	}
 
-	// 2. 软删除 EmailAccount
-	if err := tx.Delete(&emailAccount).Error; err != nil {
+	// 2. 硬删除 EmailAccount
+	if err := tx.Unscoped().Delete(&emailAccount).Error; err != nil {
 		tx.Rollback()
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "删除邮箱账户失败: "+err.Error())
 		return

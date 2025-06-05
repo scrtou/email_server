@@ -5,10 +5,10 @@ import "gorm.io/gorm"
 // Platform 定义了注册平台的数据模型
 type Platform struct {
 	gorm.Model
-	UserID     uint   `gorm:"not null"`                   // 外键，关联到 User 模型
-	Name       string `gorm:"type:varchar(255);not null"` // 平台名称, 用户ID和平台名称组合唯一（通过自定义索引实现）
-	WebsiteURL string `gorm:"type:varchar(255)"`          // 平台官方网址
-	Notes      string `gorm:"type:text"`                  // 备注信息
+	UserID     uint   `gorm:"not null;uniqueIndex:uq_user_platform_name,priority:1"`                   // 外键，关联到 User 模型
+	Name       string `gorm:"type:varchar(255);not null;uniqueIndex:uq_user_platform_name,priority:2"` // 平台名称, 用户ID和平台名称组合唯一
+	WebsiteURL string `gorm:"type:varchar(255)"`                                                       // 平台官方网址
+	Notes      string `gorm:"type:text"`                                                               // 备注信息
 
 	User User `gorm:"foreignKey:UserID"` // 定义关联关系
 }

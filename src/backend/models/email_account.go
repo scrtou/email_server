@@ -5,12 +5,12 @@ import "gorm.io/gorm"
 // EmailAccount 定义了邮箱账户的数据模型
 type EmailAccount struct {
 	gorm.Model
-	UserID            uint   `gorm:"not null;index;uniqueIndex:idx_user_email"`             // 外键，关联到 User 模型
-	EmailAddress      string `gorm:"type:varchar(255);not null;uniqueIndex:idx_user_email"` // 与UserID组合唯一
-	PasswordEncrypted string `gorm:"type:varchar(255)"`                                     // 加密存储的密码, 允许为空
-	Provider          string `gorm:"type:varchar(100)"`                                     // 邮箱服务商，例如 Gmail, Outlook 等
-	Notes             string `gorm:"type:text"`                                             // 备注信息
-	PhoneNumber       string `gorm:"type:varchar(50)"`                                      // 手机号码, 可选
+	UserID            uint   `gorm:"not null;index;uniqueIndex:uq_user_email,priority:1"`             // 外键，关联到 User 模型
+	EmailAddress      string `gorm:"type:varchar(255);not null;uniqueIndex:uq_user_email,priority:2"` // 与UserID组合唯一
+	PasswordEncrypted string `gorm:"type:varchar(255)"`                                               // 加密存储的密码, 允许为空
+	Provider          string `gorm:"type:varchar(100)"`                                               // 邮箱服务商，例如 Gmail, Outlook 等
+	Notes             string `gorm:"type:text"`                                                       // 备注信息
+	PhoneNumber       string `gorm:"type:varchar(50)"`                                                // 手机号码, 可选
 
 	User User `gorm:"foreignKey:UserID"` // 定义关联关系
 }

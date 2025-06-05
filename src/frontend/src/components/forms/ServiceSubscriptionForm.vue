@@ -204,12 +204,26 @@ const loadingUsernames = ref(false); // Loading state for usernames
 
 const isEditMode = computed(() => !!props.id);
 
+// 自定义验证器：确保邮箱地址和用户名不能都为空
+const validateEmailOrUsername = (rule, value, callback) => {
+  const emailAddress = form.value.email_address;
+  const loginUsername = form.value.login_username_input;
+
+  if (!emailAddress && !loginUsername) {
+    callback(new Error('邮箱地址和用户名不能都为空，请至少填写一个'));
+  } else {
+    callback();
+  }
+};
+
 const rules = ref({
   platform_name: [{ required: true, message: '请输入或选择平台名称', trigger: 'change' }],
-  login_username_input: [{ required: false, message: '请输入或选择用户名/ID', trigger: 'blur' }], // Changed from login_username
+  login_username_input: [
+    { validator: validateEmailOrUsername, trigger: 'blur' }
+  ],
   email_address: [
-    // { required: true, message: '请输入或选择邮箱地址', trigger: 'change' }, // Removed required rule
     { type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'change'] },
+    { validator: validateEmailOrUsername, trigger: 'blur' }
   ],
   service_name: [
     { required: true, message: '请输入服务名称', trigger: 'blur' },

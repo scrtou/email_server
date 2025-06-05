@@ -115,18 +115,25 @@ func SearchHandler(c *gin.Context) {
 			Preload("Platform"). // Preload platform to get its name for display
 			Find(&platformRegistrations).Error; err == nil {
 			for _, pr := range platformRegistrations {
-				displayName := pr.LoginUsername
+				displayName := ""
+				if pr.LoginUsername != nil {
+					displayName = *pr.LoginUsername
+				}
 				if pr.Platform.Name != "" {
-					displayName = pr.LoginUsername + " @ " + pr.Platform.Name
+					if displayName != "" {
+						displayName = displayName + " @ " + pr.Platform.Name
+					} else {
+						displayName = pr.Platform.Name
+					}
 				}
 				results = append(results, models.GlobalSearchResultItem{
 					ID:          pr.ID,
 					Type:        "platform_registration",
 					DisplayName: displayName,
 					Details: gin.H{
-						"platform_id": pr.PlatformID,
+						"platform_id":   pr.PlatformID,
 						"platform_name": pr.Platform.Name, // Assumes Platform is preloaded
-						"notes": pr.Notes,
+						"notes":         pr.Notes,
 					},
 				})
 			}
@@ -181,9 +188,9 @@ func SearchHandler(c *gin.Context) {
 					Type:        "service_subscription",
 					DisplayName: displayName,
 					Details: gin.H{
-						"status": ss.Status,
-						"billing_cycle": ss.BillingCycle,
-						"next_renewal_date": ss.NextRenewalDate,
+						"status":                   ss.Status,
+						"billing_cycle":            ss.BillingCycle,
+						"next_renewal_date":        ss.NextRenewalDate,
 						"platform_registration_id": ss.PlatformRegistrationID,
 					},
 				})
@@ -193,7 +200,6 @@ func SearchHandler(c *gin.Context) {
 			// c.Error(err) // Or some other logging
 		}
 	}
-
 
 	if len(results) == 0 {
 		utils.SendSuccessResponse(c, models.GlobalSearchResponse{Results: []models.GlobalSearchResultItem{}})

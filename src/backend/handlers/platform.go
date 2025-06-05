@@ -50,30 +50,14 @@ func CreatePlatform(c *gin.Context) {
 		return
 	}
 
-	// 首先检查是否存在同名的软删除记录
+	// 首先检查是否存在同名的记录
 	var existingPlatform models.Platform
-	err := database.DB.Unscoped().Where("user_id = ? AND name = ?", currentUserID, input.Name).First(&existingPlatform).Error
+	err := database.DB.Where("user_id = ? AND name = ?", currentUserID, input.Name).First(&existingPlatform).Error
 
 	if err == nil {
 		// 找到了同名记录
-		if existingPlatform.DeletedAt.Valid {
-			// 记录被软删除，恢复它并更新信息
-			existingPlatform.DeletedAt = gorm.DeletedAt{}
-			existingPlatform.WebsiteURL = input.WebsiteURL
-			existingPlatform.Notes = input.Notes
-
-			if err := database.DB.Unscoped().Save(&existingPlatform).Error; err != nil {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "恢复平台失败: "+err.Error())
-				return
-			}
-
-			utils.SendSuccessResponse(c, existingPlatform.ToPlatformResponse())
-			return
-		} else {
-			// 记录存在且未被删除
-			utils.SendErrorResponse(c, http.StatusConflict, "您已创建过同名平台")
-			return
-		}
+		utils.SendErrorResponse(c, http.StatusConflict, "您已创建过同名平台")
+		return
 	} else if err != gorm.ErrRecordNotFound {
 		// 查询出错
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "检查平台是否存在失败: "+err.Error())
@@ -233,8 +217,8 @@ func GetPlatforms(c *gin.Context) {
 		var emailAccountCount int64
 		// 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
 		if err := database.DB.Model(&models.PlatformRegistration{}).
-			Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
-			Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", p.ID, currentUserID).
+			Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+			Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ?", p.ID, currentUserID).
 			Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
 			Count(&emailAccountCount).Error; err != nil {
 			emailAccountCount = 0 // Keep count as 0 on error
@@ -305,8 +289,8 @@ func GetPlatformByID(c *gin.Context) {
 	var emailAccountCount int64
 	// 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
 	if errDb := database.DB.Model(&models.PlatformRegistration{}).
-		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
-		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ?", platform.ID, currentUserID).
 		Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
 		Count(&emailAccountCount).Error; errDb != nil {
 		emailAccountCount = 0 // Keep count as 0 on error
@@ -431,8 +415,8 @@ func UpdatePlatform(c *gin.Context) {
 	var emailAccountCount int64
 	// 计算当前用户在此平台上有有效邮箱地址的注册数量 (JOIN with email_accounts)
 	if errDb := database.DB.Model(&models.PlatformRegistration{}).
-		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.deleted_at IS NULL").
-		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ? AND platform_registrations.deleted_at IS NULL", platform.ID, currentUserID).
+		Joins("JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id").
+		Where("platform_registrations.platform_id = ? AND platform_registrations.user_id = ?", platform.ID, currentUserID).
 		Where("email_accounts.email_address IS NOT NULL AND email_accounts.email_address <> ''").
 		Count(&emailAccountCount).Error; errDb != nil {
 		emailAccountCount = 0 // Keep count as 0 on error
@@ -492,7 +476,7 @@ func DeletePlatform(c *gin.Context) {
 		return
 	}
 
-	// 1. 查找并软删除关联的 PlatformRegistrations 及其下的 ServiceSubscriptions
+	// 1. 查找并硬删除关联的 PlatformRegistrations 及其下的 ServiceSubscriptions
 	var registrations []models.PlatformRegistration
 	// 注意：由于 Platform 现在是用户特定的，我们只删除当前用户与此平台相关的注册信息
 	if err := tx.Where("platform_id = ? AND user_id = ?", platform.ID, currentUserID).Find(&registrations).Error; err != nil {
@@ -502,23 +486,23 @@ func DeletePlatform(c *gin.Context) {
 	}
 
 	for _, reg := range registrations {
-		// 1a. 软删除关联的 ServiceSubscriptions
+		// 1a. 硬删除关联的 ServiceSubscriptions
 		// ServiceSubscription 也应该有 UserID，确保只删除当前用户的订阅
-		if err := tx.Where("platform_registration_id = ? AND user_id = ?", reg.ID, currentUserID).Delete(&models.ServiceSubscription{}).Error; err != nil {
+		if err := tx.Unscoped().Where("platform_registration_id = ? AND user_id = ?", reg.ID, currentUserID).Delete(&models.ServiceSubscription{}).Error; err != nil {
 			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "软删除服务订阅失败: "+err.Error())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "删除服务订阅失败: "+err.Error())
 			return
 		}
-		// 1b. 软删除 PlatformRegistration
-		if err := tx.Delete(&reg).Error; err != nil { // reg 已经包含了 UserID，所以 GORM 的钩子或条件应该能正确处理
+		// 1b. 硬删除 PlatformRegistration
+		if err := tx.Unscoped().Delete(&reg).Error; err != nil { // reg 已经包含了 UserID，所以 GORM 的钩子或条件应该能正确处理
 			tx.Rollback()
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "软删除平台注册信息失败: "+err.Error())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "删除平台注册信息失败: "+err.Error())
 			return
 		}
 	}
 
-	// 2. 软删除 Platform 本身
-	if err := tx.Delete(&platform).Error; err != nil { // platform 已经通过 platformID 和 currentUserID 查询得到，是正确的记录
+	// 2. 硬删除 Platform 本身
+	if err := tx.Unscoped().Delete(&platform).Error; err != nil { // platform 已经通过 platformID 和 currentUserID 查询得到，是正确的记录
 		tx.Rollback()
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "删除平台失败: "+err.Error())
 		return

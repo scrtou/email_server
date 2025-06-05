@@ -163,7 +163,7 @@ func LinuxDoOAuth2Callback(c *gin.Context) {
 	}
 
 	// 检查用户状态
-	if !user.IsActive() {
+	if !user.IsStatusActive() {
 		log.Printf("用户账户已被封禁: user_id=%d, username=%s", user.ID, user.Username)
 		c.Redirect(302, "http://localhost:8080/auth/login?error=account_banned")
 		return

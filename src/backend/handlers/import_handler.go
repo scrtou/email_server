@@ -63,7 +63,7 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 	log.Printf("ImportBitwardenCSVHandler: Successfully parsed %d items from '%s'. Now attempting to save to database.", len(items), fileHeader.Filename)
 
 	// --- 开始数据库保存逻辑 ---
-	db := database.DB // 直接使用包级变量 DB
+	db := database.DB                       // 直接使用包级变量 DB
 	userIDValue, exists := c.Get("user_id") // 使用正确的键名 "user_id"
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "无法获取用户信息 (context missing)")
@@ -83,12 +83,11 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID格式错误 (unexpected type)")
 		return
 	}
-	
-	if userID == 0 { // Basic check after conversion
-	    utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID无效 (zero value)")
-	    return
-	}
 
+	if userID == 0 { // Basic check after conversion
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID无效 (zero value)")
+		return
+	}
 
 	savedCount := 0
 	errorCount := 0
@@ -118,7 +117,7 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 
 		// 1. Find or Create Platform (associated with the current user)
 		var platform models.Platform
-		errLoop = db.Unscoped().Where("name = ? AND user_id = ?", platformName, userID).First(&platform).Error
+		errLoop = db.Where("name = ? AND user_id = ?", platformName, userID).First(&platform).Error
 		if errLoop != nil {
 			if errors.Is(errLoop, gorm.ErrRecordNotFound) {
 				platform = models.Platform{
@@ -139,14 +138,9 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 				log.Printf("Import: Row %d error querying platform '%s': %v", rowIndex, platformName, errLoop)
 				continue
 			}
-		} else if platform.DeletedAt.Valid { // Found a soft-deleted platform
-			if updateErr := db.Unscoped().Model(&platform).Update("deleted_at", nil).Error; updateErr != nil {
-				errorCount++
-				errorMessages = append(errorMessages, fmt.Sprintf("第 %d 行: 恢复平台 '%s' 失败: %v", rowIndex, platformName, updateErr))
-				log.Printf("Import: Row %d error restoring platform '%s': %v", rowIndex, platformName, updateErr)
-				continue
-			}
-			log.Printf("Import: Row %d restored soft-deleted platform '%s' (ID: %d)", rowIndex, platform.Name, platform.ID)
+		} else {
+			// 找到了平台记录，直接使用
+			log.Printf("Import: Row %d found existing platform '%s' (ID: %d) for user %d", rowIndex, platform.Name, platform.ID, userID)
 		}
 		// Platform is now valid, active, and associated with the user.
 
@@ -164,7 +158,7 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 			// The original loginIdentifier will be stored as PlatformRegistration.LoginUsername.
 			// If it's an email, it will ALSO be used to link/create an EmailAccount.
 
-			errLoop = db.Unscoped().Where("email_address = ? AND user_id = ?", emailAddress, userID).First(&emailAccount).Error
+			errLoop = db.Where("email_address = ? AND user_id = ?", emailAddress, userID).First(&emailAccount).Error
 			if errLoop != nil {
 				if errors.Is(errLoop, gorm.ErrRecordNotFound) {
 					emailAccount = models.EmailAccount{
@@ -185,14 +179,9 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 					log.Printf("Import: Row %d error querying email account '%s': %v", rowIndex, emailAddress, errLoop)
 					continue
 				}
-			} else if emailAccount.DeletedAt.Valid { // Found soft-deleted email account
-				if updateErr := db.Unscoped().Model(&emailAccount).Update("deleted_at", nil).Error; updateErr != nil {
-					errorCount++
-					errorMessages = append(errorMessages, fmt.Sprintf("第 %d 行: 恢复邮箱账户 '%s' 失败: %v", rowIndex, emailAddress, updateErr))
-					log.Printf("Import: Row %d error restoring email account '%s': %v", rowIndex, emailAddress, updateErr)
-					continue
-				}
-				log.Printf("Import: Row %d restored soft-deleted email account '%s' (ID: %d)", rowIndex, emailAccount.EmailAddress, emailAccount.ID)
+			} else {
+				// 找到了邮箱账户记录，直接使用
+				log.Printf("Import: Row %d found existing email account '%s' (ID: %d)", rowIndex, emailAccount.EmailAddress, emailAccount.ID)
 			}
 			// EmailAccount is now valid and active.
 			if emailAccount.ID > 0 { // Make sure we have a valid ID
@@ -214,10 +203,10 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 		}
 
 		// 4. Conflict Check for PlatformRegistration
-		// Check if an active registration already exists for this user, platform, and combination of login username/email.
+		// Check if a registration already exists for this user, platform, and combination of login username/email.
 		var existingRegistration models.PlatformRegistration
 		conflictQuery := db.Model(&models.PlatformRegistration{}).
-			Where("user_id = ? AND platform_id = ? AND is_active = ?", userID, platform.ID, true)
+			Where("user_id = ? AND platform_id = ?", userID, platform.ID)
 
 		conflictMsg := ""
 		if loginUsernameForRegistration != "" && currentEmailAccountIDPtr != nil {
@@ -246,7 +235,7 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 		}
 
 		errLoop = conflictQuery.First(&existingRegistration).Error
-		if errLoop == nil { // Record found, means conflict with an active registration
+		if errLoop == nil { // Record found, means conflict with an existing registration
 			errorCount++
 			errorMessages = append(errorMessages, conflictMsg)
 			log.Printf("Import: Row %d conflict: %s", rowIndex, conflictMsg)
@@ -257,7 +246,7 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 			log.Printf("Import: Row %d error checking registration conflict: %v", rowIndex, errLoop)
 			continue
 		}
-		// No active conflicting registration found.
+		// No conflicting registration found.
 
 		// 5. Create PlatformRegistration
 		combinedNotes := item.Notes
@@ -274,15 +263,19 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 			}
 		}
 
+		var loginUsernamePtr *string
+		if loginUsernameForRegistration != "" {
+			loginUsernamePtr = &loginUsernameForRegistration
+		}
+
 		registration := models.PlatformRegistration{
 			UserID:                 userID,
 			EmailAccountID:         currentEmailAccountIDPtr,
 			PlatformID:             platform.ID,
-			LoginUsername:          loginUsernameForRegistration,
+			LoginUsername:          loginUsernamePtr,
 			LoginPasswordEncrypted: encryptedPassword,
 			Notes:                  combinedNotes,
 			PhoneNumber:            "", // Bitwarden CSV doesn't map directly to this.
-			IsActive:               true,
 		}
 
 		if createErr := db.Create(&registration).Error; createErr != nil {
@@ -314,10 +307,10 @@ func ImportBitwardenCSVHandler(c *gin.Context) {
 	// finalStatusCode := http.StatusOK // 移除未使用的变量
 
 	utils.SendSuccessResponse(c, gin.H{
-		"message":        responseMessage,
-		"savedCount":     savedCount, // 使用 savedCount 替代 importedCount
-		"errorCount":     errorCount,
-		"errorMessages":  errorMessages, // 返回具体的错误信息列表
+		"message":       responseMessage,
+		"savedCount":    savedCount, // 使用 savedCount 替代 importedCount
+		"errorCount":    errorCount,
+		"errorMessages": errorMessages, // 返回具体的错误信息列表
 		// "items": items, // 不再返回原始解析项，减少响应大小
 	})
 }
