@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>插件测试页面 - 模拟登录表单</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h1, h2 {
+            color: #007cba;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #007cba;
+            box-shadow: 0 0 0 2px rgba(0, 124, 186, 0.2);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background: #007cba;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #005a87;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .test-forms {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .test-forms {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .instructions {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+
+        .instructions ol {
+            margin-bottom: 0;
+        }
+
+        .form-result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Email Server 插件测试页面</h1>
+        
+        <div class="alert alert-info">
+            <strong>测试说明：</strong> 这个页面包含多种类型的登录和注册表单，用于测试浏览器插件的自动检测功能。
+        </div>
+
+        <div class="instructions">
+            <h3>测试步骤：</h3>
+            <ol>
+                <li>确保已安装并配置好 Email Server 浏览器插件</li>
+                <li>在插件中登录您的 Email Server 账户</li>
+                <li>填写下面的任意表单并提交</li>
+                <li>观察插件是否显示保存提示</li>
+                <li>确认账号信息是否正确保存到 Email Server</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-forms">
+        <!-- 标准登录表单 -->
+        <div class="container">
+            <h2>标准登录表单</h2>
+            <form id="login-form" onsubmit="handleSubmit(event, 'login')">
+                <div class="form-group">
+                    <label for="login-username">用户名:</label>
+                    <input type="text" id="login-username" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">密码:</label>
+                    <input type="password" id="login-password" name="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit" class="btn btn-primary">登录</button>
+                <div id="login-result" class="form-result alert alert-success"></div>
+            </form>
+        </div>
+
+        <!-- 邮箱登录表单 -->
+        <div class="container">
+            <h2>邮箱登录表单</h2>
+            <form id="email-login-form" onsubmit="handleSubmit(event, 'email-login')">
+                <div class="form-group">
+                    <label for="email-login-email">邮箱地址:</label>
+                    <input type="email" id="email-login-email" name="email" placeholder="请输入邮箱地址" required>
+                </div>
+                <div class="form-group">
+                    <label for="email-login-password">密码:</label>
+                    <input type="password" id="email-login-password" name="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit" class="btn btn-primary">登录</button>
+                <div id="email-login-result" class="form-result alert alert-success"></div>
+            </form>
+        </div>
+
+        <!-- 注册表单 -->
+        <div class="container">
+            <h2>用户注册表单</h2>
+            <form id="register-form" onsubmit="handleSubmit(event, 'register')">
+                <div class="form-group">
+                    <label for="register-username">用户名:</label>
+                    <input type="text" id="register-username" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-email">邮箱地址:</label>
+                    <input type="email" id="register-email" name="email" placeholder="请输入邮箱地址" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-password">密码:</label>
+                    <input type="password" id="register-password" name="password" placeholder="请输入密码" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm">确认密码:</label>
+                    <input type="password" id="register-confirm" name="confirm_password" placeholder="请再次输入密码" required>
+                </div>
+                <button type="submit" class="btn btn-success">注册</button>
+                <div id="register-result" class="form-result alert alert-success"></div>
+            </form>
+        </div>
+
+        <!-- 复杂表单 -->
+        <div class="container">
+            <h2>复杂登录表单</h2>
+            <form id="complex-form" onsubmit="handleSubmit(event, 'complex')">
+                <div class="form-group">
+                    <label for="complex-identifier">邮箱或用户名:</label>
+                    <input type="text" id="complex-identifier" name="identifier" placeholder="邮箱地址或用户名" required>
+                </div>
+                <div class="form-group">
+                    <label for="complex-password">密码:</label>
+                    <input type="password" id="complex-password" name="password" placeholder="请输入密码" required>
+                </div>
+                <div class="form-group">
+                    <label for="complex-phone">手机号码 (可选):</label>
+                    <input type="tel" id="complex-phone" name="phone" placeholder="请输入手机号码">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="remember" value="1"> 记住我
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">登录</button>
+                <div id="complex-result" class="form-result alert alert-success"></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>测试结果</h2>
+        <div class="alert alert-info">
+            <strong>预期行为：</strong>
+            <ul>
+                <li>提交表单后，页面右上角应该出现插件的保存提示</li>
+                <li>提示框应该显示检测到的平台名称（test-page.html 或当前域名）</li>
+                <li>提示框应该显示检测到的邮箱地址和用户名</li>
+                <li>点击"保存到服务器"后，数据应该保存到 Email Server</li>
+                <li>可以在插件的"账号列表"中查看保存的数据</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function handleSubmit(event, formType) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // 显示提交结果
+            const resultDiv = document.getElementById(formType + '-result');
+            resultDiv.innerHTML = `
+                <strong>表单已提交！</strong><br>
+                提交的数据: ${JSON.stringify(data, null, 2)}<br>
+                <small>请观察插件是否显示保存提示</small>
+            `;
+            resultDiv.style.display = 'block';
+            
+            // 模拟表单提交延迟
+            setTimeout(() => {
+                console.log('Form submitted:', formType, data);
+            }, 100);
+        }
+
+        // 页面加载完成后的提示
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('测试页面已加载，插件应该开始检测表单');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Email Server 账号管理器 - 设置</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      color: #007cba;
+      margin-bottom: 30px;
+      font-size: 24px;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #007cba;
+      box-shadow: 0 0 0 2px rgba(0, 124, 186, 0.2);
+    }
+
+    .form-group .help-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn-primary {
+      background: #007cba;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #005a87;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+      margin-left: 10px;
+    }
+
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .connection-test {
+      margin-top: 20px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #e9ecef;
+    }
+
+    .connection-test h3 {
+      margin-top: 0;
+      color: #495057;
+    }
+
+    .test-result {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .test-result.success {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .test-result.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .advanced-settings {
+      margin-top: 30px;
+      padding-top: 30px;
+      border-top: 1px solid #e9ecef;
+    }
+
+    .advanced-settings h3 {
+      color: #495057;
+      margin-bottom: 20px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin-right: 10px;
+    }
+
+    .checkbox-group label {
+      margin-bottom: 0;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Email Server 账号管理器设置</h1>
+
+    <div id="status" style="display: none;"></div>
+
+    <form id="settings-form">
+      <div class="form-group">
+        <label for="server-url">服务器地址:</label>
+        <input type="url" id="server-url" name="serverURL" placeholder="http://localhost:8080" required>
+        <div class="help-text">
+          输入您的 Email Server 后端服务地址，例如: http://localhost:8080
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="username">用户名:</label>
+        <input type="text" id="username" name="username" placeholder="您的用户名">
+        <div class="help-text">
+          用于自动登录的用户名（可选）
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">密码:</label>
+        <input type="password" id="password" name="password" placeholder="您的密码">
+        <div class="help-text">
+          用于自动登录的密码（可选，将安全存储）
+        </div>
+      </div>
+
+      <div class="form-group">
+        <button type="submit" class="btn btn-primary">保存设置</button>
+        <button type="button" id="test-connection" class="btn btn-secondary">测试连接</button>
+      </div>
+    </form>
+
+    <div class="connection-test">
+      <h3>连接测试</h3>
+      <p>点击"测试连接"按钮来验证服务器连接是否正常。</p>
+      <div id="test-result" style="display: none;"></div>
+    </div>
+
+    <div class="advanced-settings">
+      <h3>高级设置</h3>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="auto-detect" name="autoDetect" checked>
+        <label for="auto-detect">自动检测登录表单</label>
+      </div>
+      <div class="help-text" style="margin-left: 25px; margin-bottom: 15px;">
+        启用后，插件会自动检测网页上的登录和注册表单
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="show-notifications" name="showNotifications" checked>
+        <label for="show-notifications">显示保存通知</label>
+      </div>
+      <div class="help-text" style="margin-left: 25px; margin-bottom: 15px;">
+        当检测到账号信息时显示保存提示
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="auto-save" name="autoSave">
+        <label for="auto-save">自动保存账号信息</label>
+      </div>
+      <div class="help-text" style="margin-left: 25px; margin-bottom: 15px;">
+        检测到账号信息时自动保存，无需用户确认（谨慎使用）
+      </div>
+
+      <div class="form-group">
+        <label for="excluded-sites">排除网站:</label>
+        <input type="text" id="excluded-sites" name="excludedSites" placeholder="example.com, test.org">
+        <div class="help-text">
+          不进行自动检测的网站域名，用逗号分隔
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
