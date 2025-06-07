@@ -10,8 +10,23 @@ class FormDetector {
   }
 
   init() {
+    console.log('🚀 FormDetector 初始化');
+    this.checkExtensionStatus();
     this.startFormDetection();
     this.listenForMessages();
+  }
+
+  // 检查扩展状态
+  checkExtensionStatus() {
+    if (!this.isExtensionContextValid()) {
+      console.warn('⚠️ 扩展上下文无效，某些功能可能不可用');
+      // 延迟显示通知，避免在页面加载时立即显示
+      setTimeout(() => {
+        this.showNotification('扩展需要重新加载，请刷新页面', 'error');
+      }, 2000);
+    } else {
+      console.log('✅ 扩展上下文有效');
+    }
   }
 
   listenForMessages() {
@@ -225,10 +240,15 @@ class FormDetector {
     }
 
     // 获取当前域名匹配的注册信息
-    chrome.runtime.sendMessage({
+    this.safeSendMessage({
       action: 'getRegistrationsByDomain',
       domain: this.getPlatformName()
     }, (response) => {
+      if (!response) {
+        console.log('❌ 无法获取注册信息，可能是扩展上下文失效');
+        return;
+      }
+
       console.log('📡 获取域名匹配注册信息响应:', response);
 
       if (response && response.success && response.data && response.data.length > 0) {
@@ -247,6 +267,44 @@ class FormDetector {
         console.log('ℹ️ 未找到匹配的注册信息');
       }
     });
+  }
+
+  // 检查扩展上下文是否有效
+  isExtensionContextValid() {
+    try {
+      // 尝试访问chrome.runtime，如果失败说明上下文无效
+      return !!(chrome && chrome.runtime && chrome.runtime.id);
+    } catch (error) {
+      console.error('❌ 扩展上下文检查失败:', error);
+      return false;
+    }
+  }
+
+  // 安全的消息发送方法
+  safeSendMessage(message, callback) {
+    if (!this.isExtensionContextValid()) {
+      console.log('❌ 扩展上下文无效，无法发送消息:', message.action);
+      if (callback) callback(null);
+      return false;
+    }
+
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        // 检查是否有运行时错误
+        if (chrome.runtime.lastError) {
+          console.error('❌ Chrome运行时错误:', chrome.runtime.lastError.message);
+          if (callback) callback(null);
+          return;
+        }
+
+        if (callback) callback(response);
+      });
+      return true;
+    } catch (error) {
+      console.error('❌ 发送消息时出错:', error);
+      if (callback) callback(null);
+      return false;
+    }
   }
 
   handleFormSubmission(event, formData) {
@@ -305,6 +363,35 @@ class FormDetector {
     if (formData.passwordField && formData.passwordField.value) {
       data.login_password = formData.passwordField.value;
     }
+
+    // 添加详细的字段识别日志
+    console.log('🔍 表单字段识别详情:', {
+      emailField: formData.emailField ? {
+        tagName: formData.emailField.tagName,
+        type: formData.emailField.type,
+        name: formData.emailField.name,
+        id: formData.emailField.id,
+        value: formData.emailField.value,
+        placeholder: formData.emailField.placeholder
+      } : null,
+      passwordField: formData.passwordField ? {
+        tagName: formData.passwordField.tagName,
+        type: formData.passwordField.type,
+        name: formData.passwordField.name,
+        id: formData.passwordField.id,
+        value: formData.passwordField.value ? '***' : 'empty',
+        valueLength: formData.passwordField.value ? formData.passwordField.value.length : 0,
+        placeholder: formData.passwordField.placeholder
+      } : null,
+      usernameField: formData.usernameField ? {
+        tagName: formData.usernameField.tagName,
+        type: formData.usernameField.type,
+        name: formData.usernameField.name,
+        id: formData.usernameField.id,
+        value: formData.usernameField.value,
+        placeholder: formData.usernameField.placeholder
+      } : null
+    });
 
     return data;
   }
@@ -388,11 +475,21 @@ class FormDetector {
       });
 
       if (response && response.success && response.data && Array.isArray(response.data)) {
-        // 查找是否存在相同平台的注册信息
-        const existingRegistration = response.data.find(reg =>
-          reg.platform_name === data.platform_name &&
-          (reg.email_address === data.email_address || reg.login_username === data.login_username)
-        );
+        // 查找是否存在完全匹配的注册信息
+        // 必须平台名称相同，且邮箱或用户名完全匹配（不能为空）
+        const existingRegistration = response.data.find(reg => {
+          const platformMatch = reg.platform_name === data.platform_name;
+
+          // 邮箱匹配：两者都有邮箱且相同
+          const emailMatch = data.email_address && reg.email_address &&
+                            reg.email_address === data.email_address;
+
+          // 用户名匹配：两者都有用户名且相同
+          const usernameMatch = data.login_username && reg.login_username &&
+                               reg.login_username === data.login_username;
+
+          return platformMatch && (emailMatch || usernameMatch);
+        });
 
         console.log('🔍 手动模式：查找结果:', {
           totalRegistrations: response.data.length,
@@ -400,7 +497,16 @@ class FormDetector {
           searchEmail: data.email_address,
           searchUsername: data.login_username,
           foundExisting: !!existingRegistration,
-          existingId: existingRegistration?.id
+          existingId: existingRegistration?.id,
+          existingEmail: existingRegistration?.email_address,
+          existingUsername: existingRegistration?.login_username,
+          matchDetails: existingRegistration ? {
+            platformMatch: existingRegistration.platform_name === data.platform_name,
+            emailMatch: data.email_address && existingRegistration.email_address &&
+                       existingRegistration.email_address === data.email_address,
+            usernameMatch: data.login_username && existingRegistration.login_username &&
+                          existingRegistration.login_username === data.login_username
+          } : null
         });
 
         if (existingRegistration) {
@@ -444,10 +550,16 @@ class FormDetector {
         const existingPassword = response.data ? response.data.password : '';
         const newPassword = newData.login_password;
 
-        console.log('🔐 手动模式：密码比较:', {
+        console.log('🔐 手动模式：密码比较详情:', {
+          existingPassword: existingPassword ? `${existingPassword.substring(0, 5)}...${existingPassword.slice(-3)}` : 'empty',
+          newPassword: newPassword ? `${newPassword.substring(0, 5)}...${newPassword.slice(-3)}` : 'empty',
           existingPasswordLength: existingPassword ? existingPassword.length : 0,
           newPasswordLength: newPassword ? newPassword.length : 0,
-          passwordsMatch: existingPassword === newPassword
+          passwordsMatch: existingPassword === newPassword,
+          exactMatch: existingPassword === newPassword,
+          // 添加更详细的比较信息
+          existingPasswordFull: existingPassword, // 临时显示完整密码用于调试
+          newPasswordFull: newPassword // 临时显示完整密码用于调试
         });
 
         // 比较密码是否有变化
@@ -603,10 +715,16 @@ class FormDetector {
         const existingPassword = response.data ? response.data.password : '';
         const newPassword = newData.login_password;
 
-        console.log('🔐 密码比较:', {
+        console.log('🔐 自动模式：密码比较详情:', {
+          existingPassword: existingPassword ? `${existingPassword.substring(0, 5)}...${existingPassword.slice(-3)}` : 'empty',
+          newPassword: newPassword ? `${newPassword.substring(0, 5)}...${newPassword.slice(-3)}` : 'empty',
           existingPasswordLength: existingPassword ? existingPassword.length : 0,
           newPasswordLength: newPassword ? newPassword.length : 0,
           passwordsMatch: existingPassword === newPassword,
+          exactMatch: existingPassword === newPassword,
+          // 添加更详细的比较信息
+          existingPasswordFull: existingPassword, // 临时显示完整密码用于调试
+          newPasswordFull: newPassword, // 临时显示完整密码用于调试
           responseData: response.data
         });
 
@@ -761,10 +879,15 @@ class FormDetector {
 
     // 获取并填充密码
     if (formData.passwordField && accountData.id) {
-      chrome.runtime.sendMessage({
+      this.safeSendMessage({
         action: 'getRegistrationPassword',
         id: accountData.id
       }, (passwordResponse) => {
+        if (!passwordResponse) {
+          console.log('❌ 无法获取密码，可能是扩展上下文失效');
+          return;
+        }
+
         if (passwordResponse && passwordResponse.success && passwordResponse.data && passwordResponse.data.password) {
           formData.passwordField.value = passwordResponse.data.password;
           formData.passwordField.dispatchEvent(new Event('input', { bubbles: true }));
