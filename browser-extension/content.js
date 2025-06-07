@@ -19,6 +19,10 @@ class FormDetector {
       if (request.action === 'startFormDetection') {
         this.startFormDetection();
         sendResponse({ success: true });
+      } else if (request.action === 'triggerAutoFill') {
+        // 手动触发自动填充（可以通过popup或快捷键触发）
+        this.triggerManualAutoFill();
+        sendResponse({ success: true });
       }
     });
   }
@@ -72,6 +76,11 @@ class FormDetector {
     if (formData.isLoginForm || formData.isRegisterForm) {
       this.detectedForms.add(form);
       this.attachFormListener(form, formData);
+
+      // 如果是登录表单，为账号输入框添加聚焦监听器
+      if (formData.isLoginForm) {
+        this.attachAutoFillListeners(form, formData);
+      }
     }
   }
 
@@ -152,6 +161,91 @@ class FormDetector {
   attachFormListener(form, formData) {
     form.addEventListener('submit', (event) => {
       this.handleFormSubmission(event, formData);
+    });
+  }
+
+  // 为账号输入框添加聚焦监听器
+  attachAutoFillListeners(form, formData) {
+    console.log('🎯 为登录表单添加自动填充监听器');
+
+    // 为邮箱字段添加聚焦监听
+    if (formData.emailField) {
+      this.addFocusListener(formData.emailField, form, formData, 'email');
+    }
+
+    // 为用户名字段添加聚焦监听
+    if (formData.usernameField) {
+      this.addFocusListener(formData.usernameField, form, formData, 'username');
+    }
+  }
+
+  // 添加聚焦监听器
+  addFocusListener(inputField, form, formData, fieldType) {
+    console.log(`🔍 为${fieldType}字段添加聚焦监听器:`, inputField);
+
+    // 防止重复添加监听器
+    if (inputField.hasAttribute('data-autofill-listener')) {
+      return;
+    }
+    inputField.setAttribute('data-autofill-listener', 'true');
+
+    // 聚焦事件监听器
+    const focusHandler = () => {
+      console.log(`👆 用户聚焦到${fieldType}字段，检查自动填充`);
+      this.checkAutoFillOnFocus(form, formData, inputField);
+    };
+
+    // 点击事件监听器（有些情况下focus事件可能不触发）
+    const clickHandler = () => {
+      console.log(`🖱️ 用户点击${fieldType}字段，检查自动填充`);
+      // 延迟一点执行，确保焦点已经设置
+      setTimeout(() => {
+        this.checkAutoFillOnFocus(form, formData, inputField);
+      }, 50);
+    };
+
+    inputField.addEventListener('focus', focusHandler);
+    inputField.addEventListener('click', clickHandler);
+
+    // 存储事件处理器引用，以便后续清理
+    inputField._autoFillHandlers = {
+      focus: focusHandler,
+      click: clickHandler
+    };
+  }
+
+  // 当用户聚焦到输入框时检查自动填充
+  checkAutoFillOnFocus(form, formData, targetField) {
+    console.log('🔍 用户聚焦输入框，检查自动填充:', { domain: this.getPlatformName() });
+
+    // 检查是否已经有内容（避免覆盖用户已输入的内容）
+    if (targetField.value && targetField.value.trim() !== '') {
+      console.log('📝 输入框已有内容，跳过自动填充');
+      return;
+    }
+
+    // 获取当前域名匹配的注册信息
+    chrome.runtime.sendMessage({
+      action: 'getRegistrationsByDomain',
+      domain: this.getPlatformName()
+    }, (response) => {
+      console.log('📡 获取域名匹配注册信息响应:', response);
+
+      if (response && response.success && response.data && response.data.length > 0) {
+        console.log('✅ 找到匹配的注册信息，数量:', response.data.length);
+
+        if (response.data.length === 1) {
+          // 只有一个匹配的账号，直接填充
+          console.log('🚀 单个账号，直接自动填充');
+          this.performAutoFill(form, formData, response.data[0]);
+        } else {
+          // 多个匹配的账号，显示选择界面
+          console.log('📋 多个账号，显示选择器');
+          this.showAccountSelector(form, formData, response.data, targetField);
+        }
+      } else {
+        console.log('ℹ️ 未找到匹配的注册信息');
+      }
     });
   }
 
@@ -571,7 +665,451 @@ class FormDetector {
     });
   }
 
+  // 检查是否需要自动填充（保留用于手动触发）
+  checkAutoFill(form, formData) {
+    console.log('🔍 手动检查自动填充:', { domain: this.getPlatformName() });
+
+    // 找到目标输入框
+    const targetField = formData.emailField || formData.usernameField;
+
+    // 获取当前域名匹配的注册信息
+    chrome.runtime.sendMessage({
+      action: 'getRegistrationsByDomain',
+      domain: this.getPlatformName()
+    }, (response) => {
+      console.log('📡 获取域名匹配注册信息响应:', response);
+
+      if (response && response.success && response.data && response.data.length > 0) {
+        console.log('✅ 找到匹配的注册信息，数量:', response.data.length);
+
+        if (response.data.length === 1) {
+          // 只有一个匹配的账号，直接填充
+          this.performAutoFill(form, formData, response.data[0]);
+        } else {
+          // 多个匹配的账号，显示选择界面
+          this.showAccountSelector(form, formData, response.data, targetField);
+        }
+      } else {
+        console.log('ℹ️ 未找到匹配的注册信息');
+      }
+    });
+  }
+
+  // 手动触发自动填充（通过popup或快捷键）
+  triggerManualAutoFill() {
+    console.log('🔧 手动触发自动填充');
+
+    // 查找当前页面的登录表单
+    const forms = document.querySelectorAll('form');
+    let loginForm = null;
+    let loginFormData = null;
+
+    for (const form of forms) {
+      const formData = this.extractFormData(form);
+      if (formData.isLoginForm) {
+        loginForm = form;
+        loginFormData = formData;
+        break;
+      }
+    }
+
+    if (loginForm && loginFormData) {
+      console.log('✅ 找到登录表单，开始自动填充');
+      this.checkAutoFill(loginForm, loginFormData);
+    } else {
+      console.log('❌ 未找到登录表单');
+      this.showNotification('未找到登录表单', 'error');
+    }
+  }
+
+  // 关闭已存在的选择器
+  closeExistingSelector() {
+    const existingDropdown = document.getElementById('email-server-account-dropdown');
+    if (existingDropdown) {
+      existingDropdown.remove();
+      console.log('🗑️ 关闭已存在的下拉选择器');
+    }
+
+    const existingModal = document.getElementById('email-server-account-modal');
+    if (existingModal) {
+      existingModal.remove();
+      console.log('🗑️ 关闭已存在的模态选择器');
+    }
+  }
+
+  // 执行自动填充
+  performAutoFill(form, formData, accountData) {
+    console.log('🚀 执行自动填充:', {
+      platform: accountData.platform_name,
+      email: accountData.email_address,
+      username: accountData.login_username
+    });
+
+    // 填充邮箱字段
+    if (formData.emailField && accountData.email_address) {
+      formData.emailField.value = accountData.email_address;
+      formData.emailField.dispatchEvent(new Event('input', { bubbles: true }));
+      formData.emailField.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // 填充用户名字段
+    if (formData.usernameField && accountData.login_username) {
+      formData.usernameField.value = accountData.login_username;
+      formData.usernameField.dispatchEvent(new Event('input', { bubbles: true }));
+      formData.usernameField.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // 获取并填充密码
+    if (formData.passwordField && accountData.id) {
+      chrome.runtime.sendMessage({
+        action: 'getRegistrationPassword',
+        id: accountData.id
+      }, (passwordResponse) => {
+        if (passwordResponse && passwordResponse.success && passwordResponse.data && passwordResponse.data.password) {
+          formData.passwordField.value = passwordResponse.data.password;
+          formData.passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+          formData.passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+
+          console.log('✅ 自动填充完成');
+          this.showNotification('已自动填充登录信息', 'success');
+        }
+      });
+    }
+  }
+
+  // 显示账号选择器（下拉式选择）
+  showAccountSelector(form, formData, accounts, targetField = null) {
+    console.log('📋 显示账号选择器，账号数量:', accounts.length);
+
+    // 如果没有传入targetField，则自动查找
+    if (!targetField) {
+      targetField = formData.emailField || formData.usernameField;
+    }
+
+    if (!targetField) {
+      console.log('❌ 未找到目标输入框，使用模态对话框');
+      this.showModalAccountSelector(form, formData, accounts);
+      return;
+    }
+
+    // 关闭任何已存在的选择器
+    this.closeExistingSelector();
+
+    // 获取输入框的位置信息
+    const rect = targetField.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+    // 创建下拉选择器
+    const selectorDiv = document.createElement('div');
+    selectorDiv.id = 'email-server-account-dropdown';
+    selectorDiv.style.cssText = `
+      position: absolute;
+      top: ${rect.bottom + scrollTop + 2}px;
+      left: ${rect.left + scrollLeft}px;
+      width: ${Math.max(rect.width, 300)}px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10003;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      max-height: 300px;
+      overflow-y: auto;
+    `;
+
+    // 创建账号选项
+    let accountsHtml = accounts.map((account, index) => {
+      const displayName = account.email_address || account.login_username || '未知账号';
+      const platformIcon = this.getPlatformIcon(account.platform_name);
+
+      return `
+        <div class="account-option" data-index="${index}" style="
+          display: flex;
+          align-items: center;
+          padding: 12px 16px;
+          border-bottom: 1px solid #f0f0f0;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        " onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='white'">
+          <div style="
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: #4285f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 16px;
+            color: white;
+            font-weight: bold;
+          ">
+            ${platformIcon}
+          </div>
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: #202124; margin-bottom: 2px;">
+              ${account.platform_name}
+            </div>
+            <div style="font-size: 13px; color: #5f6368;">
+              ${displayName}
+            </div>
+          </div>
+          <div style="
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid #4285f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <div style="
+              width: 8px;
+              height: 8px;
+              background: #4285f4;
+              border-radius: 2px;
+            "></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // 添加"新增登录"选项
+    accountsHtml += `
+      <div class="add-new-option" style="
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border-top: 1px solid #e8eaed;
+      " onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='white'">
+        <div style="
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+          border: 2px dashed #4285f4;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 12px;
+          font-size: 18px;
+          color: #4285f4;
+        ">
+          +
+        </div>
+        <div style="flex: 1;">
+          <div style="font-weight: 500; color: #4285f4;">
+            新增登录
+          </div>
+        </div>
+      </div>
+    `;
+
+    selectorDiv.innerHTML = accountsHtml;
+
+    // 添加到页面
+    document.body.appendChild(selectorDiv);
+
+    // 绑定事件
+    selectorDiv.querySelectorAll('.account-option').forEach((option, index) => {
+      option.addEventListener('click', () => {
+        this.performAutoFill(form, formData, accounts[index]);
+        selectorDiv.remove();
+      });
+    });
+
+    // 绑定"新增登录"事件
+    const addNewOption = selectorDiv.querySelector('.add-new-option');
+    if (addNewOption) {
+      addNewOption.addEventListener('click', () => {
+        selectorDiv.remove();
+        console.log('🆕 用户选择新增登录');
+        // 这里可以触发新增账号的流程
+      });
+    }
+
+    // 点击外部关闭
+    const closeHandler = (event) => {
+      if (!selectorDiv.contains(event.target) && !targetField.contains(event.target)) {
+        selectorDiv.remove();
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+
+    // 延迟添加点击监听，避免立即触发
+    setTimeout(() => {
+      document.addEventListener('click', closeHandler);
+    }, 100);
+
+    // ESC键关闭
+    const escHandler = (event) => {
+      if (event.key === 'Escape') {
+        selectorDiv.remove();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+  }
+
+  // 获取平台图标
+  getPlatformIcon(platformName) {
+    const platform = platformName.toLowerCase();
+
+    // 常见平台的图标映射
+    const iconMap = {
+      'google': 'G',
+      'gmail': 'G',
+      'github': 'GH',
+      'facebook': 'F',
+      'twitter': 'T',
+      'linkedin': 'in',
+      'microsoft': 'M',
+      'apple': '',
+      'amazon': 'A',
+      'netflix': 'N',
+      'spotify': 'S',
+      'instagram': 'IG',
+      'youtube': 'YT',
+      'localhost': '🏠',
+      '127.0.0.1': '🏠'
+    };
+
+    // 查找匹配的图标
+    for (const [key, icon] of Object.entries(iconMap)) {
+      if (platform.includes(key)) {
+        return icon;
+      }
+    }
+
+    // 默认使用平台名称的首字母
+    return platformName.charAt(0).toUpperCase();
+  }
+
+  // 备用的模态对话框选择器（当无法定位输入框时使用）
+  showModalAccountSelector(form, formData, accounts) {
+    console.log('📋 显示模态账号选择器');
+
+    // 创建选择器界面
+    const selectorDiv = document.createElement('div');
+    selectorDiv.id = 'email-server-account-modal';
+    selectorDiv.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      z-index: 10003;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      max-width: 400px;
+      min-width: 320px;
+    `;
+
+    let accountsHtml = accounts.map((account, index) => `
+      <div class="account-option" data-index="${index}" style="
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border: 1px solid #e8eaed;
+      " onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='white'">
+        <div style="
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+          background: #4285f4;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 12px;
+          font-size: 16px;
+          color: white;
+          font-weight: bold;
+        ">
+          ${this.getPlatformIcon(account.platform_name)}
+        </div>
+        <div style="flex: 1;">
+          <div style="font-weight: 500; color: #202124; margin-bottom: 2px;">
+            ${account.email_address || account.login_username || '未知账号'}
+          </div>
+          <div style="font-size: 13px; color: #5f6368;">
+            ${account.platform_name}
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    selectorDiv.innerHTML = `
+      <div style="margin-bottom: 20px; font-weight: 600; color: #202124; text-align: center; font-size: 16px;">
+        选择要填充的账号
+      </div>
+      <div style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+        ${accountsHtml}
+      </div>
+      <div style="text-align: center;">
+        <button id="cancel-modal-selector" style="
+          padding: 10px 20px;
+          background: #f8f9fa;
+          color: #5f6368;
+          border: 1px solid #dadce0;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+        ">
+          取消
+        </button>
+      </div>
+    `;
+
+    // 添加背景遮罩
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.4);
+      z-index: 10002;
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(selectorDiv);
+
+    // 绑定事件
+    selectorDiv.querySelectorAll('.account-option').forEach((option, index) => {
+      option.addEventListener('click', () => {
+        this.performAutoFill(form, formData, accounts[index]);
+        overlay.remove();
+        selectorDiv.remove();
+      });
+    });
+
+    document.getElementById('cancel-modal-selector').addEventListener('click', () => {
+      overlay.remove();
+      selectorDiv.remove();
+    });
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', () => {
+      overlay.remove();
+      selectorDiv.remove();
+    });
+  }
+
   showNotification(message, type) {
+    // 设置默认类型
+    if (!type) type = 'success';
+
     const notification = document.createElement('div');
     notification.style.cssText = `
       position: fixed;

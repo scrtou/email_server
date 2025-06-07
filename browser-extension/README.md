@@ -9,6 +9,12 @@
 - 智能提取用户名、密码、邮箱等信息
 - 基于域名自动识别平台名称
 
+### 🚀 自动填充 (新功能)
+- 根据当前网站域名自动匹配已保存的账号
+- 单账号时自动填充，多账号时显示选择界面
+- 支持邮箱、用户名和密码的智能填充
+- 可手动触发自动填充功能
+
 ### 💾 数据管理
 - 与 Email Server 后端 API 无缝集成
 - 支持手动添加和编辑账号信息
@@ -56,6 +62,14 @@
 3. 输入 Email Server 的后端地址（如：`http://localhost:8080`）
 4. 可选：输入用户名和密码以启用自动登录
 
+### 自动填充使用 🆕
+
+1. 访问任何网站的登录页面
+2. 如果该网站有已保存的账号信息：
+   - **单个账号**：自动填充登录信息并显示成功通知
+   - **多个账号**：显示账号选择对话框，选择后自动填充
+3. 也可以通过插件弹窗手动触发自动填充
+
 ### 自动检测使用
 
 1. 访问任何网站的登录或注册页面
@@ -90,6 +104,7 @@ browser-extension/
 ├── options.js            # 设置逻辑
 ├── icons/                # 图标文件
 ├── test-page.html        # 测试页面
+├── test-autofill.html    # 自动填充测试页面 🆕
 ├── package.sh            # 打包脚本
 └── docs/                 # 文档目录
 ```
@@ -105,6 +120,8 @@ browser-extension/
 - 检测网页上的表单元素
 - 提取用户输入的账号信息
 - 显示保存提示界面
+- 自动填充已保存的登录信息 🆕
+- 显示账号选择器（多账号时）🆕
 
 #### Popup Interface (popup.html/js)
 - 用户交互界面
@@ -124,6 +141,8 @@ browser-extension/
 - `POST /api/v1/auth/login` - 用户登录
 - `POST /api/v1/platform-registrations/by-name` - 创建平台注册信息
 - `GET /api/v1/platform-registrations` - 获取注册信息列表
+- `GET /api/v1/platform-registrations/{id}` - 获取单个注册信息详情 🆕
+- `GET /api/v1/platform-registrations/{id}/password` - 获取注册信息密码 🆕
 - `GET /api/v1/health` - 健康检查
 
 ## 开发说明
@@ -194,6 +213,14 @@ browser-extension/
 | 打包发布 | [package.sh](package.sh) |
 
 ## 更新日志
+
+### v1.1.0 (当前版本) 🆕
+- 新增自动填充功能
+- 支持单账号自动填充和多账号选择
+- 实现域名智能匹配算法
+- 添加手动触发自动填充功能
+- 优化用户界面和交互体验
+- 新增自动填充测试页面
 
 ### v1.0.0
 - 初始版本发布
