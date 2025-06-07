@@ -196,7 +196,7 @@
       <!-- Form content remains the same -->
       <ServiceSubscriptionForm
         ref="serviceSubscriptionFormRef"
-        v-if="isModalVisible"
+        v-show="isModalVisible"
         :id="isEditMode && currentSubscription ? currentSubscription.id : null"
         :initial-data="currentSubscription"
         @submit-form="handleFormSubmit"
@@ -208,7 +208,7 @@
           <el-button @click="closeModal">取消</el-button>
           <el-button
             type="primary"
-            @click="() => serviceSubscriptionFormRef?.triggerSubmit()"
+            @click="handleDirectSubmit"
             :loading="serviceSubscriptionStore.loading"
             :disabled="serviceSubscriptionStore.loading"
           >
@@ -486,31 +486,76 @@ const closeModal = () => {
   currentSubscription.value = null;
 };
 
+// 直接提交表单的方法
+const handleDirectSubmit = async () => {
+  console.log('服务订阅直接提交按钮被点击');
+
+  // 防止重复提交
+  if (serviceSubscriptionStore.loading) {
+    console.log('表单正在提交中，忽略重复点击');
+    return;
+  }
+
+  // 检查表单组件是否存在
+  if (!serviceSubscriptionFormRef?.value) {
+    ElMessage.error('表单组件未加载，请重试');
+    return;
+  }
+
+  // 直接调用表单的triggerSubmit方法
+  try {
+    console.log('调用服务订阅表单的triggerSubmit方法');
+    await serviceSubscriptionFormRef.value.triggerSubmit();
+    console.log('服务订阅表单提交完成');
+  } catch (error) {
+    console.error('服务订阅表单提交失败:', error);
+    ElMessage.error('提交失败，请重试');
+  }
+};
+
 const handleFormSubmit = async (eventData) => {
+  // 防止重复提交
+  if (serviceSubscriptionStore.loading) {
+    console.log('表单正在提交中，忽略重复点击');
+    return;
+  }
+
   // eventData is { payload, id, isEdit }
   const { payload, id, isEdit: formIsEdit } = eventData;
   let success = false;
 
-  if (formIsEdit) { // This should align with isEditMode.value
-    if (!id) {
-      ElMessage.error('编辑错误：缺少订阅ID');
-      return;
-    }
-    success = await serviceSubscriptionStore.updateServiceSubscription(id, payload);
-  } else { // Create mode
-    success = await serviceSubscriptionStore.createServiceSubscription(payload);
-  }
+  console.log('开始提交服务订阅表单:', { payload, id, formIsEdit });
 
-  if (success) {
-    closeModal();
-    // ElMessage is handled by store actions
-    // Store actions should also handle re-fetching the list.
-    // If not, call fetch here:
-    // serviceSubscriptionStore.fetchServiceSubscriptions(
-    //   serviceSubscriptionStore.pagination.currentPage,
-    //   pageSize.value,
-    //   serviceSubscriptionStore.sort
-    // );
+  try {
+    if (formIsEdit) { // This should align with isEditMode.value
+      if (!id) {
+        ElMessage.error('编辑错误：缺少订阅ID');
+        return;
+      }
+      console.log('调用服务订阅更新方法，ID:', id);
+      success = await serviceSubscriptionStore.updateServiceSubscription(id, payload);
+    } else { // Create mode
+      console.log('调用服务订阅创建方法');
+      success = await serviceSubscriptionStore.createServiceSubscription(payload);
+    }
+
+    console.log('服务订阅表单提交结果:', success);
+    if (success) {
+      closeModal();
+      // ElMessage is handled by store actions
+      // Store actions should also handle re-fetching the list.
+      // If not, call fetch here:
+      // serviceSubscriptionStore.fetchServiceSubscriptions(
+      //   serviceSubscriptionStore.pagination.currentPage,
+      //   pageSize.value,
+      //   serviceSubscriptionStore.sort
+      // );
+    } else {
+      console.error('服务订阅表单提交失败，success为false');
+    }
+  } catch (error) {
+    console.error('服务订阅表单提交异常:', error);
+    ElMessage.error('操作失败，请重试');
   }
 };
 

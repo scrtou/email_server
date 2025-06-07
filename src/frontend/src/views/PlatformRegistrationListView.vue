@@ -106,7 +106,15 @@
         >
         <el-table-column prop="platform_name" label="平台" min-width="120" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="login_username" label="用户名/ID" min-width="130" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="email_address" label="邮箱账户" min-width="180" sortable="custom" show-overflow-tooltip>
+          <template #default="scope">
+            <!-- 只有当邮箱地址存在且不为空时才显示 -->
+            <span v-if="scope.row.email_address && scope.row.email_address.trim() !== ''">
+              {{ scope.row.email_address }}
+            </span>
+            <!-- 没有邮箱时不显示任何内容，保持空白 -->
+          </template>
+        </el-table-column>
 <el-table-column prop="phone_number" label="手机号" min-width="150" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
@@ -147,7 +155,7 @@
       <!-- Form content remains the same -->
       <PlatformRegistrationForm
         ref="platformRegistrationFormRef"
-        v-if="showModal"
+        v-show="showModal"
         :platform-registration="currentRegistration"
         :is-edit="isEditMode"
         @submit-form="handleFormSubmit"
@@ -159,7 +167,7 @@
           <el-button @click="closeModal">取消</el-button>
           <el-button
             type="primary"
-            @click="() => platformRegistrationFormRef?.triggerSubmit()"
+            @click="handleDirectSubmit"
             :loading="platformRegistrationStore.loading"
             :disabled="platformRegistrationStore.loading"
           >
@@ -343,35 +351,81 @@ const closeModal = () => {
   currentRegistration.value = null;
 };
 
+// 直接提交表单的方法
+const handleDirectSubmit = async () => {
+  console.log('直接提交按钮被点击');
+
+  // 防止重复提交
+  if (platformRegistrationStore.loading) {
+    console.log('表单正在提交中，忽略重复点击');
+    return;
+  }
+
+  // 检查表单组件是否存在
+  if (!platformRegistrationFormRef?.value) {
+    ElMessage.error('表单组件未加载，请重试');
+    return;
+  }
+
+  // 直接调用表单的triggerSubmit方法
+  try {
+    console.log('调用表单的triggerSubmit方法');
+    await platformRegistrationFormRef.value.triggerSubmit();
+    console.log('表单提交完成');
+  } catch (error) {
+    console.error('表单提交失败:', error);
+    ElMessage.error('提交失败，请重试');
+  }
+};
+
 const handleFormSubmit = async (eventData) => {
+  // 防止重复提交
+  if (platformRegistrationStore.loading) {
+    console.log('表单正在提交中，忽略重复点击');
+    return;
+  }
+
   // eventData is { payload, id?, isEdit, useByNameApi? }
   const { payload, id, isEdit: formIsEdit, useByNameApi } = eventData;
   let success = false;
 
-  if (formIsEdit) { // Corresponds to isEditMode.value when the form was opened
-    if (!id) {
-      ElMessage.error('编辑错误：缺少注册信息ID');
-      return;
-    }
-    success = await platformRegistrationStore.updatePlatformRegistration(id, payload);
-  } else { // Create mode
-    if (useByNameApi) {
-      success = await platformRegistrationStore.createPlatformRegistrationByName(payload);
-    } else {
-      success = await platformRegistrationStore.createPlatformRegistration(payload);
-    }
-  }
+  console.log('开始提交表单:', { payload, id, formIsEdit, useByNameApi });
 
-  if (success) {
-    closeModal();
-    // ElMessage is handled by store actions now
-    // Refresh data
-    await platformRegistrationStore.fetchPlatformRegistrations(
-      platformRegistrationStore.pagination.currentPage,
-      platformRegistrationStore.pagination.pageSize,
-      platformRegistrationStore.sort,
-      platformRegistrationStore.filters
-    );
+  try {
+    if (formIsEdit) { // Corresponds to isEditMode.value when the form was opened
+      if (!id) {
+        ElMessage.error('编辑错误：缺少注册信息ID');
+        return;
+      }
+      console.log('调用更新方法，ID:', id);
+      success = await platformRegistrationStore.updatePlatformRegistration(id, payload);
+    } else { // Create mode
+      if (useByNameApi) {
+        console.log('调用按名称创建方法');
+        success = await platformRegistrationStore.createPlatformRegistrationByName(payload);
+      } else {
+        console.log('调用普通创建方法');
+        success = await platformRegistrationStore.createPlatformRegistration(payload);
+      }
+    }
+
+    console.log('表单提交结果:', success);
+    if (success) {
+      closeModal();
+      // ElMessage is handled by store actions now
+      // Refresh data
+      await platformRegistrationStore.fetchPlatformRegistrations(
+        platformRegistrationStore.pagination.currentPage,
+        platformRegistrationStore.pagination.pageSize,
+        platformRegistrationStore.sort,
+        platformRegistrationStore.filters
+      );
+    } else {
+      console.error('表单提交失败，success为false');
+    }
+  } catch (error) {
+    console.error('表单提交异常:', error);
+    ElMessage.error('操作失败，请重试');
   }
 };
 
@@ -439,7 +493,7 @@ const handleImportSuccess = async (data) => {
   ElMessage.success(`导入成功！共导入 ${data.count} 条记录`);
 
   // 刷新下拉选项数据（导入可能创建了新的平台和邮箱账户）
-  await Promise.all([
+  await window.Promise.all([
     // 刷新邮箱账户列表
     emailAccountStore.fetchEmailAccounts(
       1,

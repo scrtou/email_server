@@ -244,7 +244,8 @@ onMounted(async () => {
 
   // Populate form if in edit mode and data is provided
   if (props.isEdit && props.platformRegistration) {
-    form.value.email_account_id = props.platformRegistration.email_account_id;
+    // 处理 email_account_id：如果为 0 则设置为 null（表示未关联邮箱）
+    form.value.email_account_id = props.platformRegistration.email_account_id === 0 ? null : props.platformRegistration.email_account_id;
     form.value.platform_id = props.platformRegistration.platform_id;
     form.value.login_username = props.platformRegistration.login_username;
     form.value.phone_number = props.platformRegistration.phone_number || ''; // Populate phone_number
@@ -263,7 +264,8 @@ onMounted(async () => {
 
 watch(() => props.platformRegistration, (newVal) => {
   if (props.isEdit && newVal) {
-    form.value.email_account_id = newVal.email_account_id;
+    // 处理 email_account_id：如果为 0 则设置为 null（表示未关联邮箱）
+    form.value.email_account_id = newVal.email_account_id === 0 ? null : newVal.email_account_id;
     form.value.platform_id = newVal.platform_id;
     form.value.login_username = newVal.login_username;
     form.value.phone_number = newVal.phone_number || ''; // Populate phone_number
@@ -302,58 +304,70 @@ const handleSubmit = async () => {
         payload.login_password = form.value.login_password;
       }
 
-      if (props.isEdit) {
-        if (!currentIdToUpdate) {
-          ElMessage.error('编辑错误：缺少注册信息ID');
-          loading.value = false;
-          return;
-        }
-        // For update, include IDs as they are part of the form and might be expected by backend
-        // even if not directly editable in the UI for this specific form's edit mode.
-        payload.email_account_id = form.value.email_account_id;
-        payload.platform_id = form.value.platform_id;
-        // The store action will be called by the parent.
-        emit('submit-form', { payload, id: currentIdToUpdate, isEdit: true });
-
-      } else { // Create mode
-        const isEmailNew = typeof form.value.email_account_id === 'string' && form.value.email_account_id.trim() !== '';
-        const isPlatformNew = typeof form.value.platform_id === 'string' && form.value.platform_id.trim() !== '';
-
-        if (isEmailNew || isPlatformNew) { // One or both are new
-          if (isEmailNew) {
-            payload.email_address = String(form.value.email_account_id).trim();
-          } else if (form.value.email_account_id) { // Only process if an existing email IS selected
-            // If email_account_id is null/undefined, we skip this block, allowing username-only submission
-            const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
-            if (!selectedEmail) { ElMessage.error('选择的邮箱账户无效'); loading.value = false; return; } // Keep validation for selected email
-            payload.email_address = selectedEmail.email_address;
+      try {
+        if (props.isEdit) {
+          if (!currentIdToUpdate) {
+            ElMessage.error('编辑错误：缺少注册信息ID');
+            return;
           }
-
-          if (isPlatformNew) {
-            payload.platform_name = String(form.value.platform_id).trim();
-          } else {
-             if (!form.value.platform_id) {
-                ElMessage.error('请选择平台');
-                loading.value = false; return;
-            }
-            const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
-            if (!selectedPlatform) { ElMessage.error('选择的平台无效'); loading.value = false; return; }
-            payload.platform_name = selectedPlatform.name;
+          // For update, include IDs as they are part of the form and might be expected by backend
+          // even if not directly editable in the UI for this specific form's edit mode.
+          // 如果 email_account_id 为 null，则不包含在 payload 中，让后端处理为 NULL
+          if (form.value.email_account_id !== null) {
+            payload.email_account_id = form.value.email_account_id;
           }
-          emit('submit-form', { payload, useByNameApi: true, isEdit: false });
-        } else { // Both are existing (selected from dropdown)
-          // Removed the check for email_account_id.
-          // platform_id is already validated by formRef.value.validate based on rules.
-          // We still need to assign them to the payload if they exist.
-          if (form.value.email_account_id) { // Assign if selected
-             payload.email_account_id = form.value.email_account_id;
-          }
-          // platform_id is required by rules, so it should exist here if validation passed.
           payload.platform_id = form.value.platform_id;
-          emit('submit-form', { payload, useByNameApi: false, isEdit: false });
+          // The store action will be called by the parent.
+          emit('submit-form', { payload, id: currentIdToUpdate, isEdit: true });
+
+        } else { // Create mode
+          const isEmailNew = typeof form.value.email_account_id === 'string' && form.value.email_account_id.trim() !== '';
+          const isPlatformNew = typeof form.value.platform_id === 'string' && form.value.platform_id.trim() !== '';
+
+          if (isEmailNew || isPlatformNew) { // One or both are new
+            if (isEmailNew) {
+              payload.email_address = String(form.value.email_account_id).trim();
+            } else if (form.value.email_account_id) { // Only process if an existing email IS selected
+              // If email_account_id is null/undefined, we skip this block, allowing username-only submission
+              const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
+              if (!selectedEmail) {
+                ElMessage.error('选择的邮箱账户无效');
+                return;
+              }
+              payload.email_address = selectedEmail.email_address;
+            }
+
+            if (isPlatformNew) {
+              payload.platform_name = String(form.value.platform_id).trim();
+            } else {
+               if (!form.value.platform_id) {
+                  ElMessage.error('请选择平台');
+                  return;
+              }
+              const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
+              if (!selectedPlatform) {
+                ElMessage.error('选择的平台无效');
+                return;
+              }
+              payload.platform_name = selectedPlatform.name;
+            }
+            emit('submit-form', { payload, useByNameApi: true, isEdit: false });
+          } else { // Both are existing (selected from dropdown)
+            // Removed the check for email_account_id.
+            // platform_id is already validated by formRef.value.validate based on rules.
+            // We still need to assign them to the payload if they exist.
+            if (form.value.email_account_id) { // Assign if selected
+               payload.email_account_id = form.value.email_account_id;
+            }
+            // platform_id is required by rules, so it should exist here if validation passed.
+            payload.platform_id = form.value.platform_id;
+            emit('submit-form', { payload, useByNameApi: false, isEdit: false });
+          }
         }
+      } finally {
+        // 重置加载状态，但不影响父组件的加载状态管理
+        loading.value = false;
       }
-      loading.value = false;
     } else {
       ElMessage.error('请检查表单输入');
       return false;

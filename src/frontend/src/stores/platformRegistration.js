@@ -150,19 +150,20 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         console.warn('[PlatformRegistrationStore] createPlatformRegistration called while not authenticated.');
         ElMessage.error('请先登录再创建平台注册信息');
         this.loading = false;
-        return null;
+        return false;
       }
 
       this.loading = true;
       this.error = null;
       try {
 // data should include phone_number from the form
-        const createdData = await platformRegistrationAPI.create(data);
+        await platformRegistrationAPI.create(data);
         ElMessage.success('平台注册信息创建成功');
         // Decide on re-fetch strategy, e.g., based on current view or always re-fetch first page
         await this.fetchPlatformRegistrations(1, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
-        return createdData;
+        return true; // 返回 true 表示成功
       } catch (err) {
+        console.error('[PlatformRegistrationStore] createPlatformRegistration error:', err);
         if (err.response && err.response.status === 409) {
           this.error = err.response.data.message || '该邮箱账户已在此平台注册。';
           ElMessage.error(this.error);
@@ -170,7 +171,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
           this.error = err.message || '创建平台注册信息失败';
           ElMessage.error(this.error);
         }
-        return null;
+        return false; // 返回 false 表示失败
       } finally {
         this.loading = false;
       }
@@ -181,7 +182,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         console.warn('[PlatformRegistrationStore] createPlatformRegistrationByName called while not authenticated.');
         ElMessage.error('请先登录再创建平台注册信息');
         this.loading = false;
-        return null;
+        return false;
       }
 
       this.loading = true;
@@ -189,11 +190,12 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       try {
         // 假设 platformRegistrationAPI.createByName 将被添加到 api.js
 // data should include phone_number from the form
-        const createdData = await platformRegistrationAPI.createByName(data);
+        await platformRegistrationAPI.createByName(data);
         ElMessage.success('平台注册信息创建成功 (by name)');
         await this.fetchPlatformRegistrations(1, this.pagination.pageSize, this.sort, this.filters); // Pass current filters
-        return createdData;
+        return true; // 返回 true 表示成功
       } catch (err) {
+        console.error('[PlatformRegistrationStore] createPlatformRegistrationByName error:', err);
         if (err.response && err.response.status === 409) {
           this.error = err.response.data.message || '该邮箱账户已在此平台注册。';
           ElMessage.error(this.error);
@@ -201,7 +203,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
           this.error = err.message || '创建平台注册信息 (by name) 失败';
           ElMessage.error(this.error);
         }
-        return null;
+        return false; // 返回 false 表示失败
       } finally {
         this.loading = false;
       }
@@ -212,7 +214,7 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         console.warn('[PlatformRegistrationStore] updatePlatformRegistration called while not authenticated.');
         ElMessage.error('请先登录再更新平台注册信息');
         this.loading = false;
-        return null;
+        return false;
       }
 
       this.loading = true;
@@ -226,11 +228,12 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
         if (this.currentPlatformRegistration && this.currentPlatformRegistration.id === id) {
           this.currentPlatformRegistration = updatedData;
         }
-        return updatedData;
+        return true; // 返回 true 表示成功
       } catch (err) {
+        console.error('[PlatformRegistrationStore] updatePlatformRegistration error:', err);
         this.error = err.message || '更新平台注册信息失败';
         ElMessage.error(this.error);
-        return null;
+        return false; // 返回 false 表示失败
       } finally {
         this.loading = false;
       }
