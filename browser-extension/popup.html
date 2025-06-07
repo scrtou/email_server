@@ -5,7 +5,7 @@
   <style>
     body {
       width: 380px;
-      max-height: 600px;
+      height: 600px;
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -13,6 +13,7 @@
       color: #333;
       display: flex;
       flex-direction: column;
+      overflow: hidden; /* 防止body滚动 */
     }
 
     .header {
@@ -57,13 +58,12 @@
     }
 
     .search-section {
-      position: sticky;
-      top: 0;
+      position: relative; /* 改为相对定位 */
       z-index: 100;
-      padding: 16px 20px;
+      padding: 12px 20px;
       background: #ffffff;
       border-bottom: 1px solid #e8eaed;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      flex-shrink: 0; /* 防止收缩 */
     }
 
     .search-box {
@@ -125,9 +125,10 @@
     .content {
       padding: 0;
       flex: 1;
-      overflow-y: auto;
-      max-height: calc(600px - 56px); /* 减去底部导航高度 */
-      padding-bottom: 56px; /* 为底部导航留出空间 */
+      display: flex;
+      flex-direction: column;
+      overflow: hidden; /* 防止content滚动 */
+      min-height: 0; /* 允许flex子元素收缩 */
     }
 
     .status-banner {
@@ -167,11 +168,16 @@
     }
 
     .section-header {
-      padding: 16px 20px 8px;
+      padding: 12px 20px 8px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background: white;
+      border-bottom: 1px solid #f1f3f4;
+      flex-shrink: 0; /* 防止收缩 */
     }
+
+
 
     .section-title {
       font-size: 14px;
@@ -186,14 +192,17 @@
 
     .account-list {
       background: white;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
     }
 
     .account-item {
-      padding: 16px 20px;
+      padding: 8px 20px;
       border-bottom: 1px solid #f1f3f4;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       cursor: pointer;
       transition: background-color 0.2s;
     }
@@ -207,8 +216,8 @@
     }
 
     .account-icon {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       background: #4285f4;
       display: flex;
@@ -216,7 +225,7 @@
       justify-content: center;
       color: white;
       font-weight: 500;
-      font-size: 14px;
+      font-size: 12px;
       flex-shrink: 0;
     }
 
@@ -230,21 +239,23 @@
     }
 
     .account-name {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       color: #333;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 1.3;
     }
 
     .account-details {
-      font-size: 12px;
+      font-size: 11px;
       color: #5f6368;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 1.2;
     }
 
     .account-actions {
@@ -272,14 +283,13 @@
       background: #f1f3f4;
     }
     .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
+      position: relative; /* 改为相对定位 */
       background: white;
       border-top: 1px solid #e8eaed;
       display: flex;
       height: 56px;
+      flex-shrink: 0; /* 防止收缩 */
+      margin-top: auto; /* 推到底部 */
     }
 
     .nav-item {
@@ -385,10 +395,26 @@
     .tab-content {
       display: none;
       padding: 0;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden; /* 防止tab-content滚动 */
+      min-height: 0; /* 允许flex子元素收缩 */
     }
 
     .tab-content.active {
-      display: block;
+      display: flex;
+    }
+
+    #vault-tab.active {
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden; /* 防止vault-tab滚动 */
+    }
+
+    #generator-tab.active {
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden; /* 防止generator-tab滚动 */
     }
 
     .loading {
@@ -732,6 +758,301 @@
       border-color: #4285f4;
       box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
     }
+
+    /* 密码生成器样式 */
+    .generator-tabs {
+      display: flex;
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 4px;
+      margin: 16px 20px;
+      gap: 4px;
+      flex-shrink: 0; /* 防止收缩 */
+    }
+
+    .generator-tab-item {
+      flex: 1;
+      text-align: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #5f6368;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .generator-tab-item.active {
+      background: #4285f4;
+      color: white;
+    }
+
+    .generator-content {
+      display: none;
+      padding: 0 20px 20px;
+      overflow-y: auto; /* 允许垂直滚动 */
+      flex: 1; /* 占用剩余空间 */
+    }
+
+    .generator-content.active {
+      display: block;
+    }
+
+    .password-display {
+      background: #f8f9fa;
+      border: 1px solid #e8eaed;
+      border-radius: 8px;
+      padding: 12px 16px; /* 减少上下内间距 */
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 48px; /* 设置最小高度，使框更紧凑 */
+    }
+
+    .password-output {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 16px;
+      font-weight: 500;
+      color: #333;
+      flex: 1;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .password-actions {
+      display: flex;
+      gap: 8px;
+      margin-left: 12px;
+    }
+
+    .action-btn {
+      background: none;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #5f6368;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+    }
+
+    .action-btn:hover {
+      background: #e8eaed;
+      color: #333;
+    }
+
+    .action-btn svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .generator-options {
+      background: white;
+    }
+
+    .option-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 16px;
+    }
+
+    .option-group {
+      margin-bottom: 20px;
+    }
+
+    .option-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .option-value {
+      color: #4285f4;
+      font-weight: 600;
+    }
+
+    .slider-container {
+      margin-bottom: 8px;
+    }
+
+    .slider-with-buttons {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .slider-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5f6368;
+      transition: all 0.2s;
+      font-size: 16px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .slider-btn:hover {
+      background: #f8f9fa;
+      border-color: #4285f4;
+      color: #4285f4;
+    }
+
+    .slider-btn:active {
+      background: #e8f0fe;
+    }
+
+    .slider-btn:disabled {
+      background: #f8f9fa;
+      border-color: #e8eaed;
+      color: #9aa0a6;
+      cursor: not-allowed;
+    }
+
+    .slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #e8eaed;
+      outline: none;
+      -webkit-appearance: none;
+      margin-bottom: 8px;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #4285f4;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #4285f4;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .slider-hint {
+      font-size: 12px;
+      color: #5f6368;
+      line-height: 1.4;
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      display: none;
+    }
+
+    .checkmark {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #dadce0;
+      border-radius: 4px;
+      margin-right: 8px;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + .checkmark {
+      background: #4285f4;
+      border-color: #4285f4;
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + .checkmark::after {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 2px;
+      width: 4px;
+      height: 8px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .min-count-row {
+      display: flex;
+      gap: 16px;
+    }
+
+    .min-count-item {
+      flex: 1;
+    }
+
+    .min-count-item label {
+      display: block;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    .number-input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .number-input:focus {
+      border-color: #4285f4;
+    }
+
+    .text-input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-top: 6px;
+    }
+
+    .text-input:focus {
+      border-color: #4285f4;
+    }
   </style>
 </head>
 <body>
@@ -741,16 +1062,7 @@
     <button class="add-btn" id="add-btn">新增</button>
   </div>
 
-  <!-- 主界面搜索区域 -->
-  <div class="search-section" id="main-search" style="display: none;">
-    <div class="search-box">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-      </svg>
-      <input type="text" class="search-input" id="search-input" placeholder="搜索">
-    </div>
 
-  </div>
 
   <!-- 登录页面头部 -->
   <div class="login-header" id="login-header" style="display: block;">
@@ -799,23 +1111,220 @@
 
     <!-- 密码库主页 -->
     <div id="vault-tab" class="tab-content active">
-      <div class="suggestion-section" id="auto-fill-suggestion" style="display: none;">
-        <div class="suggestion-title">自动填充建议</div>
-        <div class="suggestion-desc">为这个站点保存一个登录项目以自动填充</div>
+      <!-- 密码库搜索区域 -->
+      <div class="search-section" id="vault-search">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input type="text" class="search-input" id="search-input" placeholder="搜索">
+        </div>
       </div>
 
+      <!-- 固定的标题行 -->
       <div class="section-header">
         <div class="section-title">所有项目</div>
         <div class="item-count" id="item-count">0</div>
       </div>
 
-      <div id="accounts-loading" class="loading" style="display: none;">加载中...</div>
-      <div id="accounts-list" class="account-list"></div>
-      <div id="accounts-error" class="error" style="display: none;"></div>
+      <!-- 自动填充建议 -->
+      <div class="suggestion-section" id="auto-fill-suggestion" style="display: none;">
+        <div class="suggestion-title">自动填充建议</div>
+        <div class="suggestion-desc">为这个站点保存一个登录项目以自动填充</div>
+      </div>
 
+      <!-- 状态显示区域 -->
+      <div id="accounts-loading" class="loading" style="display: none;">加载中...</div>
+      <div id="accounts-error" class="error" style="display: none;"></div>
       <div id="empty-state" class="empty-state" style="display: none;">
         <div class="empty-state-icon">🔐</div>
         <div>暂无保存的账号</div>
+      </div>
+
+      <!-- 账号列表（独立滚动区域） -->
+      <div id="accounts-list" class="account-list"></div>
+    </div>
+
+    <!-- 密码生成器页面 -->
+    <div id="generator-tab" class="tab-content">
+      <!-- 生成器标签页 -->
+      <div class="generator-tabs">
+        <div class="generator-tab-item active" data-generator-tab="password">密码</div>
+        <div class="generator-tab-item" data-generator-tab="passphrase">密码短语</div>
+        <div class="generator-tab-item" data-generator-tab="username">用户名</div>
+      </div>
+
+      <!-- 密码生成器内容 -->
+      <div id="password-generator" class="generator-content active">
+        <!-- 生成的密码显示区域 -->
+        <div class="password-display">
+          <div class="password-output" id="generated-password">uNEp#vAE</div>
+          <div class="password-actions">
+            <button class="action-btn" id="refresh-password" title="重新生成">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+              </svg>
+            </button>
+            <button class="action-btn" id="copy-password" title="复制">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 选项配置 -->
+        <div class="generator-options">
+          <div class="option-title">选项</div>
+
+          <!-- 长度设置 -->
+          <div class="option-group">
+            <div class="option-label">
+              <span>长度</span>
+              <span class="option-value" id="length-value">8</span>
+            </div>
+            <div class="slider-with-buttons">
+              <button type="button" class="slider-btn" id="length-decrease" title="减少长度">−</button>
+              <input type="range" id="length-slider" min="2" max="128" value="8" class="slider">
+              <button type="button" class="slider-btn" id="length-increase" title="增加长度">+</button>
+            </div>
+            <div class="slider-hint">值必须在 2 和 128 之间。使用 8 个或更多字符生成强大的密码。</div>
+          </div>
+
+          <!-- 包含选项 -->
+          <div class="option-group">
+            <div class="option-label">包含</div>
+            <div class="checkbox-grid">
+              <label class="checkbox-item">
+                <input type="checkbox" id="include-uppercase" checked>
+                <span class="checkmark"></span>
+                <span>A-Z</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" id="include-lowercase" checked>
+                <span class="checkmark"></span>
+                <span>a-z</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" id="include-numbers" checked>
+                <span class="checkmark"></span>
+                <span>0-9</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" id="include-symbols" checked>
+                <span class="checkmark"></span>
+                <span>!@#$%^&*</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 最少个数设置 -->
+          <div class="option-group">
+            <div class="min-count-row">
+              <div class="min-count-item">
+                <label>数字最少个数</label>
+                <input type="number" id="min-numbers" min="0" max="10" value="1" class="number-input">
+              </div>
+              <div class="min-count-item">
+                <label>符号最少个数</label>
+                <input type="number" id="min-symbols" min="0" max="10" value="1" class="number-input">
+              </div>
+            </div>
+          </div>
+
+          <!-- 避免易混淆字符 -->
+          <div class="option-group">
+            <label class="checkbox-item">
+              <input type="checkbox" id="avoid-ambiguous" checked>
+              <span class="checkmark"></span>
+              <span>避免易混淆的字符</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 密码短语生成器内容 -->
+      <div id="passphrase-generator" class="generator-content">
+        <div class="password-display">
+          <div class="password-output" id="generated-passphrase">correct-horse-battery-staple</div>
+          <div class="password-actions">
+            <button class="action-btn" id="refresh-passphrase" title="重新生成">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+              </svg>
+            </button>
+            <button class="action-btn" id="copy-passphrase" title="复制">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="generator-options">
+          <div class="option-title">选项</div>
+          <div class="option-group">
+            <div class="option-label">
+              <span>单词数量</span>
+              <span class="option-value" id="words-value">4</span>
+            </div>
+            <div class="slider-with-buttons">
+              <button type="button" class="slider-btn" id="words-decrease" title="减少单词数量">−</button>
+              <input type="range" id="words-slider" min="2" max="8" value="4" class="slider">
+              <button type="button" class="slider-btn" id="words-increase" title="增加单词数量">+</button>
+            </div>
+          </div>
+          <div class="option-group">
+            <label>分隔符</label>
+            <input type="text" id="separator" value="-" class="text-input">
+          </div>
+          <div class="option-group">
+            <label class="checkbox-item">
+              <input type="checkbox" id="capitalize-words">
+              <span class="checkmark"></span>
+              <span>首字母大写</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 用户名生成器内容 -->
+      <div id="username-generator" class="generator-content">
+        <div class="password-display">
+          <div class="password-output" id="generated-username">user24</div>
+          <div class="password-actions">
+            <button class="action-btn" id="refresh-username" title="重新生成">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+              </svg>
+            </button>
+            <button class="action-btn" id="copy-username" title="复制">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="generator-options">
+          <div class="option-title">选项</div>
+          <div class="option-group">
+            <div class="option-label">
+              <span>长度</span>
+              <span class="option-value" id="username-length-value">6</span>
+            </div>
+            <div class="slider-with-buttons">
+              <button type="button" class="slider-btn" id="username-length-decrease" title="减少长度">−</button>
+              <input type="range" id="username-length-slider" min="2" max="20" value="6" class="slider">
+              <button type="button" class="slider-btn" id="username-length-increase" title="增加长度">+</button>
+            </div>
+          </div>
+          <div class="option-group">
+            <label class="checkbox-item">
+              <input type="checkbox" id="include-numbers-username" checked>
+              <span class="checkmark"></span>
+              <span>包含数字</span>
+            </label>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1023,7 +1532,7 @@
       </svg>
       <span>生成器</span>
     </div>
-    <div class="nav-item" data-tab="send">
+    <div class="nav-item" data-tab="send" style="display: none;">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
         <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
       </svg>
