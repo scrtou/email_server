@@ -333,6 +333,18 @@
       box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
     }
 
+    .form-group input[readonly] {
+      background-color: #f8f9fa;
+      color: #5f6368;
+      cursor: not-allowed;
+      border-color: #e8eaed;
+    }
+
+    .form-group input[readonly]:focus {
+      border-color: #e8eaed;
+      box-shadow: none;
+    }
+
     .btn {
       width: 100%;
       padding: 12px 16px;
@@ -938,11 +950,11 @@
           </div>
           <div class="form-group">
             <label for="edit-email">邮箱地址</label>
-            <input type="email" id="edit-email" name="email_address" placeholder="请输入邮箱地址">
+            <input type="email" id="edit-email" name="email_address" readonly placeholder="邮箱地址（不可编辑）">
           </div>
           <div class="form-group">
             <label for="edit-username">用户名</label>
-            <input type="text" id="edit-username" name="login_username" placeholder="请输入用户名">
+            <input type="text" id="edit-username" name="login_username" readonly placeholder="用户名（不可编辑）">
           </div>
           <div class="form-group">
             <label for="edit-password">密码</label>

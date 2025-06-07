@@ -852,6 +852,11 @@ class PopupManager {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
+    // 移除不允许编辑的字段（邮箱地址和用户名）
+    delete data.email_address;
+    delete data.login_username;
+    console.log('🔒 已移除不可编辑字段: email_address, login_username');
+
     // 验证密码字段
     if (data.login_password && data.login_password.trim() !== '') {
       // 检查密码长度
@@ -870,9 +875,6 @@ class PopupManager {
       // 移除空的密码字段
       delete data.login_password;
     }
-
-    // 现在后端支持直接接收email_address字段，不需要转换为email_account_id
-    // 保持email_address字段，后端会自动处理邮箱账号的查找或创建
 
     // 显示保存状态
     document.getElementById('edit-loading').style.display = 'block';
