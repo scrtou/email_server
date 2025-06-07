@@ -104,6 +104,44 @@ class EmailServerAPI {
     }
   }
 
+  async checkPlatformRegistrationConflict(registrationData) {
+    await this.ensureInitialized();
+
+    if (!this.baseURL) {
+      return { hasConflict: false, error: '请先在设置中配置服务器地址' };
+    }
+
+    try {
+      // 使用一个新的API端点来只检查冲突，不实际保存
+      const response = await fetch(`${this.baseURL}/api/v1/platform-registrations/check-conflict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.token}`
+        },
+        body: JSON.stringify(registrationData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return { hasConflict: false, data };
+      } else if (response.status === 409) {
+        // 检测到冲突
+        const error = await response.json();
+        return {
+          hasConflict: true,
+          conflictData: error.data,
+          message: error.message
+        };
+      } else {
+        const error = await response.json();
+        return { hasConflict: false, error: error.message };
+      }
+    } catch (error) {
+      return { hasConflict: false, error: error.message };
+    }
+  }
+
   async createPlatformRegistration(registrationData) {
     await this.ensureInitialized();
 
@@ -124,6 +162,15 @@ class EmailServerAPI {
       if (response.ok) {
         const data = await response.json();
         return { success: true, data };
+      } else if (response.status === 409) {
+        // 处理冲突情况
+        const error = await response.json();
+        return {
+          success: false,
+          error: error.message,
+          conflict: true,
+          conflictData: error.data
+        };
       } else {
         const error = await response.json();
         return { success: false, error: error.message };
@@ -415,9 +462,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse(loginResult);
         break;
 
+      case 'checkRegistrationConflict':
+        const conflictResult = await api.checkPlatformRegistrationConflict(request.data);
+        sendResponse(conflictResult);
+        break;
+
       case 'saveRegistration':
         const saveResult = await api.createPlatformRegistration(request.data);
         sendResponse(saveResult);
+        break;
+
+      case 'updateRegistrationPassword':
+        // 使用完整的数据更新，如果提供了的话
+        const updateData = request.data || { login_password: request.password };
+        console.log('🔄 更新密码请求:', {
+          id: request.id,
+          hasData: !!request.data,
+          updateData: { ...updateData, login_password: '***' }
+        });
+        const updatePasswordResult = await api.updatePlatformRegistration(request.id, updateData);
+        sendResponse(updatePasswordResult);
         break;
 
       case 'getRegistrations':
@@ -434,6 +498,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const getPasswordResult = await api.getPlatformRegistrationPassword(request.id);
         sendResponse(getPasswordResult);
         break;
+
+      case 'getAutoSaveSetting':
+        // 获取自动保存设置
+        chrome.storage.sync.get(['autoSave'], (result) => {
+          sendResponse({ autoSave: result.autoSave || false });
+        });
+        return true; // 保持消息通道开放
 
       case 'updateRegistration':
         const updateResult = await api.updatePlatformRegistration(request.id, request.data);
