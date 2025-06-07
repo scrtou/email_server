@@ -31,6 +31,10 @@ class EmailServerAPI {
     return new Promise((resolve) => {
       chrome.storage.sync.get(['serverURL', 'token', 'username', 'password'], (result) => {
         console.log('📦 从存储中读取配置:', result);
+        // 设置默认服务器地址
+        if (!result.serverURL) {
+          result.serverURL = 'https://accountback.azhen.de';
+        }
         resolve(result);
       });
     });

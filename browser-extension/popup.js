@@ -8,6 +8,8 @@ class PopupManager {
     this.filteredAccounts = [];
     this.currentAccount = null;
     this.passwordVisible = false;
+    this.generatorInitialized = false;
+    this.currentGeneratorTab = 'password';
     this.init();
   }
 
@@ -33,12 +35,10 @@ class PopupManager {
 
     // 隐藏主应用界面
     const mainHeader = document.getElementById('main-header');
-    const mainSearch = document.getElementById('main-search');
     const mainContent = document.getElementById('main-content');
     const mainNav = document.getElementById('main-nav');
 
     if (mainHeader) mainHeader.style.display = 'none';
-    if (mainSearch) mainSearch.style.display = 'none';
     if (mainContent) mainContent.style.display = 'none';
     if (mainNav) mainNav.style.display = 'none';
   }
@@ -59,15 +59,22 @@ class PopupManager {
 
         // 根据不同的标签页显示不同内容
         if (tabName === 'vault') {
+          this.updateHeaderTitle('密码库');
           if (this.isLoggedIn) {
             document.getElementById('vault-tab').classList.add('active');
           } else {
             document.getElementById('login-tab').classList.add('active');
           }
         } else if (tabName === 'generator') {
-          // TODO: 实现密码生成器
+          this.updateHeaderTitle('生成器');
+          console.log('🔧 切换到生成器标签页');
+          const generatorTab = document.getElementById('generator-tab');
+          console.log('🔧 生成器标签页元素:', generatorTab);
+          generatorTab.classList.add('active');
+          console.log('🔧 生成器标签页类名:', generatorTab.className);
           this.showPasswordGenerator();
         } else if (tabName === 'send') {
+          this.updateHeaderTitle('Send');
           // TODO: 实现Send功能
           this.showSendFeature();
         } else if (tabName === 'settings') {
@@ -157,8 +164,36 @@ class PopupManager {
   }
 
   showPasswordGenerator() {
-    // TODO: 实现密码生成器界面
-    alert('密码生成器功能开发中...');
+    console.log('🔧 显示密码生成器');
+
+    // 显示生成器标签页
+    const generatorTab = document.getElementById('generator-tab');
+    console.log('🔧 showPasswordGenerator - 生成器标签页元素:', generatorTab);
+    if (generatorTab) {
+      console.log('🔧 showPasswordGenerator - 添加active类之前:', generatorTab.className);
+      generatorTab.classList.add('active');
+      console.log('🔧 showPasswordGenerator - 添加active类之后:', generatorTab.className);
+
+      // 检查其他标签页的状态
+      const vaultTab = document.getElementById('vault-tab');
+      console.log('🔧 showPasswordGenerator - 密码库标签页状态:', vaultTab?.className);
+
+      // 初始化生成器
+      if (!this.generatorInitialized) {
+        this.initPasswordGenerator();
+        this.generatorInitialized = true;
+      }
+
+      // 更新按钮状态
+      this.updateLengthButtons();
+      this.updateWordsButtons();
+      this.updateUsernameLengthButtons();
+
+      // 生成初始密码
+      this.generatePassword();
+    } else {
+      console.error('❌ 找不到生成器标签页元素');
+    }
   }
 
   showSendFeature() {
@@ -237,12 +272,10 @@ class PopupManager {
 
     // 隐藏主应用界面
     const mainHeader = document.getElementById('main-header');
-    const mainSearch = document.getElementById('main-search');
     const mainContent = document.getElementById('main-content');
     const mainNav = document.getElementById('main-nav');
 
     if (mainHeader) mainHeader.style.display = 'none';
-    if (mainSearch) mainSearch.style.display = 'none';
     if (mainContent) mainContent.style.display = 'none';
     if (mainNav) mainNav.style.display = 'none';
 
@@ -268,12 +301,10 @@ class PopupManager {
 
     // 显示主应用界面
     const mainHeader = document.getElementById('main-header');
-    const mainSearch = document.getElementById('main-search');
     const mainContent = document.getElementById('main-content');
     const mainNav = document.getElementById('main-nav');
 
     if (mainHeader) mainHeader.style.display = 'flex';
-    if (mainSearch) mainSearch.style.display = 'block';
     if (mainContent) mainContent.style.display = 'block';
     if (mainNav) mainNav.style.display = 'flex';
 
@@ -284,6 +315,13 @@ class PopupManager {
     console.log('✅ 主应用界面已显示');
   }
 
+  updateHeaderTitle(title) {
+    const headerTitle = document.querySelector('#main-header h1');
+    if (headerTitle) {
+      headerTitle.textContent = title;
+    }
+  }
+
   showVaultTab() {
     document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
     document.getElementById('vault-tab').classList.add('active');
@@ -291,6 +329,9 @@ class PopupManager {
     // 更新导航状态
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelector('[data-tab="vault"]').classList.add('active');
+
+    // 更新标题
+    this.updateHeaderTitle('密码库');
   }
 
   async handleLogin() {
@@ -954,6 +995,626 @@ class PopupManager {
   sendMessage(message) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(message, resolve);
+    });
+  }
+
+  // 密码生成器相关方法
+  initPasswordGenerator() {
+    console.log('🔧 初始化密码生成器');
+
+    // 加载保存的生成器设置
+    this.loadGeneratorSettings();
+
+    // 设置生成器标签页切换
+    this.setupGeneratorTabs();
+
+    // 设置密码生成器事件监听器
+    this.setupPasswordGeneratorEvents();
+
+    // 设置密码短语生成器事件监听器
+    this.setupPassphraseGeneratorEvents();
+
+    // 设置用户名生成器事件监听器
+    this.setupUsernameGeneratorEvents();
+  }
+
+  setupGeneratorTabs() {
+    const tabItems = document.querySelectorAll('.generator-tab-item');
+    const contents = document.querySelectorAll('.generator-content');
+
+    tabItems.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.generatorTab;
+
+        // 更新标签页状态
+        tabItems.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+
+        tab.classList.add('active');
+        document.getElementById(`${tabName}-generator`).classList.add('active');
+
+        this.currentGeneratorTab = tabName;
+
+        // 根据当前标签页生成内容
+        if (tabName === 'password') {
+          this.generatePassword();
+        } else if (tabName === 'passphrase') {
+          this.generatePassphrase();
+        } else if (tabName === 'username') {
+          this.generateUsername();
+        }
+      });
+    });
+  }
+
+  setupPasswordGeneratorEvents() {
+    // 长度滑块
+    const lengthSlider = document.getElementById('length-slider');
+    const lengthValue = document.getElementById('length-value');
+
+    if (lengthSlider && lengthValue) {
+      lengthSlider.addEventListener('input', (e) => {
+        lengthValue.textContent = e.target.value;
+        this.updateLengthButtons();
+        this.generatePassword();
+        this.saveGeneratorSettings();
+      });
+    }
+
+    // 长度增减按钮
+    this.safeAddEventListener('length-decrease', 'click', () => {
+      this.adjustLength(-1);
+    });
+
+    this.safeAddEventListener('length-increase', 'click', () => {
+      this.adjustLength(1);
+    });
+
+    // 复选框
+    const checkboxes = ['include-uppercase', 'include-lowercase', 'include-numbers', 'include-symbols', 'avoid-ambiguous'];
+    checkboxes.forEach(id => {
+      const checkbox = document.getElementById(id);
+      if (checkbox) {
+        checkbox.addEventListener('change', () => {
+          this.generatePassword();
+          this.saveGeneratorSettings();
+        });
+      }
+    });
+
+    // 最少个数输入
+    const minInputs = ['min-numbers', 'min-symbols'];
+    minInputs.forEach(id => {
+      const input = document.getElementById(id);
+      if (input) {
+        input.addEventListener('input', () => {
+          this.generatePassword();
+          this.saveGeneratorSettings();
+        });
+      }
+    });
+
+    // 刷新和复制按钮
+    this.safeAddEventListener('refresh-password', 'click', () => {
+      this.generatePassword();
+    });
+
+    this.safeAddEventListener('copy-password', 'click', () => {
+      this.copyToClipboard(document.getElementById('generated-password').textContent);
+    });
+  }
+
+  setupPassphraseGeneratorEvents() {
+    // 单词数量滑块
+    const wordsSlider = document.getElementById('words-slider');
+    const wordsValue = document.getElementById('words-value');
+
+    if (wordsSlider && wordsValue) {
+      wordsSlider.addEventListener('input', (e) => {
+        wordsValue.textContent = e.target.value;
+        this.updateWordsButtons();
+        this.generatePassphrase();
+        this.saveGeneratorSettings();
+      });
+    }
+
+    // 单词数量增减按钮
+    this.safeAddEventListener('words-decrease', 'click', () => {
+      this.adjustWords(-1);
+    });
+
+    this.safeAddEventListener('words-increase', 'click', () => {
+      this.adjustWords(1);
+    });
+
+    // 分隔符输入
+    const separator = document.getElementById('separator');
+    if (separator) {
+      separator.addEventListener('input', () => {
+        this.generatePassphrase();
+        this.saveGeneratorSettings();
+      });
+    }
+
+    // 首字母大写复选框
+    const capitalizeWords = document.getElementById('capitalize-words');
+    if (capitalizeWords) {
+      capitalizeWords.addEventListener('change', () => {
+        this.generatePassphrase();
+        this.saveGeneratorSettings();
+      });
+    }
+
+    // 刷新和复制按钮
+    this.safeAddEventListener('refresh-passphrase', 'click', () => {
+      this.generatePassphrase();
+    });
+
+    this.safeAddEventListener('copy-passphrase', 'click', () => {
+      this.copyToClipboard(document.getElementById('generated-passphrase').textContent);
+    });
+  }
+
+  setupUsernameGeneratorEvents() {
+    // 长度滑块
+    const lengthSlider = document.getElementById('username-length-slider');
+    const lengthValue = document.getElementById('username-length-value');
+
+    if (lengthSlider && lengthValue) {
+      lengthSlider.addEventListener('input', (e) => {
+        lengthValue.textContent = e.target.value;
+        this.updateUsernameLengthButtons();
+        this.generateUsername();
+        this.saveGeneratorSettings();
+      });
+    }
+
+    // 用户名长度增减按钮
+    this.safeAddEventListener('username-length-decrease', 'click', () => {
+      this.adjustUsernameLength(-1);
+    });
+
+    this.safeAddEventListener('username-length-increase', 'click', () => {
+      this.adjustUsernameLength(1);
+    });
+
+    // 包含数字复选框
+    const includeNumbers = document.getElementById('include-numbers-username');
+    if (includeNumbers) {
+      includeNumbers.addEventListener('change', () => {
+        this.generateUsername();
+        this.saveGeneratorSettings();
+      });
+    }
+
+    // 刷新和复制按钮
+    this.safeAddEventListener('refresh-username', 'click', () => {
+      this.generateUsername();
+    });
+
+    this.safeAddEventListener('copy-username', 'click', () => {
+      this.copyToClipboard(document.getElementById('generated-username').textContent);
+    });
+  }
+
+  generatePassword() {
+    const length = parseInt(document.getElementById('length-slider')?.value || '8');
+    const includeUppercase = document.getElementById('include-uppercase')?.checked || false;
+    const includeLowercase = document.getElementById('include-lowercase')?.checked || false;
+    const includeNumbers = document.getElementById('include-numbers')?.checked || false;
+    const includeSymbols = document.getElementById('include-symbols')?.checked || false;
+    const avoidAmbiguous = document.getElementById('avoid-ambiguous')?.checked || false;
+    const minNumbers = parseInt(document.getElementById('min-numbers')?.value || '1');
+    const minSymbols = parseInt(document.getElementById('min-symbols')?.value || '1');
+
+    let charset = '';
+
+    if (includeUppercase) {
+      charset += avoidAmbiguous ? 'ABCDEFGHJKMNPQRSTUVWXYZ' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    }
+    if (includeLowercase) {
+      charset += avoidAmbiguous ? 'abcdefghijkmnpqrstuvwxyz' : 'abcdefghijklmnopqrstuvwxyz';
+    }
+    if (includeNumbers) {
+      charset += avoidAmbiguous ? '23456789' : '0123456789';
+    }
+    if (includeSymbols) {
+      charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+    }
+
+    if (!charset) {
+      charset = 'abcdefghijklmnopqrstuvwxyz'; // 默认字符集
+    }
+
+    let password = '';
+    let numberCount = 0;
+    let symbolCount = 0;
+
+    // 生成密码
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * charset.length);
+      const char = charset[randomIndex];
+      password += char;
+
+      if ('0123456789'.includes(char)) numberCount++;
+      if ('!@#$%^&*()_+-=[]{}|;:,.<>?'.includes(char)) symbolCount++;
+    }
+
+    // 确保满足最少个数要求
+    if (includeNumbers && numberCount < minNumbers) {
+      const numbersNeeded = minNumbers - numberCount;
+      const numberChars = avoidAmbiguous ? '23456789' : '0123456789';
+      for (let i = 0; i < numbersNeeded && i < password.length; i++) {
+        const randomPos = Math.floor(Math.random() * password.length);
+        const randomNumber = numberChars[Math.floor(Math.random() * numberChars.length)];
+        password = password.substring(0, randomPos) + randomNumber + password.substring(randomPos + 1);
+      }
+    }
+
+    if (includeSymbols && symbolCount < minSymbols) {
+      const symbolsNeeded = minSymbols - symbolCount;
+      const symbolChars = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+      for (let i = 0; i < symbolsNeeded && i < password.length; i++) {
+        const randomPos = Math.floor(Math.random() * password.length);
+        const randomSymbol = symbolChars[Math.floor(Math.random() * symbolChars.length)];
+        password = password.substring(0, randomPos) + randomSymbol + password.substring(randomPos + 1);
+      }
+    }
+
+    const passwordOutput = document.getElementById('generated-password');
+    if (passwordOutput) {
+      passwordOutput.textContent = password;
+    }
+  }
+
+  generatePassphrase() {
+    const wordCount = parseInt(document.getElementById('words-slider')?.value || '4');
+    const separator = document.getElementById('separator')?.value || '-';
+    const capitalizeWords = document.getElementById('capitalize-words')?.checked || false;
+
+    // 常用单词列表
+    const words = [
+      'apple', 'banana', 'cherry', 'dragon', 'elephant', 'forest', 'guitar', 'house',
+      'island', 'jungle', 'kitchen', 'lemon', 'mountain', 'ocean', 'piano', 'queen',
+      'river', 'sunset', 'tiger', 'umbrella', 'village', 'window', 'yellow', 'zebra',
+      'bridge', 'castle', 'dream', 'eagle', 'flower', 'garden', 'happy', 'ice',
+      'journey', 'knight', 'light', 'magic', 'nature', 'orange', 'peace', 'quiet',
+      'rainbow', 'star', 'tree', 'unique', 'victory', 'water', 'extra', 'youth',
+      'adventure', 'beautiful', 'creative', 'delicious', 'energy', 'freedom', 'gentle',
+      'harmony', 'inspire', 'joyful', 'kindness', 'lovely', 'mystery', 'natural'
+    ];
+
+    let selectedWords = [];
+    for (let i = 0; i < wordCount; i++) {
+      const randomIndex = Math.floor(Math.random() * words.length);
+      let word = words[randomIndex];
+
+      if (capitalizeWords) {
+        word = word.charAt(0).toUpperCase() + word.slice(1);
+      }
+
+      selectedWords.push(word);
+    }
+
+    const passphrase = selectedWords.join(separator);
+
+    const passphraseOutput = document.getElementById('generated-passphrase');
+    if (passphraseOutput) {
+      passphraseOutput.textContent = passphrase;
+    }
+  }
+
+  generateUsername() {
+    const length = parseInt(document.getElementById('username-length-slider')?.value || '6');
+    const includeNumbers = document.getElementById('include-numbers-username')?.checked || false;
+
+    const prefixes = ['user', 'guest', 'player', 'member', 'admin', 'super', 'pro', 'elite'];
+    const adjectives = ['cool', 'fast', 'smart', 'brave', 'quick', 'strong', 'bright', 'sharp'];
+    const nouns = ['cat', 'dog', 'bird', 'fish', 'lion', 'bear', 'wolf', 'fox'];
+
+    let username = '';
+
+    if (length <= 8) {
+      // 短用户名：只使用前缀
+      const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+      username = prefix;
+
+      if (includeNumbers && username.length < length) {
+        const numbersToAdd = Math.min(4, length - username.length);
+        for (let i = 0; i < numbersToAdd; i++) {
+          username += Math.floor(Math.random() * 10);
+        }
+      }
+    } else {
+      // 长用户名：使用组合
+      const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+      const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+      const noun = nouns[Math.floor(Math.random() * nouns.length)];
+
+      username = prefix + '_' + adjective + '_' + noun;
+
+      if (includeNumbers) {
+        const year = new Date().getFullYear();
+        const randomNum = Math.floor(Math.random() * 1000);
+        username += '_' + (Math.random() > 0.5 ? year : randomNum);
+      }
+    }
+
+    // 调整长度
+    if (username.length > length) {
+      username = username.substring(0, length);
+    } else if (username.length < length) {
+      const chars = 'abcdefghijklmnopqrstuvwxyz';
+      while (username.length < length) {
+        username += chars[Math.floor(Math.random() * chars.length)];
+      }
+    }
+
+    const usernameOutput = document.getElementById('generated-username');
+    if (usernameOutput) {
+      usernameOutput.textContent = username;
+    }
+  }
+
+  copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showToast('已复制到剪贴板');
+      }).catch(err => {
+        console.error('复制失败:', err);
+        this.fallbackCopyToClipboard(text);
+      });
+    } else {
+      this.fallbackCopyToClipboard(text);
+    }
+  }
+
+  fallbackCopyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand('copy');
+      this.showToast('已复制到剪贴板');
+    } catch (err) {
+      console.error('复制失败:', err);
+      this.showToast('复制失败');
+    }
+
+    document.body.removeChild(textArea);
+  }
+
+  // 长度调整方法
+  adjustLength(delta) {
+    const slider = document.getElementById('length-slider');
+    const valueEl = document.getElementById('length-value');
+    if (slider && valueEl) {
+      const currentValue = parseInt(slider.value);
+      const newValue = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), currentValue + delta));
+      slider.value = newValue;
+      valueEl.textContent = newValue;
+      this.updateLengthButtons();
+      this.generatePassword();
+      this.saveGeneratorSettings();
+    }
+  }
+
+  updateLengthButtons() {
+    const slider = document.getElementById('length-slider');
+    const decreaseBtn = document.getElementById('length-decrease');
+    const increaseBtn = document.getElementById('length-increase');
+
+    if (slider && decreaseBtn && increaseBtn) {
+      const currentValue = parseInt(slider.value);
+      decreaseBtn.disabled = currentValue <= parseInt(slider.min);
+      increaseBtn.disabled = currentValue >= parseInt(slider.max);
+    }
+  }
+
+  // 单词数量调整方法
+  adjustWords(delta) {
+    const slider = document.getElementById('words-slider');
+    const valueEl = document.getElementById('words-value');
+    if (slider && valueEl) {
+      const currentValue = parseInt(slider.value);
+      const newValue = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), currentValue + delta));
+      slider.value = newValue;
+      valueEl.textContent = newValue;
+      this.updateWordsButtons();
+      this.generatePassphrase();
+      this.saveGeneratorSettings();
+    }
+  }
+
+  updateWordsButtons() {
+    const slider = document.getElementById('words-slider');
+    const decreaseBtn = document.getElementById('words-decrease');
+    const increaseBtn = document.getElementById('words-increase');
+
+    if (slider && decreaseBtn && increaseBtn) {
+      const currentValue = parseInt(slider.value);
+      decreaseBtn.disabled = currentValue <= parseInt(slider.min);
+      increaseBtn.disabled = currentValue >= parseInt(slider.max);
+    }
+  }
+
+  // 用户名长度调整方法
+  adjustUsernameLength(delta) {
+    const slider = document.getElementById('username-length-slider');
+    const valueEl = document.getElementById('username-length-value');
+    if (slider && valueEl) {
+      const currentValue = parseInt(slider.value);
+      const newValue = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), currentValue + delta));
+      slider.value = newValue;
+      valueEl.textContent = newValue;
+      this.updateUsernameLengthButtons();
+      this.generateUsername();
+      this.saveGeneratorSettings();
+    }
+  }
+
+  updateUsernameLengthButtons() {
+    const slider = document.getElementById('username-length-slider');
+    const decreaseBtn = document.getElementById('username-length-decrease');
+    const increaseBtn = document.getElementById('username-length-increase');
+
+    if (slider && decreaseBtn && increaseBtn) {
+      const currentValue = parseInt(slider.value);
+      decreaseBtn.disabled = currentValue <= parseInt(slider.min);
+      increaseBtn.disabled = currentValue >= parseInt(slider.max);
+    }
+  }
+
+  // 生成器设置保存和加载
+  async loadGeneratorSettings() {
+    try {
+      const settings = await this.getGeneratorSettings();
+      console.log('🔧 加载生成器设置:', settings);
+
+      // 密码生成器设置
+      if (settings.passwordLength !== undefined) {
+        const lengthSlider = document.getElementById('length-slider');
+        const lengthValue = document.getElementById('length-value');
+        if (lengthSlider && lengthValue) {
+          lengthSlider.value = settings.passwordLength;
+          lengthValue.textContent = settings.passwordLength;
+        }
+      }
+
+      if (settings.includeUppercase !== undefined) {
+        const checkbox = document.getElementById('include-uppercase');
+        if (checkbox) checkbox.checked = settings.includeUppercase;
+      }
+
+      if (settings.includeLowercase !== undefined) {
+        const checkbox = document.getElementById('include-lowercase');
+        if (checkbox) checkbox.checked = settings.includeLowercase;
+      }
+
+      if (settings.includeNumbers !== undefined) {
+        const checkbox = document.getElementById('include-numbers');
+        if (checkbox) checkbox.checked = settings.includeNumbers;
+      }
+
+      if (settings.includeSymbols !== undefined) {
+        const checkbox = document.getElementById('include-symbols');
+        if (checkbox) checkbox.checked = settings.includeSymbols;
+      }
+
+      if (settings.avoidAmbiguous !== undefined) {
+        const checkbox = document.getElementById('avoid-ambiguous');
+        if (checkbox) checkbox.checked = settings.avoidAmbiguous;
+      }
+
+      if (settings.minNumbers !== undefined) {
+        const input = document.getElementById('min-numbers');
+        if (input) input.value = settings.minNumbers;
+      }
+
+      if (settings.minSymbols !== undefined) {
+        const input = document.getElementById('min-symbols');
+        if (input) input.value = settings.minSymbols;
+      }
+
+      // 密码短语生成器设置
+      if (settings.wordsCount !== undefined) {
+        const wordsSlider = document.getElementById('words-slider');
+        const wordsValue = document.getElementById('words-value');
+        if (wordsSlider && wordsValue) {
+          wordsSlider.value = settings.wordsCount;
+          wordsValue.textContent = settings.wordsCount;
+        }
+      }
+
+      if (settings.separator !== undefined) {
+        const input = document.getElementById('separator');
+        if (input) input.value = settings.separator;
+      }
+
+      if (settings.capitalizeWords !== undefined) {
+        const checkbox = document.getElementById('capitalize-words');
+        if (checkbox) checkbox.checked = settings.capitalizeWords;
+      }
+
+      // 用户名生成器设置
+      if (settings.usernameLength !== undefined) {
+        const lengthSlider = document.getElementById('username-length-slider');
+        const lengthValue = document.getElementById('username-length-value');
+        if (lengthSlider && lengthValue) {
+          lengthSlider.value = settings.usernameLength;
+          lengthValue.textContent = settings.usernameLength;
+        }
+      }
+
+      if (settings.includeNumbersUsername !== undefined) {
+        const checkbox = document.getElementById('include-numbers-username');
+        if (checkbox) checkbox.checked = settings.includeNumbersUsername;
+      }
+
+    } catch (error) {
+      console.error('❌ 加载生成器设置失败:', error);
+    }
+  }
+
+  async saveGeneratorSettings() {
+    try {
+      const settings = {
+        // 密码生成器设置
+        passwordLength: parseInt(document.getElementById('length-slider')?.value || '8'),
+        includeUppercase: document.getElementById('include-uppercase')?.checked || false,
+        includeLowercase: document.getElementById('include-lowercase')?.checked || false,
+        includeNumbers: document.getElementById('include-numbers')?.checked || false,
+        includeSymbols: document.getElementById('include-symbols')?.checked || false,
+        avoidAmbiguous: document.getElementById('avoid-ambiguous')?.checked || false,
+        minNumbers: parseInt(document.getElementById('min-numbers')?.value || '1'),
+        minSymbols: parseInt(document.getElementById('min-symbols')?.value || '1'),
+
+        // 密码短语生成器设置
+        wordsCount: parseInt(document.getElementById('words-slider')?.value || '4'),
+        separator: document.getElementById('separator')?.value || '-',
+        capitalizeWords: document.getElementById('capitalize-words')?.checked || false,
+
+        // 用户名生成器设置
+        usernameLength: parseInt(document.getElementById('username-length-slider')?.value || '6'),
+        includeNumbersUsername: document.getElementById('include-numbers-username')?.checked || false
+      };
+
+      console.log('💾 保存生成器设置:', settings);
+      await this.storeGeneratorSettings(settings);
+    } catch (error) {
+      console.error('❌ 保存生成器设置失败:', error);
+    }
+  }
+
+  getGeneratorSettings() {
+    return new Promise((resolve) => {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['generatorSettings'], (result) => {
+          resolve(result.generatorSettings || {});
+        });
+      } else {
+        // 模拟环境下使用localStorage
+        const settings = localStorage.getItem('generatorSettings');
+        resolve(settings ? JSON.parse(settings) : {});
+      }
+    });
+  }
+
+  storeGeneratorSettings(settings) {
+    return new Promise((resolve) => {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ generatorSettings: settings }, resolve);
+      } else {
+        // 模拟环境下使用localStorage
+        localStorage.setItem('generatorSettings', JSON.stringify(settings));
+        resolve();
+      }
     });
   }
 }
