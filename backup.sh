@@ -110,9 +110,10 @@ EOF
 compress_backup() {
     log_info "压缩备份文件..."
     
-    cd "${BACKUP_DIR}"
+    pushd "${BACKUP_DIR}" > /dev/null # Push current dir, change to BACKUP_DIR
     tar -czf "${BACKUP_NAME}.tar.gz" "${BACKUP_NAME}"
     rm -rf "${BACKUP_NAME}"
+    popd > /dev/null # Pop back to original dir
     
     log_success "备份压缩完成: ${BACKUP_DIR}/${BACKUP_NAME}.tar.gz"
 }
@@ -121,8 +122,9 @@ compress_backup() {
 cleanup_old_backups() {
     log_info "清理旧备份文件..."
     
-    cd "${BACKUP_DIR}"
+    pushd "${BACKUP_DIR}" > /dev/null # Push current dir, change to BACKUP_DIR
     ls -t email_server_backup_*.tar.gz | tail -n +8 | xargs -r rm -f
+    popd > /dev/null # Pop back to original dir
     
     log_success "旧备份清理完成"
 }
