@@ -43,8 +43,12 @@ class EmailServerAPI {
 
       if (response.ok) {
         const data = await response.json();
-        this.token = data.data.access_token;
-        await this.saveConfig({ token: this.token });
+        this.token = data.data.token;
+
+        // 获取当前配置，只更新token，保留其他配置
+        const currentConfig = await this.getStoredConfig();
+        await this.saveConfig({ ...currentConfig, token: this.token });
+
         return { success: true, data };
       } else {
         const error = await response.json();
@@ -137,6 +141,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'saveConfig':
         await api.saveConfig(request.config);
         api.baseURL = request.config.serverURL || '';
+        if (request.config.token) {
+          api.token = request.config.token;
+        }
         sendResponse({ success: true });
         break;
 

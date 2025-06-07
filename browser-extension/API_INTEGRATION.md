@@ -54,11 +54,10 @@ Content-Type: application/json
 ```json
 {
   "code": 200,
-  "message": "登录成功",
+  "message": "success",
   "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "token_type": "Bearer",
-    "expires_in": 86400,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 24,
     "user": {
       "id": 1,
       "username": "admin",
@@ -91,10 +90,10 @@ Authorization: Bearer <refresh_token>
 ```json
 {
   "code": 200,
-  "message": "Token刷新成功",
+  "message": "success",
   "data": {
-    "access_token": "new_access_token_here",
-    "expires_in": 86400
+    "token": "new_access_token_here",
+    "expires_in": 24
   }
 }
 ```

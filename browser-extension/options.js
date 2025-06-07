@@ -167,7 +167,7 @@ class OptionsManager {
         const data = await response.json();
         await this.storeSettings({
           ...settings,
-          token: data.data.access_token
+          token: data.data.token
         });
         this.showStatus('设置已保存，自动登录成功', 'success');
       } else {
