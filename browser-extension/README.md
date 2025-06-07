@@ -5,27 +5,32 @@
 ## 功能特性
 
 ### 🔍 自动检测
+
 - 自动识别网页上的登录和注册表单
 - 智能提取用户名、密码、邮箱等信息
 - 基于域名自动识别平台名称
 
 ### 🚀 自动填充 (新功能)
+
 - 根据当前网站域名自动匹配已保存的账号
 - 单账号时自动填充，多账号时显示选择界面
 - 支持邮箱、用户名和密码的智能填充
 - 可手动触发自动填充功能
 
 ### 💾 数据管理
+
 - 与 Email Server 后端 API 无缝集成
 - 支持手动添加和编辑账号信息
 - 查看已保存的账号列表
 
 ### 🛡️ 安全性
+
 - 使用 JWT Token 进行身份验证
 - 密码在传输前进行加密
 - 支持自定义服务器地址
 
 ### ⚙️ 个性化设置
+
 - 可配置自动检测行为
 - 支持排除特定网站
 - 灵活的通知设置
@@ -35,16 +40,13 @@
 ### 开发模式安装
 
 1. 打开 Chrome 浏览器，进入扩展程序管理页面：
+
    ```
    chrome://extensions/
    ```
-
 2. 开启"开发者模式"（右上角开关）
-
 3. 点击"加载已解压的扩展程序"
-
 4. 选择 `browser-extension` 文件夹
-
 5. 插件安装完成，会在工具栏显示图标
 
 ### 生产环境安装
@@ -93,6 +95,7 @@
 ## 技术架构
 
 ### 文件结构
+
 ```
 browser-extension/
 ├── manifest.json          # 插件配置文件
@@ -112,11 +115,13 @@ browser-extension/
 ### 核心组件
 
 #### Background Script (background.js)
+
 - 处理与 Email Server API 的通信
 - 管理用户认证状态
 - 存储和检索配置信息
 
 #### Content Script (content.js)
+
 - 检测网页上的表单元素
 - 提取用户输入的账号信息
 - 显示保存提示界面
@@ -124,12 +129,14 @@ browser-extension/
 - 显示账号选择器（多账号时）🆕
 
 #### Popup Interface (popup.html/js)
+
 - 用户交互界面
 - 登录功能
 - 手动添加账号
 - 查看账号列表
 
 #### Options Page (options.html/js)
+
 - 插件设置配置
 - 服务器连接测试
 - 高级功能开关
@@ -158,15 +165,15 @@ browser-extension/
 ### 调试技巧
 
 1. **Content Script 调试**：
+
    ```javascript
    console.log('Form detected:', formData);
    ```
-
 2. **Background Script 调试**：
+
    ```javascript
    console.log('API response:', response);
    ```
-
 3. **Popup 调试**：
    右键插件图标 → "检查弹出内容"
 
@@ -186,35 +193,39 @@ browser-extension/
 ## 文档索引
 
 ### 📚 用户文档
+
 - **[README.md](README.md)** - 项目概述和功能介绍
 - **[INSTALL.md](INSTALL.md)** - 详细的安装和使用指南
 - **[test-page.html](test-page.html)** - 功能测试页面
 
 ### 🔧 技术文档
+
 - **[DESIGN_IMPLEMENTATION.md](DESIGN_IMPLEMENTATION.md)** - 详细的设计实现说明
 - **[API_INTEGRATION.md](API_INTEGRATION.md)** - Email Server API 集成文档
 - **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - 开发者指南和最佳实践
 - **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - 项目技术总结
 
 ### 🛠️ 开发工具
+
 - **[package.sh](package.sh)** - 自动化打包脚本
 - **[icons/README.md](icons/README.md)** - 图标文件说明
 
 ## 快速导航
 
-| 我想要... | 查看文档 |
-|-----------|----------|
-| 了解项目功能 | [README.md](README.md) |
-| 安装和使用插件 | [INSTALL.md](INSTALL.md) |
-| 了解技术架构 | [DESIGN_IMPLEMENTATION.md](DESIGN_IMPLEMENTATION.md) |
-| 集成 API 接口 | [API_INTEGRATION.md](API_INTEGRATION.md) |
-| 参与开发 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) |
-| 测试功能 | [test-page.html](test-page.html) |
-| 打包发布 | [package.sh](package.sh) |
+| 我想要...      | 查看文档                                          |
+| -------------- | ------------------------------------------------- |
+| 了解项目功能   | [README.md](README.md)                               |
+| 安装和使用插件 | [INSTALL.md](INSTALL.md)                             |
+| 了解技术架构   | [DESIGN_IMPLEMENTATION.md](DESIGN_IMPLEMENTATION.md) |
+| 集成 API 接口  | [API_INTEGRATION.md](API_INTEGRATION.md)             |
+| 参与开发       | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)             |
+| 测试功能       | [test-page.html](test-page.html)                     |
+| 打包发布       | [package.sh](package.sh)                             |
 
 ## 更新日志
 
 ### v1.1.0 (当前版本) 🆕
+
 - 新增自动填充功能
 - 支持单账号自动填充和多账号选择
 - 实现域名智能匹配算法
@@ -223,6 +234,7 @@ browser-extension/
 - 新增自动填充测试页面
 
 ### v1.0.0
+
 - 初始版本发布
 - 支持自动表单检测
 - 集成 Email Server API
