@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>调试页面</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .debug-section {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border-left: 4px solid #4285f4;
+    }
+    .error { border-left-color: #d93025; }
+    .success { border-left-color: #34a853; }
+    .warning { border-left-color: #fbbc04; }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      background: #4285f4;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3367d6;
+    }
+    #log {
+      background: #000;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 4px;
+      height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 密码库插件调试页面</h1>
+  
+  <div class="debug-section">
+    <h3>Chrome API 状态检查</h3>
+    <div id="chrome-status">检查中...</div>
+  </div>
+  
+  <div class="debug-section">
+    <h3>DOM 元素检查</h3>
+    <div id="dom-status">检查中...</div>
+  </div>
+  
+  <div class="debug-section">
+    <h3>功能测试</h3>
+    <button onclick="testSettingsButton()">测试设置按钮</button>
+    <button onclick="testChromeAPI()">测试Chrome API</button>
+    <button onclick="loadPopupContent()">加载Popup内容</button>
+    <button onclick="clearLog()">清空日志</button>
+  </div>
+  
+  <div class="debug-section">
+    <h3>实时日志</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let logElement;
+    
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logLine = `[${timestamp}] ${message}`;
+      console.log(logLine);
+      
+      if (logElement) {
+        const color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : type === 'warning' ? '#ff0' : '#0f0';
+        logElement.innerHTML += `<div style="color: ${color}">${logLine}</div>`;
+        logElement.scrollTop = logElement.scrollHeight;
+      }
+    }
+    
+    function clearLog() {
+      if (logElement) {
+        logElement.innerHTML = '';
+      }
+    }
+    
+    // 设置Chrome API模拟
+    function setupChromeAPI() {
+      if (typeof chrome === 'undefined' || !chrome.runtime) {
+        log('设置Chrome API模拟...', 'warning');
+        window.chrome = {
+          runtime: {
+            sendMessage: function(message, callback) {
+              log(`模拟消息: ${JSON.stringify(message)}`, 'info');
+              setTimeout(() => {
+                if (message.action === 'getConfig') {
+                  callback({ token: null });
+                } else if (message.action === 'login') {
+                  callback({ success: true });
+                } else {
+                  callback({ success: false, error: '未知操作' });
+                }
+              }, 300);
+            },
+            openOptionsPage: function() {
+              log('✅ 设置按钮功能正常！', 'success');
+              alert('✅ 设置按钮工作正常！\n\n在真实的扩展环境中，这里会打开扩展的设置页面。');
+            }
+          },
+          tabs: {
+            query: function(queryInfo, callback) {
+              setTimeout(() => {
+                callback([{
+                  url: 'https://example.com',
+                  title: '示例网站'
+                }]);
+              }, 100);
+            }
+          }
+        };
+        log('Chrome API模拟设置完成', 'success');
+      } else {
+        log('检测到真实Chrome API', 'success');
+      }
+    }
+    
+    function checkChromeAPI() {
+      const status = document.getElementById('chrome-status');
+      let html = '';
+      
+      html += `<p><strong>chrome对象:</strong> ${typeof chrome}</p>`;
+      html += `<p><strong>chrome.runtime:</strong> ${typeof chrome?.runtime}</p>`;
+      html += `<p><strong>chrome.runtime.sendMessage:</strong> ${typeof chrome?.runtime?.sendMessage}</p>`;
+      html += `<p><strong>chrome.runtime.openOptionsPage:</strong> ${typeof chrome?.runtime?.openOptionsPage}</p>`;
+      html += `<p><strong>chrome.tabs:</strong> ${typeof chrome?.tabs}</p>`;
+      
+      status.innerHTML = html;
+      
+      if (chrome && chrome.runtime && chrome.runtime.openOptionsPage) {
+        status.className = 'debug-section success';
+      } else {
+        status.className = 'debug-section error';
+      }
+    }
+    
+    function checkDOMElements() {
+      const status = document.getElementById('dom-status');
+      const elements = [
+        'settings-btn',
+        'login-form', 
+        'add-btn',
+        'search-input',
+        'type-filter'
+      ];
+      
+      let html = '';
+      let allFound = true;
+      
+      elements.forEach(id => {
+        const element = document.getElementById(id);
+        const found = element !== null;
+        if (!found) allFound = false;
+        
+        html += `<p><strong>${id}:</strong> ${found ? '✅ 找到' : '❌ 未找到'}</p>`;
+      });
+      
+      status.innerHTML = html;
+      status.className = allFound ? 'debug-section success' : 'debug-section error';
+    }
+    
+    function testSettingsButton() {
+      log('测试设置按钮...', 'info');
+      const btn = document.getElementById('settings-btn');
+      if (btn) {
+        log('找到设置按钮，模拟点击', 'info');
+        btn.click();
+      } else {
+        log('❌ 未找到设置按钮', 'error');
+      }
+    }
+    
+    function testChromeAPI() {
+      log('测试Chrome API...', 'info');
+      if (chrome && chrome.runtime && chrome.runtime.openOptionsPage) {
+        log('直接调用chrome.runtime.openOptionsPage()', 'info');
+        chrome.runtime.openOptionsPage();
+      } else {
+        log('❌ Chrome API不可用', 'error');
+      }
+    }
+    
+    async function loadPopupContent() {
+      log('加载Popup内容...', 'info');
+      try {
+        const response = await fetch('popup.html');
+        const html = await response.text();
+        
+        // 创建一个隐藏的容器来加载popup内容
+        const container = document.createElement('div');
+        container.style.display = 'none';
+        container.innerHTML = html;
+        document.body.appendChild(container);
+        
+        // 加载popup.js
+        const script = document.createElement('script');
+        script.src = 'popup.js';
+        script.onload = () => {
+          log('✅ Popup内容加载完成', 'success');
+          setTimeout(() => {
+            checkDOMElements();
+          }, 500);
+        };
+        script.onerror = () => {
+          log('❌ Popup.js加载失败', 'error');
+        };
+        document.head.appendChild(script);
+        
+      } catch (error) {
+        log(`❌ 加载失败: ${error.message}`, 'error');
+      }
+    }
+    
+    // 页面初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      logElement = document.getElementById('log');
+      log('🚀 调试页面初始化', 'info');
+      
+      setupChromeAPI();
+      checkChromeAPI();
+      checkDOMElements();
+    });
+  </script>
+</body>
+</html>

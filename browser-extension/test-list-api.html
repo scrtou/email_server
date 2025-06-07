@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>平台注册列表API测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .json-display {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .demo-frame {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 平台注册列表API测试</h1>
+        <p>此页面用于测试和验证平台注册列表API的修复效果</p>
+
+        <div class="test-section">
+            <div class="test-title">问题分析</div>
+            <div class="error">
+                <strong>报告的问题：</strong>现在获取不到平台注册列表了
+            </div>
+            
+            <div class="info">
+                <strong>可能原因：</strong>
+                <ul>
+                    <li>前端数据提取逻辑错误：使用了 <code>result.data.data</code> 而不是 <code>result.data</code></li>
+                    <li>后端API响应结构变化</li>
+                    <li>认证或权限问题</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">API响应结构对比</div>
+            
+            <h4>后端实际返回结构：</h4>
+            <div class="json-display">{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 1,
+      "platform_name": "GitHub",
+      "platform_website_url": "https://github.com",
+      "email_address": "user@example.com",
+      "login_username": "username",
+      // ... 其他字段
+    }
+    // ... 更多记录
+  ],
+  "meta": {
+    "page": 1,
+    "page_size": 10,
+    "total": 198,
+    "total_pages": 20
+  }
+}</div>
+
+            <h4>前端期望的数据：</h4>
+            <div class="json-display">[
+  {
+    "id": 1,
+    "platform_name": "GitHub",
+    "platform_website_url": "https://github.com",
+    "email_address": "user@example.com",
+    "login_username": "username",
+    // ... 其他字段
+  }
+  // ... 更多记录
+]</div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">修复验证</div>
+            <p>测试修复后的API调用：</p>
+            <button onclick="testListAPI()">测试获取列表API</button>
+            <button onclick="testEmptyList()">测试空列表情况</button>
+            <button onclick="clearResults()">清空结果</button>
+            <div id="test-result" class="test-result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">API响应详情</div>
+            <div id="api-response" class="json-display">等待API调用...</div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">数据处理验证</div>
+            <div id="data-analysis">
+                <table class="data-table" id="data-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>字段</th>
+                            <th>值</th>
+                            <th>类型</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">实时演示</div>
+            <p>在下方的演示中测试修复效果：</p>
+            <div class="demo-frame">
+                <iframe src="popup.html" id="demo-iframe"></iframe>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">修复说明</div>
+            <ul>
+                <li><strong>前端修复：</strong>将 <code>result.data.data</code> 改为 <code>result.data</code></li>
+                <li><strong>后端确认：</strong>确认API返回正确的数据结构</li>
+                <li><strong>调试增强：</strong>添加详细的数据处理日志</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 模拟Chrome API
+        window.chrome = {
+            runtime: {
+                sendMessage: function(message, callback) {
+                    console.log('📨 API调用:', message);
+                    setTimeout(() => {
+                        if (message.action === 'getRegistrations') {
+                            // 模拟成功的列表响应
+                            const mockListResponse = {
+                                success: true,
+                                data: [
+                                    {
+                                        id: 1,
+                                        platform_name: 'GitHub',
+                                        platform_website_url: 'https://github.com',
+                                        email_address: 'user1@example.com',
+                                        login_username: 'user1',
+                                        phone_number: '+86 138****1234',
+                                        notes: '开发者账号',
+                                        created_at: '2024-01-01 12:00:00'
+                                    },
+                                    {
+                                        id: 2,
+                                        platform_name: 'Google',
+                                        platform_website_url: 'https://google.com',
+                                        email_address: 'user2@gmail.com',
+                                        login_username: 'user2',
+                                        phone_number: '+86 139****5678',
+                                        notes: '个人账号',
+                                        created_at: '2024-01-02 12:00:00'
+                                    },
+                                    {
+                                        id: 3,
+                                        platform_name: 'Facebook',
+                                        platform_website_url: 'https://facebook.com',
+                                        email_address: '',
+                                        login_username: 'user3',
+                                        phone_number: '',
+                                        notes: '',
+                                        created_at: '2024-01-03 12:00:00'
+                                    }
+                                ]
+                            };
+                            
+                            if (window.testEmptyList) {
+                                mockListResponse.data = [];
+                            }
+                            
+                            console.log('📤 列表API响应:', mockListResponse);
+                            callback(mockListResponse);
+                        } else {
+                            callback({ success: false, error: '未知操作' });
+                        }
+                    }, 500);
+                }
+            }
+        };
+
+        async function testListAPI() {
+            window.testEmptyList = false;
+            const resultDiv = document.getElementById('test-result');
+            const responseDiv = document.getElementById('api-response');
+            const dataTable = document.getElementById('data-table');
+            const dataTableBody = document.getElementById('data-table-body');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '正在测试列表API...';
+            resultDiv.className = 'test-result info';
+            responseDiv.textContent = '正在调用API...';
+
+            try {
+                const result = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ action: 'getRegistrations' }, resolve);
+                });
+
+                // 显示完整响应
+                responseDiv.textContent = JSON.stringify(result, null, 2);
+
+                if (result.success) {
+                    const data = result.data;
+                    
+                    // 分析数据
+                    console.log('📋 分析列表数据:');
+                    console.log('  - result类型:', typeof result);
+                    console.log('  - result.success:', result.success);
+                    console.log('  - result.data类型:', typeof data);
+                    console.log('  - result.data是否为数组:', Array.isArray(data));
+                    console.log('  - 数组长度:', data?.length);
+
+                    if (Array.isArray(data)) {
+                        resultDiv.className = 'test-result success';
+                        resultDiv.innerHTML = `
+                            ✅ 列表API测试成功<br>
+                            <strong>数据类型:</strong> ${typeof data}<br>
+                            <strong>是否为数组:</strong> ${Array.isArray(data)}<br>
+                            <strong>记录数量:</strong> ${data.length}<br>
+                            <strong>第一条记录:</strong> ${data.length > 0 ? data[0].platform_name : '无'}
+                        `;
+
+                        // 显示数据表格
+                        if (data.length > 0) {
+                            dataTableBody.innerHTML = '';
+                            const firstRecord = data[0];
+                            Object.keys(firstRecord).forEach(key => {
+                                const row = dataTableBody.insertRow();
+                                row.insertCell(0).textContent = key;
+                                row.insertCell(1).textContent = firstRecord[key] || '(空)';
+                                row.insertCell(2).textContent = typeof firstRecord[key];
+                                row.insertCell(3).textContent = firstRecord[key] ? '✅ 有值' : '❌ 空值';
+                            });
+                            dataTable.style.display = 'table';
+                        }
+                    } else {
+                        resultDiv.className = 'test-result error';
+                        resultDiv.innerHTML = `
+                            ❌ 数据格式错误<br>
+                            <strong>期望:</strong> 数组<br>
+                            <strong>实际:</strong> ${typeof data}<br>
+                            <strong>值:</strong> ${JSON.stringify(data)}
+                        `;
+                    }
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `❌ API调用失败: ${result.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 测试出错: ${error.message}`;
+                responseDiv.textContent = '测试出错: ' + error.message;
+            }
+        }
+
+        async function testEmptyList() {
+            window.testEmptyList = true;
+            const resultDiv = document.getElementById('test-result');
+            const responseDiv = document.getElementById('api-response');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '正在测试空列表...';
+            resultDiv.className = 'test-result info';
+
+            try {
+                const result = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ action: 'getRegistrations' }, resolve);
+                });
+
+                responseDiv.textContent = JSON.stringify(result, null, 2);
+
+                if (result.success && Array.isArray(result.data) && result.data.length === 0) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = '✅ 空列表处理正确';
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = '❌ 空列表处理异常';
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 测试出错: ${error.message}`;
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('test-result').style.display = 'none';
+            document.getElementById('api-response').textContent = '等待API调用...';
+            document.getElementById('data-table').style.display = 'none';
+        }
+
+        // 初始化
+        console.log('🚀 平台注册列表API测试页面已加载');
+    </script>
+</body>
+</html>

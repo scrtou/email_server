@@ -22,6 +22,11 @@ class OptionsManager {
       this.testConnection();
     });
 
+    // 退出登录按钮
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      this.logout();
+    });
+
     // 高级设置变化监听
     const advancedInputs = document.querySelectorAll('.advanced-settings input');
     advancedInputs.forEach(input => {
@@ -80,6 +85,17 @@ class OptionsManager {
       }
 
       await this.storeSettings(settings);
+
+      // 通知background.js配置已更新
+      if (chrome && chrome.runtime) {
+        chrome.runtime.sendMessage({
+          action: 'saveConfig',
+          config: settings
+        }, (response) => {
+          console.log('Background配置更新响应:', response);
+        });
+      }
+
       this.showStatus('设置已保存', 'success');
 
       // 如果提供了用户名和密码，尝试自动登录
@@ -217,6 +233,40 @@ class OptionsManager {
     return new Promise((resolve) => {
       chrome.storage.sync.set(settings, resolve);
     });
+  }
+
+  async logout() {
+    if (confirm('确定要退出登录吗？这将清除所有登录信息。')) {
+      try {
+        // 清除token和密码
+        const currentSettings = await this.getStoredSettings();
+        const newSettings = {
+          ...currentSettings,
+          token: '',
+          password: '' // 可选：是否也清除保存的密码
+        };
+
+        await this.storeSettings(newSettings);
+
+        // 通知background.js清除token
+        if (chrome && chrome.runtime) {
+          chrome.runtime.sendMessage({
+            action: 'saveConfig',
+            config: newSettings
+          }, (response) => {
+            console.log('Background登出响应:', response);
+          });
+        }
+
+        this.showStatus('已退出登录', 'success');
+
+        // 清空密码字段显示
+        document.getElementById('password').value = '';
+
+      } catch (error) {
+        this.showStatus('退出登录失败: ' + error.message, 'error');
+      }
+    }
   }
 }
 
