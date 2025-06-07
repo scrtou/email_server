@@ -340,6 +340,60 @@ class EmailServerAPI {
     }
   }
 
+  // 根据域名获取匹配的平台注册信息（用于自动填充）
+  async getPlatformRegistrationsByDomain(domain) {
+    await this.ensureInitialized();
+
+    console.log('🔍 根据域名获取平台注册信息:', { domain, baseURL: this.baseURL, hasToken: !!this.token });
+
+    if (!this.baseURL) {
+      return { success: false, error: '请先在设置中配置服务器地址' };
+    }
+
+    if (!this.token) {
+      console.error('❌ Token为空，需要重新登录');
+      return { success: false, error: '认证信息已过期，请重新登录' };
+    }
+
+    try {
+      // 先获取所有平台注册信息
+      const allRegistrationsResult = await this.getPlatformRegistrations();
+
+      if (!allRegistrationsResult.success) {
+        return allRegistrationsResult;
+      }
+
+      const allRegistrations = allRegistrationsResult.data || [];
+
+      // 过滤匹配当前域名的注册信息
+      const matchedRegistrations = allRegistrations.filter(registration => {
+        const platformName = registration.platform_name.toLowerCase();
+        const currentDomain = domain.toLowerCase();
+
+        // 精确匹配或包含匹配
+        return platformName === currentDomain ||
+               platformName.includes(currentDomain) ||
+               currentDomain.includes(platformName);
+      });
+
+      console.log('✅ 找到匹配的平台注册信息:', {
+        domain,
+        totalRegistrations: allRegistrations.length,
+        matchedCount: matchedRegistrations.length,
+        matched: matchedRegistrations.map(r => ({ id: r.id, platform: r.platform_name, username: r.login_username, email: r.email_address }))
+      });
+
+      return {
+        success: true,
+        data: matchedRegistrations,
+        count: matchedRegistrations.length
+      };
+    } catch (error) {
+      console.error('❌ 根据域名获取平台注册信息时发生错误:', error);
+      return { success: false, error: '网络错误或服务器无响应' };
+    }
+  }
+
   async updatePlatformRegistration(id, data) {
     await this.ensureInitialized();
 
@@ -497,6 +551,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'getRegistrationPassword':
         const getPasswordResult = await api.getPlatformRegistrationPassword(request.id);
         sendResponse(getPasswordResult);
+        break;
+
+      case 'getRegistrationsByDomain':
+        const getByDomainResult = await api.getPlatformRegistrationsByDomain(request.domain);
+        sendResponse(getByDomainResult);
         break;
 
       case 'getAutoSaveSetting':
