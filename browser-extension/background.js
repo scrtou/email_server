@@ -9,7 +9,7 @@ class EmailServerAPI {
 
   async init() {
     const config = await this.getStoredConfig();
-    this.baseURL = config.serverURL || 'http://localhost:8080';
+    this.baseURL = config.serverURL || '';
     this.token = config.token || '';
   }
 
@@ -28,6 +28,10 @@ class EmailServerAPI {
   }
 
   async login(username, password) {
+    if (!this.baseURL) {
+      return { success: false, error: '请先在设置中配置服务器地址' };
+    }
+
     try {
       const response = await fetch(`${this.baseURL}/api/v1/auth/login`, {
         method: 'POST',
@@ -52,6 +56,10 @@ class EmailServerAPI {
   }
 
   async createPlatformRegistration(registrationData) {
+    if (!this.baseURL) {
+      return { success: false, error: '请先在设置中配置服务器地址' };
+    }
+
     try {
       const response = await fetch(`${this.baseURL}/api/v1/platform-registrations/by-name`, {
         method: 'POST',
@@ -75,6 +83,10 @@ class EmailServerAPI {
   }
 
   async getPlatformRegistrations() {
+    if (!this.baseURL) {
+      return { success: false, error: '请先在设置中配置服务器地址' };
+    }
+
     try {
       const response = await fetch(`${this.baseURL}/api/v1/platform-registrations`, {
         method: 'GET',
@@ -124,7 +136,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       case 'saveConfig':
         await api.saveConfig(request.config);
-        api.baseURL = request.config.serverURL || api.baseURL;
+        api.baseURL = request.config.serverURL || '';
         sendResponse({ success: true });
         break;
 
