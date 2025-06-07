@@ -83,7 +83,19 @@
                   if (!config.serverURL) {
                     callback({ success: false, error: '请先在设置中配置服务器地址' });
                   } else {
-                    callback({ success: false, error: '模拟登录测试 - 实际需要真实服务器' });
+                    // 模拟成功登录，返回正确的响应格式
+                    callback({
+                      success: true,
+                      data: {
+                        code: 200,
+                        message: 'success',
+                        data: {
+                          token: 'mock_jwt_token_12345',
+                          expires_in: 24,
+                          user: { id: 1, username: message.username, role: 'user' }
+                        }
+                      }
+                    });
                   }
                 }
               }
