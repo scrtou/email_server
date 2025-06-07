@@ -29,3 +29,13 @@
 - **在线工具**：Canva, Figma
 - **桌面软件**：Adobe Illustrator, Sketch
 - **免费替代**：GIMP, Inkscape
+
+## 当前状态
+
+已创建临时图标文件以解决扩展加载错误：
+- icon16.png ✓
+- icon32.png ✓
+- icon48.png ✓
+- icon128.png ✓
+
+这些是使用 ImageMagick 创建的简单蓝色圆形图标，包含白色的 "E" 字母代表 Email Server。
