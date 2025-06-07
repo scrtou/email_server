@@ -31,7 +31,7 @@
       </el-form-item>
 
       <!-- Add Username Field -->
-      <el-form-item label="用户名/ID" prop="login_username_input">
+      <el-form-item v-if="!isEditMode" label="用户名/ID" prop="login_username_input">
         <el-select
           v-model="form.login_username_input"
           placeholder="选择或输入用户名/ID"
@@ -68,7 +68,7 @@
                when an item is selected, `form.login_username_input` becomes the `id`.
                We need `form.login_username_input` to hold the *text* of the username.
                Let's change `v-model` to `form.selected_username_registration_id` when an item is *selected*,
-               and use `form.login_username_input` for the *textual input/creation*.
+               and use `form.login_username_input` for the *textual input/creation`.
                This is tricky with a single `el-select`.
 
                A common pattern for `el-select` with `allow-create` and wanting to distinguish selected ID vs created text:
@@ -77,6 +77,9 @@
             -->
         </el-select>
         <div v-if="loadingUsernames" class="el-form-item__error">正在加载用户名...</div>
+      </el-form-item>
+      <el-form-item v-if="isEditMode" label="用户名/ID" prop="login_username_input">
+        <el-input v-model="form.login_username_input" disabled />
       </el-form-item>
 
       <el-form-item v-if="!isEditMode" label="邮箱地址" prop="email_address">
@@ -493,9 +496,13 @@ const handleSubmit = async () => {
       // then neither 'selected_username_registration_id' nor 'login_username' keys will be added to the payload.
       // This fulfills the requirement "应为空或不包含在此次提交中".
       
-      // The actual store call will be handled by the parent component
-      emit('submit-form', { payload, id: props.id, isEdit: isEditMode.value });
-      loading.value = false; // Moved here to ensure it's set after emit
+      try {
+        // The actual store call will be handled by the parent component
+        emit('submit-form', { payload, id: props.id, isEdit: isEditMode.value });
+      } finally {
+        // 重置加载状态，但不影响父组件的加载状态管理
+        loading.value = false;
+      }
     } else {
       ElMessage.error('请检查表单输入');
       // loading.value = false; // Ensure loading is false on validation error

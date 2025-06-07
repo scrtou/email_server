@@ -12,7 +12,6 @@ services:
       - "${BACKEND_PORT:-5555}:5555" # 映射端口：宿主机:容器 (可通过.env配置)
     user: "1001:1001" # 使用非root用户提高安全性
     environment:
-      SERVER_PORT: "5555" # 后端服务监听端口
       SQLITE_FILE: "/data/database.db" # SQLite 数据库文件路径 (容器内)
       GIN_MODE: "release"  # Gin框架生产模式
       # 请在 .env 文件中配置以下环境变量

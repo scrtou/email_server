@@ -170,14 +170,15 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
       this.loading = true;
       this.error = null;
       try {
-        const createdData = await serviceSubscriptionAPI.create(data);
+        await serviceSubscriptionAPI.create(data);
         ElMessage.success('服务订阅创建成功');
         await this.fetchServiceSubscriptions(1, this.pagination.pageSize, this.sort, this.filters);
-        return createdData;
+        return true; // 返回 true 表示成功
       } catch (err) {
+        console.error('[ServiceSubscriptionStore] createServiceSubscription error:', err);
         this.error = err.message || '创建服务订阅失败';
         ElMessage.error(this.error);
-        return null;
+        return false; // 返回 false 表示失败
       } finally {
         this.loading = false;
       }
@@ -192,11 +193,12 @@ export const useServiceSubscriptionStore = defineStore('serviceSubscription', {
         if (this.currentServiceSubscription && this.currentServiceSubscription.id === id) {
           this.currentServiceSubscription = updatedData;
         }
-        return updatedData;
+        return true; // 返回 true 表示成功
       } catch (err) {
+        console.error('[ServiceSubscriptionStore] updateServiceSubscription error:', err);
         this.error = err.message || '更新服务订阅失败';
         ElMessage.error(this.error);
-        return null;
+        return false; // 返回 false 表示失败
       } finally {
         this.loading = false;
       }

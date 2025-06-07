@@ -20,7 +20,7 @@ type PlatformRegistration struct {
 
 // PlatformRegistrationResponse 用于API响应，可能包含关联模型的摘要信息
 type PlatformRegistrationResponse struct {
-	ID             uint   	`json:"id"`
+	ID             uint   `json:"id"`
 	UserID         uint   `json:"user_id"`
 	EmailAccountID uint   `json:"email_account_id"`
 	EmailAddress   string `json:"email_address"` // From EmailAccount
@@ -46,7 +46,13 @@ func (pr *PlatformRegistration) ToPlatformRegistrationResponse(emailAccount Emai
 			}
 			return 0
 		}(pr.EmailAccountID),
-		EmailAddress: emailAccount.EmailAddress, // Populate from passed EmailAccount
+		EmailAddress: func() string {
+			// 只有当 EmailAccountID 不为 nil 时才返回邮箱地址
+			if pr.EmailAccountID != nil {
+				return emailAccount.EmailAddress
+			}
+			return "" // 没有关联邮箱时返回空字符串
+		}(),
 		PlatformID:   pr.PlatformID,
 		PlatformName: platform.Name, // Populate from passed Platform
 		LoginUsername: func() string {

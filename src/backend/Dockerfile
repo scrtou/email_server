@@ -46,7 +46,7 @@ RUN mkdir -p /data && chmod -R 777 /data
 # USER appuser
 
 # Expose port 5555 to the outside world.
-# This is the default port the application listens on, configured via SERVER_PORT environment variable.
+# This is the fixed port the application listens on inside the container.
 EXPOSE 5555
 
 # 健康检查
@@ -54,11 +54,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD wget --no-verbose --tries=1 --quiet -O /dev/null http://localhost:5555/api/v1/health || exit 1
 
 # Command to run the executable
-# The application reads its configuration (e.g., database connection, JWT secret, server port)
+# The application reads its configuration (e.g., database connection, JWT secret)
 # from environment variables. Ensure these are set when running the container.
 # Example environment variables:
-# - SERVER_PORT (defaults to 5555 if not set)
 # - SQLITE_FILE (defaults to ./gorm.db if not set)
 # - JWT_SECRET (defaults to "your-super-secret-jwt-key-change-in-production" if not set)
 # - JWT_EXPIRES_IN (defaults to 24 if not set)
+# Note: Server port is fixed to 5555 inside container, external port configured via BACKEND_PORT
 CMD ["/app/email_server_app"]
