@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>测试服务器配置</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .test-section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .success { background-color: #d4edda; }
+    .error { background-color: #f8d7da; }
+    .info { background-color: #d1ecf1; }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-secondary { background-color: #6c757d; color: white; }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>浏览器插件服务器配置测试</h1>
+  
+  <div class="test-section">
+    <h3>1. 测试服务器地址配置</h3>
+    <input type="url" id="test-server-url" placeholder="https://accountback.azhen.de" value="https://accountback.azhen.de">
+    <button class="btn-primary" onclick="testSaveConfig()">保存配置</button>
+    <button class="btn-secondary" onclick="testGetConfig()">获取配置</button>
+    <div id="config-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h3>2. 测试登录（需要先配置服务器地址）</h3>
+    <input type="text" id="test-username" placeholder="用户名">
+    <input type="password" id="test-password" placeholder="密码">
+    <button class="btn-primary" onclick="testLogin()">测试登录</button>
+    <div id="login-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h3>3. 测试无服务器地址时的错误处理</h3>
+    <button class="btn-secondary" onclick="testClearConfig()">清空配置</button>
+    <button class="btn-primary" onclick="testLoginWithoutServer()">测试无服务器登录</button>
+    <div id="no-server-result"></div>
+  </div>
+
+  <script>
+    // 模拟 Chrome 扩展 API
+    if (typeof chrome === 'undefined') {
+      window.chrome = {
+        runtime: {
+          sendMessage: function(message, callback) {
+            console.log('模拟发送消息:', message);
+            // 模拟响应
+            setTimeout(() => {
+              if (callback) {
+                if (message.action === 'getConfig') {
+                  callback(JSON.parse(localStorage.getItem('testConfig') || '{}'));
+                } else if (message.action === 'saveConfig') {
+                  localStorage.setItem('testConfig', JSON.stringify(message.config));
+                  callback({ success: true });
+                } else if (message.action === 'login') {
+                  const config = JSON.parse(localStorage.getItem('testConfig') || '{}');
+                  if (!config.serverURL) {
+                    callback({ success: false, error: '请先在设置中配置服务器地址' });
+                  } else {
+                    callback({ success: false, error: '模拟登录测试 - 实际需要真实服务器' });
+                  }
+                }
+              }
+            }, 100);
+          }
+        }
+      };
+    }
+
+    function showResult(elementId, message, type = 'info') {
+      const element = document.getElementById(elementId);
+      element.innerHTML = `<div class="${type}">${message}</div>`;
+    }
+
+    function testSaveConfig() {
+      const serverURL = document.getElementById('test-server-url').value;
+      chrome.runtime.sendMessage({
+        action: 'saveConfig',
+        config: { serverURL: serverURL }
+      }, (response) => {
+        if (response.success) {
+          showResult('config-result', `配置已保存: ${serverURL}`, 'success');
+        } else {
+          showResult('config-result', `保存失败: ${response.error}`, 'error');
+        }
+      });
+    }
+
+    function testGetConfig() {
+      chrome.runtime.sendMessage({ action: 'getConfig' }, (response) => {
+        showResult('config-result', `当前配置: ${JSON.stringify(response, null, 2)}`, 'info');
+      });
+    }
+
+    function testLogin() {
+      const username = document.getElementById('test-username').value;
+      const password = document.getElementById('test-password').value;
+      
+      if (!username || !password) {
+        showResult('login-result', '请输入用户名和密码', 'error');
+        return;
+      }
+
+      chrome.runtime.sendMessage({
+        action: 'login',
+        username: username,
+        password: password
+      }, (response) => {
+        if (response.success) {
+          showResult('login-result', '登录成功！', 'success');
+        } else {
+          showResult('login-result', `登录失败: ${response.error}`, 'error');
+        }
+      });
+    }
+
+    function testClearConfig() {
+      chrome.runtime.sendMessage({
+        action: 'saveConfig',
+        config: { serverURL: '' }
+      }, (response) => {
+        showResult('no-server-result', '配置已清空', 'info');
+      });
+    }
+
+    function testLoginWithoutServer() {
+      chrome.runtime.sendMessage({
+        action: 'login',
+        username: 'test',
+        password: 'test'
+      }, (response) => {
+        if (response.success) {
+          showResult('no-server-result', '意外成功！这不应该发生', 'error');
+        } else {
+          showResult('no-server-result', `正确的错误处理: ${response.error}`, 'success');
+        }
+      });
+    }
+
+    // 页面加载时获取当前配置
+    window.onload = function() {
+      testGetConfig();
+    };
+  </script>
+</body>
+</html>

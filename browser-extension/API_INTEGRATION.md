@@ -16,7 +16,7 @@
 ```javascript
 // 默认配置
 const DEFAULT_CONFIG = {
-  serverURL: 'http://localhost:8080',  // 开发环境
+  serverURL: '',  // 需要用户在设置中配置
   apiVersion: 'v1',
   timeout: 10000,  // 10秒超时
   retryAttempts: 3
