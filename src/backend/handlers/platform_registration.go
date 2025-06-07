@@ -360,7 +360,18 @@ func CreatePlatformRegistrationByNames(c *gin.Context) {
 	if err == nil {
 		// 明确找到记录，表示冲突
 		tx.Rollback()
-		utils.SendErrorResponse(c, http.StatusConflict, conflictMsg)
+		// 返回更详细的冲突信息，包含现有记录的ID
+		conflictResponse := map[string]interface{}{
+			"message":       conflictMsg,
+			"existing_id":   existingRegistration.ID,
+			"conflict_type": "duplicate_registration",
+			"can_update":    true, // 表示可以更新密码
+		}
+		c.JSON(http.StatusConflict, models.Response{
+			Code:    http.StatusConflict,
+			Message: conflictMsg,
+			Data:    conflictResponse,
+		})
 		return
 	} else if errors.Is(err, gorm.ErrRecordNotFound) {
 		// 明确未找到记录，无冲突，继续执行后续创建逻辑

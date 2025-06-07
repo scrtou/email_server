@@ -364,6 +364,11 @@
       font-weight: 500;
       cursor: pointer;
       transition: background-color 0.2s;
+      box-sizing: border-box; /* 确保padding包含在宽度内 */
+      height: 44px; /* 固定高度，确保按钮大小一致 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .btn-primary {
@@ -379,7 +384,6 @@
       background: #f8f9fa;
       color: #5f6368;
       border: 1px solid #dadce0;
-      margin-top: 12px;
     }
 
     .btn-secondary:hover {
@@ -415,6 +419,18 @@
       flex-direction: column;
       height: 100%;
       overflow: hidden; /* 防止generator-tab滚动 */
+    }
+
+    #detail-tab.active {
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden; /* 防止detail-tab滚动 */
+    }
+
+    #edit-tab.active {
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden; /* 防止edit-tab滚动 */
     }
 
     .loading {
@@ -587,6 +603,10 @@
 
     .detail-content {
       padding: 20px;
+      padding-bottom: 80px; /* 为底部导航留出空间 */
+      flex: 1;
+      overflow-y: auto; /* 允许垂直滚动 */
+      min-height: 0; /* 允许flex子元素收缩 */
     }
 
     .detail-platform {
@@ -702,10 +722,14 @@
       gap: 12px;
       padding-top: 20px;
       border-top: 1px solid #e8eaed;
+      justify-content: center; /* 居中对齐按钮 */
     }
 
     .detail-actions .btn {
       flex: 1;
+      max-width: 120px; /* 限制最大宽度，确保按钮大小一致 */
+      min-width: 100px; /* 设置最小宽度 */
+      text-align: center; /* 文字居中 */
     }
 
     /* 编辑页面样式 */
