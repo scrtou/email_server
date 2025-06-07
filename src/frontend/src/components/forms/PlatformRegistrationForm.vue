@@ -38,7 +38,6 @@
               v-model="form.email_address"
               placeholder="邮箱地址"
               readonly
-              disabled
               :disabled="props.isEdit"
               class="full-width-select"
             />
