@@ -4,57 +4,314 @@
   <meta charset="utf-8">
   <style>
     body {
-      width: 350px;
-      min-height: 400px;
+      width: 380px;
+      max-height: 600px;
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f5;
+      background: #ffffff;
+      color: #333;
+      display: flex;
+      flex-direction: column;
     }
 
     .header {
-      background: #007cba;
-      color: white;
-      padding: 15px;
-      text-align: center;
+      background: #ffffff;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #e8eaed;
     }
 
     .header h1 {
       margin: 0;
+      font-size: 18px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .add-btn {
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background-color 0.2s;
+    }
+
+    .add-btn:hover {
+      background: #3367d6;
+    }
+
+    .add-btn::before {
+      content: '+';
       font-size: 16px;
-      font-weight: 600;
+      font-weight: bold;
+    }
+
+    .search-section {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 16px 20px;
+      background: #ffffff;
+      border-bottom: 1px solid #e8eaed;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .search-box {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px 12px 40px;
+      border: 2px solid #4285f4;
+      border-radius: 24px;
+      font-size: 14px;
+      box-sizing: border-box;
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: #9aa0a6;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: #9aa0a6;
+    }
+
+    .filter-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .filter-dropdown {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .filter-btn {
+      padding: 8px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .content {
-      padding: 20px;
+      padding: 0;
+      flex: 1;
+      overflow-y: auto;
+      max-height: calc(600px - 56px); /* 减去底部导航高度 */
+      padding-bottom: 56px; /* 为底部导航留出空间 */
     }
 
-    .status {
-      margin-bottom: 20px;
-      padding: 10px;
-      border-radius: 6px;
+    .status-banner {
+      padding: 12px 20px;
       font-size: 14px;
+      text-align: center;
+      margin-bottom: 8px;
     }
 
-    .status.connected {
-      background: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
+    .status-banner.connected {
+      background: #e8f5e8;
+      color: #137333;
     }
 
-    .status.disconnected {
-      background: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
+    .status-banner.disconnected {
+      background: #fce8e6;
+      color: #d93025;
+    }
+
+    .suggestion-section {
+      padding: 16px 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e8eaed;
+    }
+
+    .suggestion-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .suggestion-desc {
+      font-size: 12px;
+      color: #5f6368;
+      line-height: 1.4;
+    }
+
+    .section-header {
+      padding: 16px 20px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .item-count {
+      font-size: 14px;
+      color: #5f6368;
+    }
+
+    .account-list {
+      background: white;
+    }
+
+    .account-item {
+      padding: 16px 20px;
+      border-bottom: 1px solid #f1f3f4;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .account-item:hover {
+      background: #f8f9fa;
+    }
+
+    .account-item:last-child {
+      border-bottom: none;
+    }
+
+    .account-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #4285f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 500;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .account-icon.server {
+      background: #9aa0a6;
+    }
+
+    .account-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .account-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-details {
+      font-size: 12px;
+      color: #5f6368;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .action-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5f6368;
+      transition: background-color 0.2s;
+    }
+
+    .action-btn:hover {
+      background: #f1f3f4;
+    }
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid #e8eaed;
+      display: flex;
+      height: 56px;
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #5f6368;
+      font-size: 10px;
+      transition: color 0.2s;
+      gap: 2px;
+    }
+
+    .nav-item.active {
+      color: #4285f4;
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      margin-bottom: 2px;
     }
 
     .form-group {
-      margin-bottom: 15px;
+      margin-bottom: 16px;
     }
 
     .form-group label {
       display: block;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
       font-weight: 500;
       font-size: 14px;
       color: #333;
@@ -62,24 +319,25 @@
 
     .form-group input {
       width: 100%;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      padding: 12px 16px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
       font-size: 14px;
       box-sizing: border-box;
+      transition: border-color 0.2s;
     }
 
     .form-group input:focus {
       outline: none;
-      border-color: #007cba;
-      box-shadow: 0 0 0 2px rgba(0, 124, 186, 0.2);
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
     }
 
     .btn {
       width: 100%;
-      padding: 10px;
+      padding: 12px 16px;
       border: none;
-      border-radius: 4px;
+      border-radius: 8px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
@@ -87,177 +345,947 @@
     }
 
     .btn-primary {
-      background: #007cba;
+      background: #4285f4;
       color: white;
     }
 
     .btn-primary:hover {
-      background: #005a87;
+      background: #3367d6;
     }
 
     .btn-secondary {
-      background: #6c757d;
-      color: white;
-      margin-top: 10px;
+      background: #f8f9fa;
+      color: #5f6368;
+      border: 1px solid #dadce0;
+      margin-top: 12px;
     }
 
     .btn-secondary:hover {
-      background: #545b62;
+      background: #f1f3f4;
     }
 
     .btn:disabled {
-      background: #ccc;
+      background: #f1f3f4;
+      color: #9aa0a6;
       cursor: not-allowed;
-    }
-
-    .tabs {
-      display: flex;
-      margin-bottom: 20px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .tab {
-      flex: 1;
-      padding: 10px;
-      text-align: center;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      font-size: 14px;
-    }
-
-    .tab.active {
-      border-bottom-color: #007cba;
-      color: #007cba;
-      font-weight: 500;
     }
 
     .tab-content {
       display: none;
+      padding: 0;
     }
 
     .tab-content.active {
       display: block;
     }
 
-    .registration-list {
-      max-height: 200px;
-      overflow-y: auto;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background: white;
-    }
-
-    .registration-item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-      font-size: 12px;
-    }
-
-    .registration-item:last-child {
-      border-bottom: none;
-    }
-
-    .registration-item .platform {
-      font-weight: 500;
-      color: #007cba;
-    }
-
-    .registration-item .details {
-      color: #666;
-      margin-top: 2px;
-    }
-
     .loading {
       text-align: center;
-      padding: 20px;
-      color: #666;
+      padding: 40px 20px;
+      color: #5f6368;
     }
 
     .error {
-      color: #dc3545;
+      color: #d93025;
       font-size: 12px;
-      margin-top: 5px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: #fce8e6;
+      border-radius: 4px;
     }
 
     .success {
-      color: #28a745;
+      color: #137333;
       font-size: 12px;
-      margin-top: 5px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: #e8f5e8;
+      border-radius: 4px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #5f6368;
+    }
+
+    .empty-state-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+      opacity: 0.5;
+    }
+
+    /* 登录页面样式 */
+    .login-header {
+      text-align: center;
+      padding: 40px 20px 20px;
+      background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+      color: white;
+    }
+
+    .login-header h1 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 500;
+    }
+
+    .login-subtitle {
+      margin: 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .login-content {
+      padding: 30px 20px;
+      background: white;
+    }
+
+    .login-form {
+      max-width: 300px;
+      margin: 0 auto;
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .login-logo-icon {
+      width: 64px;
+      height: 64px;
+      background: #4285f4;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .welcome-text {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #5f6368;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .login-footer {
+      text-align: center;
+      padding: 20px;
+      border-top: 1px solid #e8eaed;
+      background: #f8f9fa;
+    }
+
+    .login-footer-text {
+      font-size: 12px;
+      color: #5f6368;
+      margin: 0;
+    }
+
+    .login-footer-link {
+      color: #4285f4;
+      text-decoration: none;
+      margin-left: 8px;
+    }
+
+    .login-footer-link:hover {
+      text-decoration: underline;
+    }
+
+    /* 详情页面样式 */
+    .detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e8eaed;
+      background: white;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .back-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      color: #4285f4;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+
+    .back-btn:hover {
+      background: #f8f9fa;
+    }
+
+    .detail-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .edit-btn {
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .edit-btn:hover {
+      background: #3367d6;
+    }
+
+    .detail-content {
+      padding: 20px;
+    }
+
+    .detail-platform {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .platform-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #4285f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 500;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .platform-icon.server {
+      background: #9aa0a6;
+    }
+
+    .platform-info {
+      flex: 1;
+    }
+
+    .platform-name {
+      font-size: 18px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .platform-url {
+      font-size: 14px;
+      color: #5f6368;
+    }
+
+    .detail-fields {
+      margin-bottom: 24px;
+    }
+
+    .detail-field {
+      margin-bottom: 20px;
+    }
+
+    .detail-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #5f6368;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .field-value {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e8eaed;
+    }
+
+    .field-text {
+      flex: 1;
+      font-size: 14px;
+      color: #333;
+      word-break: break-all;
+    }
+
+    .field-text.empty {
+      color: #9aa0a6;
+      font-style: italic;
+    }
+
+    .password-hidden {
+      font-family: monospace;
+      letter-spacing: 2px;
+    }
+
+    .copy-field-btn, .toggle-password-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5f6368;
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .copy-field-btn:hover, .toggle-password-btn:hover {
+      background: #e8eaed;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 12px;
+      padding-top: 20px;
+      border-top: 1px solid #e8eaed;
+    }
+
+    .detail-actions .btn {
+      flex: 1;
+    }
+
+    /* 编辑页面样式 */
+    .password-input-group {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .password-input-group input {
+      flex: 1;
+      padding-right: 40px;
+    }
+
+    .toggle-edit-password-btn {
+      position: absolute;
+      right: 8px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5f6368;
+      transition: background-color 0.2s;
+    }
+
+    .toggle-edit-password-btn:hover {
+      background: #f1f3f4;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      box-sizing: border-box;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Email Server 账号管理器</h1>
+  <!-- 主界面头部 -->
+  <div class="header" id="main-header" style="display: none;">
+    <h1>密码库</h1>
+    <button class="add-btn" id="add-btn">新增</button>
   </div>
 
-  <div class="content">
-    <div id="status" class="status disconnected">
-      未连接到服务器
+  <!-- 主界面搜索区域 -->
+  <div class="search-section" id="main-search" style="display: none;">
+    <div class="search-box">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+      </svg>
+      <input type="text" class="search-input" id="search-input" placeholder="搜索">
     </div>
 
-    <div class="tabs">
-      <div class="tab active" data-tab="login">登录</div>
-      <div class="tab" data-tab="accounts">账号列表</div>
-      <div class="tab" data-tab="manual">手动添加</div>
-    </div>
+  </div>
 
-    <!-- 登录标签页 -->
-    <div id="login-tab" class="tab-content active">
-      <form id="login-form">
+  <!-- 登录页面头部 -->
+  <div class="login-header" id="login-header" style="display: block;">
+    <h1>Email Server 密码库</h1>
+    <p class="login-subtitle">安全管理您的账号密码</p>
+  </div>
+
+  <div id="status" class="status-banner disconnected" style="display: none;">
+    未连接到服务器
+  </div>
+
+  <!-- 登录页面 -->
+  <div id="login-page" class="login-page" style="display: block;">
+    <div class="login-content">
+      <div class="login-logo">
+        <div class="login-logo-icon">🔐</div>
+      </div>
+
+
+
+      <form id="login-form" class="login-form">
         <div class="form-group">
-          <label for="username">用户名:</label>
-          <input type="text" id="username" name="username" required>
+          <label for="username">用户名</label>
+          <input type="text" id="username" name="username" required placeholder="请输入用户名">
         </div>
         <div class="form-group">
-          <label for="password">密码:</label>
-          <input type="password" id="password" name="password" required>
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" required placeholder="请输入密码">
         </div>
         <button type="submit" class="btn btn-primary">登录</button>
         <div id="login-error" class="error" style="display: none;"></div>
         <div id="login-success" class="success" style="display: none;"></div>
       </form>
-      <button id="settings-btn" class="btn btn-secondary">设置</button>
     </div>
 
-    <!-- 账号列表标签页 -->
-    <div id="accounts-tab" class="tab-content">
-      <div id="accounts-loading" class="loading">加载中...</div>
-      <div id="accounts-list" class="registration-list" style="display: none;"></div>
+    <div class="login-footer">
+      <p class="login-footer-text">
+        需要帮助？
+        <a href="#" class="login-footer-link" id="settings-btn">设置</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- 主应用内容 -->
+  <div class="content" id="main-content" style="display: none;">
+
+    <!-- 密码库主页 -->
+    <div id="vault-tab" class="tab-content active">
+      <div class="suggestion-section" id="auto-fill-suggestion" style="display: none;">
+        <div class="suggestion-title">自动填充建议</div>
+        <div class="suggestion-desc">为这个站点保存一个登录项目以自动填充</div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">所有项目</div>
+        <div class="item-count" id="item-count">0</div>
+      </div>
+
+      <div id="accounts-loading" class="loading" style="display: none;">加载中...</div>
+      <div id="accounts-list" class="account-list"></div>
       <div id="accounts-error" class="error" style="display: none;"></div>
-      <button id="refresh-accounts" class="btn btn-secondary">刷新列表</button>
+
+      <div id="empty-state" class="empty-state" style="display: none;">
+        <div class="empty-state-icon">🔐</div>
+        <div>暂无保存的账号</div>
+      </div>
     </div>
 
-    <!-- 手动添加标签页 -->
+    <!-- 账号详情页面 -->
+    <div id="detail-tab" class="tab-content">
+      <div class="detail-header">
+        <button class="back-btn" id="detail-back-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+          返回
+        </button>
+        <div class="detail-title" id="detail-title">账号详情</div>
+        <div></div>
+      </div>
+
+      <div id="detail-loading" class="loading" style="display: none;">加载中...</div>
+      <div id="detail-error" class="error" style="display: none;"></div>
+
+      <div id="detail-content" class="detail-content" style="display: none;">
+        <div class="detail-platform">
+          <div class="platform-icon" id="detail-platform-icon">G</div>
+          <div class="platform-info">
+            <div class="platform-name" id="detail-platform-name">Google</div>
+            <div class="platform-url" id="detail-platform-url">google.com</div>
+          </div>
+        </div>
+
+        <div class="detail-fields">
+          <div class="detail-field">
+            <label>邮箱地址</label>
+            <div class="field-value">
+              <span id="detail-email" class="field-text">user@example.com</span>
+              <button class="copy-field-btn" data-field="email" title="复制邮箱">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-field">
+            <label>用户名</label>
+            <div class="field-value">
+              <span id="detail-username" class="field-text">username123</span>
+              <button class="copy-field-btn" data-field="username" title="复制用户名">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-field">
+            <label>密码</label>
+            <div class="field-value">
+              <span id="detail-password" class="field-text password-hidden">••••••••</span>
+              <button class="toggle-password-btn" id="toggle-password-btn" title="显示/隐藏密码">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.61-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                </svg>
+              </button>
+              <button class="copy-field-btn" data-field="password" title="复制密码">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-field">
+            <label>手机号码</label>
+            <div class="field-value">
+              <span id="detail-phone" class="field-text">+86 138****1234</span>
+              <button class="copy-field-btn" data-field="phone" title="复制手机号">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-field">
+            <label>备注</label>
+            <div class="field-value">
+              <span id="detail-notes" class="field-text">这是一个备注信息</span>
+              <button class="copy-field-btn" data-field="notes" title="复制备注">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-field">
+            <label>创建时间</label>
+            <div class="field-value">
+              <span id="detail-created" class="field-text">2024-01-01 12:00:00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="btn btn-primary" id="detail-edit-btn">编辑</button>
+          <button class="btn btn-secondary" id="detail-delete-btn">删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑页面 -->
+    <div id="edit-tab" class="tab-content">
+      <div class="detail-header">
+        <button class="back-btn" id="edit-back-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+          取消
+        </button>
+        <div class="detail-title" id="edit-title">编辑账号</div>
+        <button class="edit-btn" id="edit-save-btn">保存</button>
+      </div>
+
+      <div id="edit-loading" class="loading" style="display: none;">保存中...</div>
+      <div id="edit-error" class="error" style="display: none;"></div>
+      <div id="edit-success" class="success" style="display: none;"></div>
+
+      <div id="edit-content" class="detail-content">
+        <form id="edit-form">
+          <div class="form-group">
+            <label for="edit-platform-name">平台名称</label>
+            <input type="text" id="edit-platform-name" name="platform_name" readonly placeholder="平台名称（只读）">
+          </div>
+          <div class="form-group">
+            <label for="edit-email">邮箱地址</label>
+            <input type="email" id="edit-email" name="email_address" placeholder="请输入邮箱地址">
+          </div>
+          <div class="form-group">
+            <label for="edit-username">用户名</label>
+            <input type="text" id="edit-username" name="login_username" placeholder="请输入用户名">
+          </div>
+          <div class="form-group">
+            <label for="edit-password">密码</label>
+            <div class="password-input-group">
+              <input type="password" id="edit-password" name="login_password" placeholder="请输入新密码（留空保持不变）">
+              <button type="button" class="toggle-edit-password-btn" id="toggle-edit-password-btn" title="显示/隐藏密码">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.61-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="edit-phone">手机号码</label>
+            <input type="tel" id="edit-phone" name="phone_number" placeholder="请输入手机号码">
+          </div>
+          <div class="form-group">
+            <label for="edit-notes">备注</label>
+            <textarea id="edit-notes" name="notes" rows="3" placeholder="请输入备注信息"></textarea>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 手动添加页面 -->
     <div id="manual-tab" class="tab-content">
       <form id="manual-form">
         <div class="form-group">
-          <label for="manual-platform">平台名称:</label>
-          <input type="text" id="manual-platform" name="platform_name" required>
+          <label for="manual-platform">平台名称</label>
+          <input type="text" id="manual-platform" name="platform_name" required placeholder="请输入平台名称">
         </div>
         <div class="form-group">
-          <label for="manual-email">邮箱地址:</label>
-          <input type="email" id="manual-email" name="email_address">
+          <label for="manual-email">邮箱地址</label>
+          <input type="email" id="manual-email" name="email_address" placeholder="请输入邮箱地址（可选）">
         </div>
         <div class="form-group">
-          <label for="manual-username">用户名:</label>
-          <input type="text" id="manual-username" name="login_username">
+          <label for="manual-username">用户名</label>
+          <input type="text" id="manual-username" name="login_username" placeholder="请输入用户名（可选）">
         </div>
         <div class="form-group">
-          <label for="manual-password">密码:</label>
-          <input type="password" id="manual-password" name="login_password">
+          <label for="manual-password">密码</label>
+          <input type="password" id="manual-password" name="login_password" placeholder="请输入密码（可选）">
         </div>
         <div class="form-group">
-          <label for="manual-notes">备注:</label>
-          <input type="text" id="manual-notes" name="notes">
+          <label for="manual-notes">备注</label>
+          <input type="text" id="manual-notes" name="notes" placeholder="请输入备注信息（可选）">
         </div>
-        <button type="submit" class="btn btn-primary">添加账号</button>
+        <button type="submit" class="btn btn-primary">保存</button>
         <div id="manual-error" class="error" style="display: none;"></div>
         <div id="manual-success" class="success" style="display: none;"></div>
       </form>
     </div>
   </div>
 
+  <!-- 底部导航（仅在主应用中显示） -->
+  <div class="bottom-nav" id="main-nav" style="display: none;">
+    <div class="nav-item active" data-tab="vault">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+      </svg>
+      <span>密码库</span>
+    </div>
+    <div class="nav-item" data-tab="generator">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+      </svg>
+      <span>生成器</span>
+    </div>
+    <div class="nav-item" data-tab="send">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
+      </svg>
+      <span>Send</span>
+    </div>
+    <div class="nav-item" data-tab="settings">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+      </svg>
+      <span>设置</span>
+    </div>
+  </div>
+
+  <script>
+    // 立即设置Chrome API模拟，确保在popup.js加载前就可用
+    (function() {
+      // 检查是否在扩展环境中
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        console.log('🔧 检测到非扩展环境，启用Chrome API模拟');
+
+        // 立即创建chrome对象
+        window.chrome = {
+          runtime: {
+            sendMessage: function(message, callback) {
+              console.log('📨 模拟消息:', message);
+              // 使用setTimeout模拟异步响应
+              setTimeout(() => {
+                if (message.action === 'getConfig') {
+                  callback({ token: null });
+                } else if (message.action === 'login') {
+                  callback({ success: true });
+                } else if (message.action === 'getRegistrations') {
+                  callback({
+                    success: true,
+                    data: {
+                      data: [
+                        {
+                          id: 1,
+                          platform_name: '1gb.ua',
+                          login_username: 'yx',
+                          email_address: '',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 2,
+                          platform_name: '1gb.ua',
+                          login_username: 'yx135790',
+                          email_address: '',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 3,
+                          platform_name: '38.175.193.46',
+                          login_username: 'admin',
+                          email_address: '',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 4,
+                          platform_name: '38.175.193.46',
+                          login_username: 'd31460177e771fc3fc16014c',
+                          email_address: '',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 5,
+                          platform_name: 'github.com',
+                          login_username: 'developer',
+                          email_address: 'dev@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 6,
+                          platform_name: 'google.com',
+                          login_username: 'user123',
+                          email_address: 'user123@gmail.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 7,
+                          platform_name: 'facebook.com',
+                          login_username: 'socialuser',
+                          email_address: 'social@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 8,
+                          platform_name: 'twitter.com',
+                          login_username: 'twitteruser',
+                          email_address: 'twitter@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 9,
+                          platform_name: 'linkedin.com',
+                          login_username: 'professional',
+                          email_address: 'work@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 10,
+                          platform_name: 'stackoverflow.com',
+                          login_username: 'coder',
+                          email_address: 'code@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 11,
+                          platform_name: 'reddit.com',
+                          login_username: 'redditor',
+                          email_address: 'reddit@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 12,
+                          platform_name: 'amazon.com',
+                          login_username: 'shopper',
+                          email_address: 'shop@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 13,
+                          platform_name: 'netflix.com',
+                          login_username: 'viewer',
+                          email_address: 'watch@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 14,
+                          platform_name: 'spotify.com',
+                          login_username: 'musiclover',
+                          email_address: 'music@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 15,
+                          platform_name: 'dropbox.com',
+                          login_username: 'clouduser',
+                          email_address: 'cloud@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 16,
+                          platform_name: 'youtube.com',
+                          login_username: 'videowatcher',
+                          email_address: 'video@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 17,
+                          platform_name: 'instagram.com',
+                          login_username: 'photographer',
+                          email_address: 'photo@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 18,
+                          platform_name: 'discord.com',
+                          login_username: 'gamer123',
+                          email_address: 'gaming@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 19,
+                          platform_name: 'slack.com',
+                          login_username: 'teamworker',
+                          email_address: 'work@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        },
+                        {
+                          id: 20,
+                          platform_name: 'zoom.us',
+                          login_username: 'meetinghost',
+                          email_address: 'meetings@example.com',
+                          created_at: '2024-01-01T00:00:00Z'
+                        }
+                      ]
+                    }
+                  });
+                } else if (message.action === 'getRegistrationById') {
+                  // 模拟获取单个注册详情
+                  const mockDetailData = [
+                    {
+                      id: 1,
+                      platform_name: '1gb.ua',
+                      platform_website_url: 'https://1gb.ua',
+                      login_username: 'yx',
+                      email_address: '',
+                      phone_number: '',
+                      notes: '这是一个测试账号',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 2,
+                      platform_name: '1gb.ua',
+                      platform_website_url: 'https://1gb.ua',
+                      login_username: 'yx135790',
+                      email_address: '',
+                      phone_number: '+86 138****1234',
+                      notes: '备用账号',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 5,
+                      platform_name: 'github.com',
+                      platform_website_url: 'https://github.com',
+                      login_username: 'developer',
+                      email_address: 'dev@example.com',
+                      phone_number: '+86 139****5678',
+                      notes: '开发者账号，用于代码管理',
+                      created_at: '2024-01-01T00:00:00Z'
+                    }
+                  ];
+
+                  const account = mockDetailData.find(acc => acc.id === message.id) || {
+                    id: message.id,
+                    platform_name: '示例平台',
+                    platform_website_url: 'https://example.com',
+                    login_username: 'testuser',
+                    email_address: 'test@example.com',
+                    phone_number: '+86 138****0000',
+                    notes: '这是一个示例账号',
+                    created_at: '2024-01-01T00:00:00Z'
+                  };
+
+                  callback({ success: true, data: account });
+                } else if (message.action === 'getRegistrationPassword') {
+                  // 模拟获取密码
+                  const mockPasswords = {
+                    1: 'password123',
+                    2: 'mySecretPass456',
+                    5: 'github_dev_2024',
+                  };
+
+                  const password = mockPasswords[message.id] || 'defaultPassword123';
+                  callback({ success: true, data: { password } });
+                } else if (message.action === 'updateRegistration') {
+                  // 模拟更新注册信息
+                  console.log('📝 模拟更新注册信息:', message.id, message.data);
+                  callback({ success: true, data: { message: '更新成功' } });
+                } else if (message.action === 'deleteRegistration') {
+                  // 模拟删除注册信息
+                  console.log('🗑️ 模拟删除注册信息:', message.id);
+                  callback({ success: true, data: { message: '删除成功' } });
+                } else if (message.action === 'saveRegistration') {
+                  callback({ success: true });
+                } else {
+                  callback({ success: false, error: '未知操作' });
+                }
+              }, 300);
+            },
+            openOptionsPage: function() {
+              console.log('⚙️ 设置按钮被点击');
+              alert('✅ 设置按钮工作正常！\n\n在真实的扩展环境中，这里会打开扩展的设置页面。');
+            }
+          },
+          tabs: {
+            query: function(queryInfo, callback) {
+              setTimeout(() => {
+                callback([{
+                  url: 'https://example.com',
+                  title: '示例网站'
+                }]);
+              }, 100);
+            }
+          }
+        };
+
+        console.log('✅ Chrome API模拟已设置完成');
+      } else {
+        console.log('🔌 检测到扩展环境，使用真实Chrome API');
+      }
+    })();
+  </script>
   <script src="popup.js"></script>
 </body>
 </html>

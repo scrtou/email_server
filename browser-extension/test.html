@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>密码库插件测试页面</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+    }
+    
+    .test-container {
+      max-width: 400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
+    
+    .test-title {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .popup-container {
+      width: 380px;
+      height: 500px;
+      border: none;
+      display: block;
+    }
+    
+    .instructions {
+      padding: 20px;
+      background: #f8f9fa;
+      border-top: 1px solid #e8eaed;
+      font-size: 14px;
+      color: #5f6368;
+    }
+    
+    .instructions h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 16px;
+    }
+    
+    .instructions ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    
+    .instructions li {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="test-title">密码库插件测试页面</h1>
+  
+  <div class="test-container">
+    <div class="popup-container">
+      <!-- 直接嵌入popup内容 -->
+      <div id="popup-content"></div>
+    </div>
+    
+    <div class="instructions">
+      <h3>测试说明</h3>
+      <ul>
+        <li><strong>登录测试：</strong>使用任意用户名和密码登录</li>
+        <li><strong>设置按钮：</strong>点击登录页面底部的"设置"链接</li>
+        <li><strong>功能测试：</strong>登录后可以测试搜索、添加账号等功能</li>
+        <li><strong>导航测试：</strong>底部导航的各个功能</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // 模拟Chrome扩展API
+    window.chrome = {
+      runtime: {
+        sendMessage: function(message, callback) {
+          console.log('模拟消息:', message);
+          // 模拟响应
+          setTimeout(() => {
+            if (message.action === 'getConfig') {
+              // 初始状态：未登录
+              callback({ token: null });
+            } else if (message.action === 'login') {
+              // 模拟登录成功
+              callback({ success: true });
+            } else if (message.action === 'getRegistrations') {
+              callback({
+                success: true,
+                data: {
+                  data: [
+                    {
+                      id: 1,
+                      platform_name: '1gb.ua',
+                      login_username: 'yx',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 2,
+                      platform_name: '1gb.ua',
+                      login_username: 'yx135790',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 3,
+                      platform_name: '38.175.193.46',
+                      login_username: 'admin',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 4,
+                      platform_name: '38.175.193.46',
+                      login_username: 'd31460177e771fc3fc16014c',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 5,
+                      platform_name: 'github.com',
+                      login_username: 'developer',
+                      email_address: 'dev@example.com',
+                      created_at: '2024-01-01T00:00:00Z'
+                    }
+                  ]
+                }
+              });
+            } else if (message.action === 'saveRegistration') {
+              // 模拟保存成功
+              callback({ success: true });
+            } else {
+              callback({ success: false, error: '未知操作' });
+            }
+          }, 500);
+        },
+        openOptionsPage: function() {
+          alert('✅ 设置按钮工作正常！\n\n在真实的扩展环境中，这里会打开扩展的设置页面。');
+        }
+      },
+      tabs: {
+        query: function(queryInfo, callback) {
+          callback([{
+            url: 'https://example.com',
+            title: '示例网站'
+          }]);
+        }
+      }
+    };
+
+    // 加载popup内容
+    async function loadPopupContent() {
+      try {
+        const response = await fetch('popup.html');
+        const html = await response.text();
+        
+        // 提取body内容
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const bodyContent = doc.body.innerHTML;
+        
+        // 插入到容器中
+        document.getElementById('popup-content').innerHTML = bodyContent;
+        
+        // 加载popup.js
+        const script = document.createElement('script');
+        script.src = 'popup.js';
+        document.head.appendChild(script);
+        
+      } catch (error) {
+        console.error('加载popup内容失败:', error);
+        document.getElementById('popup-content').innerHTML = `
+          <div style="padding: 20px; text-align: center; color: #d93025;">
+            加载失败，请确保服务器正在运行
+          </div>
+        `;
+      }
+    }
+
+    // 页面加载完成后加载popup内容
+    document.addEventListener('DOMContentLoaded', loadPopupContent);
+  </script>
+</body>
+</html>

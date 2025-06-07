@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>密码库插件预览</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+    }
+    
+    .preview-container {
+      max-width: 400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
+    
+    .preview-title {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    iframe {
+      width: 380px;
+      height: 500px;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="preview-title">密码库插件界面预览</h1>
+  <div class="preview-container">
+    <iframe src="popup.html"></iframe>
+  </div>
+  
+  <script>
+    // 在iframe加载之前设置Chrome API模拟
+    window.chromeAPI = {
+      runtime: {
+        sendMessage: function(message, callback) {
+          console.log('模拟消息:', message);
+          // 模拟响应
+          setTimeout(() => {
+            if (message.action === 'getConfig') {
+              // 初始状态：未登录
+              callback({ token: null });
+            } else if (message.action === 'login') {
+              // 模拟登录成功
+              callback({ success: true });
+            } else if (message.action === 'getRegistrations') {
+              callback({
+                success: true,
+                data: {
+                  data: [
+                    {
+                      id: 1,
+                      platform_name: '1gb.ua',
+                      login_username: 'yx',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 2,
+                      platform_name: '1gb.ua',
+                      login_username: 'yx135790',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 3,
+                      platform_name: '38.175.193.46',
+                      login_username: 'admin',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 4,
+                      platform_name: '38.175.193.46',
+                      login_username: 'd31460177e771fc3fc16014c',
+                      email_address: '',
+                      created_at: '2024-01-01T00:00:00Z'
+                    },
+                    {
+                      id: 5,
+                      platform_name: 'github.com',
+                      login_username: 'developer',
+                      email_address: 'dev@example.com',
+                      created_at: '2024-01-01T00:00:00Z'
+                    }
+                  ]
+                }
+              });
+            } else if (message.action === 'saveRegistration') {
+              // 模拟保存成功
+              callback({ success: true });
+            } else {
+              callback({ success: false, error: '未知操作' });
+            }
+          }, 500);
+        },
+        openOptionsPage: function() {
+          alert('✅ 设置按钮工作正常！\n这里会打开扩展的设置页面。');
+        }
+      },
+      tabs: {
+        query: function(queryInfo, callback) {
+          callback([{
+            url: 'https://example.com',
+            title: '示例网站'
+          }]);
+        }
+      }
+    };
+
+    // 为iframe设置Chrome API
+    function setupIframeAPI() {
+      const iframe = document.querySelector('iframe');
+      if (iframe) {
+        iframe.onload = function() {
+          try {
+            iframe.contentWindow.chrome = window.chromeAPI;
+            console.log('Chrome API已注入到iframe');
+          } catch (e) {
+            console.log('无法注入Chrome API到iframe:', e);
+          }
+        };
+      }
+    }
+
+    // 添加一些说明文字
+    document.addEventListener('DOMContentLoaded', function() {
+      const title = document.querySelector('.preview-title');
+      title.innerHTML = `
+        密码库插件界面预览<br>
+        <small style="font-size: 14px; color: #666; font-weight: normal;">
+          默认显示登录页面，可以使用任意用户名密码登录体验<br>
+          <strong>测试设置按钮：</strong>点击登录页面底部的"设置"链接
+        </small>
+      `;
+
+      // 设置iframe API
+      setupIframeAPI();
+    });
+  </script>
+</body>
+</html>

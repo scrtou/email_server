@@ -20,18 +20,19 @@ type PlatformRegistration struct {
 
 // PlatformRegistrationResponse 用于API响应，可能包含关联模型的摘要信息
 type PlatformRegistrationResponse struct {
-	ID             uint   `json:"id"`
-	UserID         uint   `json:"user_id"`
-	EmailAccountID uint   `json:"email_account_id"`
-	EmailAddress   string `json:"email_address"` // From EmailAccount
-	PlatformID     uint   `json:"platform_id"`
-	PlatformName   string `json:"platform_name"` // From Platform
-	LoginUsername  string `json:"login_username"`
-	Notes          string `json:"notes"`
-	PhoneNumber    string `json:"phone_number,omitempty"`
-	HasPassword    bool   `json:"has_password"` // 指示是否已设置密码
-	CreatedAt      string `json:"created_at"`
-	UpdatedAt      string `json:"updated_at"`
+	ID                 uint   `json:"id"`
+	UserID             uint   `json:"user_id"`
+	EmailAccountID     uint   `json:"email_account_id"`
+	EmailAddress       string `json:"email_address"` // From EmailAccount
+	PlatformID         uint   `json:"platform_id"`
+	PlatformName       string `json:"platform_name"`        // From Platform
+	PlatformWebsiteURL string `json:"platform_website_url"` // From Platform
+	LoginUsername      string `json:"login_username"`
+	Notes              string `json:"notes"`
+	PhoneNumber        string `json:"phone_number,omitempty"`
+	HasPassword        bool   `json:"has_password"` // 指示是否已设置密码
+	CreatedAt          string `json:"created_at"`
+	UpdatedAt          string `json:"updated_at"`
 }
 
 // ToPlatformRegistrationResponse 将 PlatformRegistration 模型转换为 PlatformRegistrationResponse
@@ -53,8 +54,9 @@ func (pr *PlatformRegistration) ToPlatformRegistrationResponse(emailAccount Emai
 			}
 			return "" // 没有关联邮箱时返回空字符串
 		}(),
-		PlatformID:   pr.PlatformID,
-		PlatformName: platform.Name, // Populate from passed Platform
+		PlatformID:         pr.PlatformID,
+		PlatformName:       platform.Name,       // Populate from passed Platform
+		PlatformWebsiteURL: platform.WebsiteURL, // Populate from passed Platform
 		LoginUsername: func() string {
 			if pr.LoginUsername != nil {
 				return *pr.LoginUsername

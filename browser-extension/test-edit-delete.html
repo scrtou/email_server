@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>编辑和删除功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .demo-frame {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+        .feature-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .feature-list li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+        .step-list {
+            counter-reset: step-counter;
+            list-style: none;
+            padding: 0;
+        }
+        .step-list li {
+            counter-increment: step-counter;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .step-list li:before {
+            content: counter(step-counter) ". ";
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>密码库编辑和删除功能测试</h1>
+        <p>此页面用于测试密码库的编辑和删除功能</p>
+
+        <div class="test-section">
+            <div class="test-title">新功能清单</div>
+            <ul class="feature-list">
+                <li>详情页面底部的编辑和删除按钮</li>
+                <li>编辑页面表单（包含所有字段）</li>
+                <li>密码字段的显示/隐藏切换</li>
+                <li>表单验证和保存功能</li>
+                <li>删除确认对话框</li>
+                <li>操作成功后的页面跳转</li>
+                <li>错误处理和用户反馈</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">测试步骤</div>
+            <ol class="step-list">
+                <li>点击下方按钮打开密码库扩展</li>
+                <li>登录到密码库（使用任意用户名密码）</li>
+                <li>点击任意一个密码库项目进入详情页面</li>
+                <li>验证底部有"编辑"和"删除"两个按钮</li>
+                <li>点击"编辑"按钮进入编辑页面</li>
+                <li>测试表单字段的编辑功能</li>
+                <li>测试密码字段的显示/隐藏功能</li>
+                <li>点击"保存"按钮测试保存功能</li>
+                <li>返回详情页面，点击"删除"按钮</li>
+                <li>确认删除对话框的显示</li>
+                <li>测试删除功能</li>
+            </ol>
+            <button onclick="openPopup()">打开密码库扩展</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">实时演示</div>
+            <p>下方是密码库扩展的实时演示：</p>
+            <div class="demo-frame">
+                <iframe src="popup.html" id="demo-iframe"></iframe>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">API 测试</div>
+            <p>测试编辑和删除相关的API调用：</p>
+            <button onclick="testUpdateAPI()">测试更新API</button>
+            <button onclick="testDeleteAPI()">测试删除API</button>
+            <div id="api-result" class="test-result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">界面变更说明</div>
+            <ul>
+                <li><strong>详情页面头部：</strong>移除了原来的编辑按钮</li>
+                <li><strong>详情页面底部：</strong>将"自动填充"按钮替换为"编辑"按钮</li>
+                <li><strong>新增编辑页面：</strong>包含完整的表单字段</li>
+                <li><strong>密码字段：</strong>支持显示/隐藏切换</li>
+                <li><strong>操作反馈：</strong>完善的成功/错误消息提示</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function openPopup() {
+            window.open('popup.html', 'popup', 'width=400,height=600,scrollbars=yes');
+        }
+
+        // 模拟Chrome API
+        window.chrome = {
+            runtime: {
+                sendMessage: function(message, callback) {
+                    console.log('📨 API测试消息:', message);
+                    setTimeout(() => {
+                        if (message.action === 'updateRegistration') {
+                            callback({ 
+                                success: true, 
+                                data: { 
+                                    message: '更新成功',
+                                    id: message.id,
+                                    updatedData: message.data
+                                } 
+                            });
+                        } else if (message.action === 'deleteRegistration') {
+                            callback({ 
+                                success: true, 
+                                data: { 
+                                    message: '删除成功',
+                                    id: message.id
+                                } 
+                            });
+                        } else {
+                            callback({ success: false, error: '未知操作' });
+                        }
+                    }, 500);
+                }
+            }
+        };
+
+        async function testUpdateAPI() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '测试中...';
+            resultDiv.className = 'test-result info';
+
+            try {
+                const testData = {
+                    login_username: 'updated_user',
+                    email_address: 'updated@example.com',
+                    notes: '这是更新后的备注信息'
+                };
+
+                const result = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ 
+                        action: 'updateRegistration', 
+                        id: 5,
+                        data: testData
+                    }, resolve);
+                });
+
+                if (result.success) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `
+                        ✅ 更新API测试成功<br>
+                        消息: ${result.data.message}<br>
+                        ID: ${result.data.id}<br>
+                        更新数据: ${JSON.stringify(result.data.updatedData, null, 2)}
+                    `;
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `❌ API测试失败: ${result.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 测试出错: ${error.message}`;
+            }
+        }
+
+        async function testDeleteAPI() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '测试中...';
+            resultDiv.className = 'test-result info';
+
+            try {
+                const result = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ 
+                        action: 'deleteRegistration', 
+                        id: 5
+                    }, resolve);
+                });
+
+                if (result.success) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `
+                        ✅ 删除API测试成功<br>
+                        消息: ${result.data.message}<br>
+                        删除ID: ${result.data.id}
+                    `;
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `❌ API测试失败: ${result.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 测试出错: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

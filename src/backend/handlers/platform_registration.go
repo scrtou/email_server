@@ -662,17 +662,18 @@ func GetPlatformRegistrationByID(c *gin.Context) {
 
 // UpdatePlatformRegistration godoc
 // @Summary 更新指定ID的平台注册信息
-// @Description 更新当前用户拥有的指定ID的平台注册信息
+// @Description 更新当前用户拥有的指定ID的平台注册信息。支持通过邮箱地址自动查找或创建邮箱账户。
 // @Tags PlatformRegistrations
 // @Accept json
 // @Produce json
 // @Param id path int true "平台注册ID"
-// @Param platformRegistration body models.PlatformRegistration true "要更新的平台注册信息。UserID, EmailAccountID, PlatformID 不可更改。密码可选。"
+// @Param platformRegistration body object{email_address=string,login_username=string,login_password=string,notes=string,phone_number=string} true "要更新的平台注册信息。邮箱地址会自动查找或创建对应的邮箱账户。密码可选。"
 // @Success 200 {object} models.SuccessResponse{data=models.PlatformRegistrationResponse} "更新成功"
 // @Failure 400 {object} models.ErrorResponse "请求参数错误或无效的ID格式"
 // @Failure 401 {object} models.ErrorResponse "用户未认证"
 // @Failure 403 {object} models.ErrorResponse "无权访问该资源"
 // @Failure 404 {object} models.ErrorResponse "平台注册信息未找到"
+// @Failure 409 {object} models.ErrorResponse "邮箱账户已在此平台注册"
 // @Failure 500 {object} models.ErrorResponse "服务器内部错误"
 // @Router /platform-registrations/{id} [put]
 // @Security BearerAuth
@@ -717,11 +718,11 @@ func UpdatePlatformRegistration(c *gin.Context) {
 	}
 
 	var input struct {
-		EmailAccountID *uint  `json:"email_account_id,omitempty"` // 添加 EmailAccountID，使用指针区分未提供和0
-		LoginUsername  string `json:"login_username"`
-		LoginPassword  string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
-		Notes          string `json:"notes"`
-		PhoneNumber    string `json:"phone_number"` // 手机号码，可选
+		EmailAddress  string `json:"email_address" binding:"omitempty,email"` // 修改为接受邮箱地址
+		LoginUsername string `json:"login_username"`
+		LoginPassword string `json:"login_password" binding:"omitempty,min=6"` // 密码可选
+		Notes         string `json:"notes"`
+		PhoneNumber   string `json:"phone_number"` // 手机号码，可选
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -779,36 +780,41 @@ func UpdatePlatformRegistration(c *gin.Context) {
 	}
 	// --- 预检查结束 ---
 
-	// 更新 EmailAccountID (如果提供且与当前不同)
-	var emailAccountValuesDiffer bool
-	if input.EmailAccountID == nil && registration.EmailAccountID != nil {
-		emailAccountValuesDiffer = true
-	} else if input.EmailAccountID != nil && registration.EmailAccountID == nil {
-		emailAccountValuesDiffer = true
-	} else if input.EmailAccountID != nil && registration.EmailAccountID != nil && *input.EmailAccountID != *registration.EmailAccountID {
-		emailAccountValuesDiffer = true
-	}
+	// 处理邮箱地址更新逻辑
+	var newEmailAccount models.EmailAccount
+	var newEmailAccountID *uint
 
-	if input.EmailAccountID != nil && emailAccountValuesDiffer { // Only proceed if input.EmailAccountID is not nil and values differ
-		newEmailAccountID := *input.EmailAccountID
-
-		// 1. 验证新的 EmailAccount 是否存在且属于当前用户
-		var newEmailAccount models.EmailAccount
-		err = tx.Where("id = ? AND user_id = ?", newEmailAccountID, currentUserID).First(&newEmailAccount).Error
+	if input.EmailAddress != "" {
+		// 查找或创建邮箱账户
+		err = tx.Where("user_id = ? AND email_address = ?", currentUserID, input.EmailAddress).First(&newEmailAccount).Error
 		if err != nil {
-			tx.Rollback()
 			if err == gorm.ErrRecordNotFound {
-				utils.SendErrorResponse(c, http.StatusBadRequest, "提供的邮箱账户ID无效或不属于当前用户")
+				// 邮箱账户不存在，创建新的
+				newEmailAccount = models.EmailAccount{
+					UserID:       currentUserID,
+					EmailAddress: input.EmailAddress,
+					Provider:     utils.ExtractProviderFromEmail(input.EmailAddress),
+					Notes:        "", // 可以根据需要设置
+				}
+				if createErr := tx.Create(&newEmailAccount).Error; createErr != nil {
+					tx.Rollback()
+					utils.SendErrorResponse(c, http.StatusInternalServerError, "创建邮箱账户失败: "+createErr.Error())
+					return
+				}
+			} else {
+				// 其他查询错误
+				tx.Rollback()
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败: "+err.Error())
 				return
 			}
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "查询新邮箱账户失败: "+err.Error())
-			return
 		}
 
-		// 2. 检查新的 (EmailAccountID, PlatformID) 组合是否已存在（违反唯一约束）
+		newEmailAccountID = &newEmailAccount.ID
+
+		// 检查新的 (EmailAccountID, PlatformID) 组合是否已存在（违反唯一约束）
 		var existingRegistration models.PlatformRegistration
 		// 确保不与自身比较
-		err = tx.Where("email_account_id = ? AND platform_id = ? AND user_id = ? AND id != ?", newEmailAccountID, registration.PlatformID, currentUserID, registration.ID).First(&existingRegistration).Error
+		err = tx.Where("email_account_id = ? AND platform_id = ? AND user_id = ? AND id != ?", newEmailAccount.ID, registration.PlatformID, currentUserID, registration.ID).First(&existingRegistration).Error
 		if err == nil {
 			// 找到了一个存在的记录，不允许更新，因为会违反唯一约束
 			tx.Rollback()
@@ -820,15 +826,14 @@ func UpdatePlatformRegistration(c *gin.Context) {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "检查唯一约束失败: "+err.Error())
 			return
 		}
-		// 如果 err == gorm.ErrRecordNotFound，说明组合不存在，可以更新
 
-		// 3. 更新 EmailAccountID
-		registration.EmailAccountID = &newEmailAccountID
-		// 更新响应中使用的 EmailAccount 信息
+		// 更新 EmailAccountID
+		registration.EmailAccountID = newEmailAccountID
 		registration.EmailAccount = &newEmailAccount
-	} else if input.EmailAccountID == nil && registration.EmailAccountID != nil { // Handle case where input wants to set it to nil
+	} else {
+		// 邮箱地址为空，设置为 nil
 		registration.EmailAccountID = nil
-		registration.EmailAccount = nil // Or an empty struct if appropriate for ToPlatformRegistrationResponse
+		registration.EmailAccount = nil
 	}
 
 	// --- 新增校验：更新后用户名和关联邮箱不能都为空/无效 ---
@@ -848,7 +853,7 @@ func UpdatePlatformRegistration(c *gin.Context) {
 			// 更好的做法是进行更细致的预检查
 			if input.LoginUsername != "" { // 如果尝试更新的用户名非空
 				utils.SendErrorResponse(c, http.StatusConflict, "更新失败，此用户名可能已在该平台注册。")
-			} else if input.EmailAccountID != nil && *input.EmailAccountID != 0 { // 如果尝试更新的邮箱ID有效
+			} else if input.EmailAddress != "" { // 如果尝试更新的邮箱地址非空
 				utils.SendErrorResponse(c, http.StatusConflict, "更新失败，此邮箱账户可能已在该平台注册。")
 			} else {
 				utils.SendErrorResponse(c, http.StatusConflict, "更新失败，可能导致重复的平台注册信息。")

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>密码库分页测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .data-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .data-item {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>密码库分页测试</h1>
+        <p>此页面用于测试密码库API的分页功能修复</p>
+
+        <div class="test-section">
+            <div class="test-title">测试1: 模拟API调用（无分页参数）</div>
+            <p>模拟原始的API调用，应该只返回10条记录</p>
+            <button onclick="testOriginalAPI()">测试原始API</button>
+            <div id="original-result" class="test-result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">测试2: 模拟API调用（pageSize=0）</div>
+            <p>模拟修复后的API调用，应该返回所有记录</p>
+            <button onclick="testFixedAPI()">测试修复后API</button>
+            <div id="fixed-result" class="test-result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">测试3: 前端数据显示</div>
+            <p>测试前端是否能正确显示所有数据</p>
+            <button onclick="testFrontendDisplay()">测试前端显示</button>
+            <div id="frontend-result" class="test-result" style="display: none;"></div>
+            <div id="data-display" class="data-list" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟后端数据（20条记录）
+        const mockData = [
+            { id: 1, platform_name: '1gb.ua', login_username: 'yx', email_address: '' },
+            { id: 2, platform_name: '1gb.ua', login_username: 'yx135790', email_address: '' },
+            { id: 3, platform_name: '38.175.193.46', login_username: 'admin', email_address: '' },
+            { id: 4, platform_name: '38.175.193.46', login_username: 'd31460177e771fc3fc16014c', email_address: '' },
+            { id: 5, platform_name: 'github.com', login_username: 'developer', email_address: 'dev@example.com' },
+            { id: 6, platform_name: 'google.com', login_username: 'user123', email_address: 'user123@gmail.com' },
+            { id: 7, platform_name: 'facebook.com', login_username: 'socialuser', email_address: 'social@example.com' },
+            { id: 8, platform_name: 'twitter.com', login_username: 'twitteruser', email_address: 'twitter@example.com' },
+            { id: 9, platform_name: 'linkedin.com', login_username: 'professional', email_address: 'work@example.com' },
+            { id: 10, platform_name: 'stackoverflow.com', login_username: 'coder', email_address: 'code@example.com' },
+            { id: 11, platform_name: 'reddit.com', login_username: 'redditor', email_address: 'reddit@example.com' },
+            { id: 12, platform_name: 'amazon.com', login_username: 'shopper', email_address: 'shop@example.com' },
+            { id: 13, platform_name: 'netflix.com', login_username: 'viewer', email_address: 'watch@example.com' },
+            { id: 14, platform_name: 'spotify.com', login_username: 'musiclover', email_address: 'music@example.com' },
+            { id: 15, platform_name: 'dropbox.com', login_username: 'clouduser', email_address: 'cloud@example.com' },
+            { id: 16, platform_name: 'youtube.com', login_username: 'videowatcher', email_address: 'video@example.com' },
+            { id: 17, platform_name: 'instagram.com', login_username: 'photographer', email_address: 'photo@example.com' },
+            { id: 18, platform_name: 'discord.com', login_username: 'gamer123', email_address: 'gaming@example.com' },
+            { id: 19, platform_name: 'slack.com', login_username: 'teamworker', email_address: 'work@example.com' },
+            { id: 20, platform_name: 'zoom.us', login_username: 'meetinghost', email_address: 'meetings@example.com' }
+        ];
+
+        function simulateAPICall(url) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // 解析URL参数
+                    const urlObj = new URL(url, 'http://localhost');
+                    const pageSize = urlObj.searchParams.get('pageSize');
+                    const page = parseInt(urlObj.searchParams.get('page') || '1');
+                    
+                    let resultData;
+                    if (pageSize === '0' || pageSize === null) {
+                        // pageSize=0 表示获取所有数据，null表示使用默认分页
+                        if (pageSize === '0') {
+                            resultData = mockData; // 返回所有数据
+                        } else {
+                            // 默认分页，每页10条
+                            const defaultPageSize = 10;
+                            const startIndex = (page - 1) * defaultPageSize;
+                            resultData = mockData.slice(startIndex, startIndex + defaultPageSize);
+                        }
+                    } else {
+                        const size = parseInt(pageSize);
+                        const startIndex = (page - 1) * size;
+                        resultData = mockData.slice(startIndex, startIndex + size);
+                    }
+                    
+                    resolve({
+                        success: true,
+                        data: {
+                            data: resultData,
+                            meta: {
+                                page: page,
+                                pageSize: pageSize === '0' ? mockData.length : (pageSize ? parseInt(pageSize) : 10),
+                                total: mockData.length
+                            }
+                        }
+                    });
+                }, 300);
+            });
+        }
+
+        async function testOriginalAPI() {
+            const resultDiv = document.getElementById('original-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '测试中...';
+            resultDiv.className = 'test-result info';
+
+            try {
+                const result = await simulateAPICall('/api/v1/platform-registrations');
+                const count = result.data.data.length;
+                
+                if (count === 10) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `✅ 测试通过：返回了 ${count} 条记录（符合默认分页预期）`;
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `❌ 测试失败：期望10条记录，实际返回 ${count} 条`;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 测试出错：${error.message}`;
+            }
+        }
+
+        async function testFixedAPI() {
+            const resultDiv = document.getElementById('fixed-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '测试中...';
+            resultDiv.className = 'test-result info';
+
+            try {
+                const result = await simulateAPICall('/api/v1/platform-registrations?pageSize=0');
+                const count = result.data.data.length;
+                
+                if (count === mockData.length) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `✅ 测试通过：返回了 ${count} 条记录（所有数据）`;
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `❌ 测试失败：期望${mockData.length}条记录，实际返回 ${count} 条`;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 测试出错：${error.message}`;
+            }
+        }
+
+        async function testFrontendDisplay() {
+            const resultDiv = document.getElementById('frontend-result');
+            const dataDiv = document.getElementById('data-display');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '测试中...';
+            resultDiv.className = 'test-result info';
+
+            try {
+                // 模拟前端获取数据的过程
+                const result = await simulateAPICall('/api/v1/platform-registrations?pageSize=0');
+                const accounts = result.data.data;
+                
+                // 显示数据
+                dataDiv.innerHTML = accounts.map((account, index) => 
+                    `<div class="data-item">${index + 1}. ${account.platform_name} - ${account.login_username || account.email_address}</div>`
+                ).join('');
+                
+                dataDiv.style.display = 'block';
+                
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `✅ 前端显示测试通过：成功显示了 ${accounts.length} 条记录`;
+                
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ 前端显示测试失败：${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

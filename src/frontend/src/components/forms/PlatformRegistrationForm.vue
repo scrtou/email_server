@@ -32,7 +32,19 @@
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="24" :md="12">
-          <el-form-item label="邮箱账户" prop="email_account_id">
+          <!-- 编辑模式：只读显示邮箱地址 -->
+          <el-form-item v-if="props.isEdit" label="邮箱地址" prop="email_address">
+            <el-input
+              v-model="form.email_address"
+              placeholder="邮箱地址"
+              readonly
+              disabled
+              :disabled="props.isEdit"
+              class="full-width-select"
+            />
+          </el-form-item>
+          <!-- 创建模式：选择邮箱账户 -->
+          <el-form-item v-else label="邮箱账户" prop="email_account_id">
             <el-select
               v-model="form.email_account_id"
               placeholder="选择或输入邮箱账户"
@@ -194,6 +206,7 @@ const platformRegistrationStore = usePlatformRegistrationStore();
 const formRef = ref(null);
 const form = ref({
   email_account_id: null,
+  email_address: '', // 添加邮箱地址字段，用于编辑模式
   platform_id: null,
   login_username: '',
   login_password: '',
@@ -211,8 +224,13 @@ const hasExistingPassword = computed(() => {
   return props.isEdit && props.platformRegistration && props.platformRegistration.has_password;
 });
 
-const rules = ref({
+// 计算属性：根据编辑模式动态生成验证规则
+const rules = computed(() => ({
   email_account_id: [{ required: false, message: '请选择邮箱账户', trigger: 'change' }], // Removed required validation
+  email_address: props.isEdit ? [] : [ // 编辑模式下不验证邮箱地址，因为不允许修改
+    { required: false, message: '请输入邮箱地址', trigger: 'blur' },
+    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+  ],
   platform_id: [{ required: true, message: '请选择平台', trigger: 'change' }],
   login_username: [{ max: 255, message: '登录用户名过长', trigger: 'blur' }],
   phone_number: [ // Added phone_number validation
@@ -231,7 +249,7 @@ const rules = ref({
     { required: false, message: '请输入登录密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少为6位', trigger: 'blur' },
   ],
-});
+}));
 
 
 
@@ -244,15 +262,18 @@ onMounted(async () => {
 
   // Populate form if in edit mode and data is provided
   if (props.isEdit && props.platformRegistration) {
-    // 处理 email_account_id：如果为 0 则设置为 null（表示未关联邮箱）
-    form.value.email_account_id = props.platformRegistration.email_account_id === 0 ? null : props.platformRegistration.email_account_id;
-    form.value.platform_id = props.platformRegistration.platform_id;
+    // 编辑模式：清除所有不需要的字段，只设置需要的字段
+    form.value.email_account_id = null; // 编辑模式下清除此字段
+    form.value.email_address = props.platformRegistration.email_address || '';
+    form.value.platform_id = props.platformRegistration.platform_id; // 仅用于显示
     form.value.login_username = props.platformRegistration.login_username;
-    form.value.phone_number = props.platformRegistration.phone_number || ''; // Populate phone_number
+    form.value.login_password = ''; // 编辑模式下密码为空
+    form.value.phone_number = props.platformRegistration.phone_number || '';
     form.value.notes = props.platformRegistration.notes;
   } else {
     // Reset form for create mode or if no data
     form.value.email_account_id = null;
+    form.value.email_address = '';
     form.value.platform_id = null;
     form.value.login_username = '';
     form.value.login_password = '';
@@ -264,16 +285,18 @@ onMounted(async () => {
 
 watch(() => props.platformRegistration, (newVal) => {
   if (props.isEdit && newVal) {
-    // 处理 email_account_id：如果为 0 则设置为 null（表示未关联邮箱）
-    form.value.email_account_id = newVal.email_account_id === 0 ? null : newVal.email_account_id;
-    form.value.platform_id = newVal.platform_id;
+    // 编辑模式：清除所有不需要的字段，只设置需要的字段
+    form.value.email_account_id = null; // 编辑模式下清除此字段
+    form.value.email_address = newVal.email_address || '';
+    form.value.platform_id = newVal.platform_id; // 仅用于显示
     form.value.login_username = newVal.login_username;
-    form.value.phone_number = newVal.phone_number || ''; // Populate phone_number
-    form.value.notes = newVal.notes;
     form.value.login_password = ''; // Clear password on edit
+    form.value.phone_number = newVal.phone_number || '';
+    form.value.notes = newVal.notes;
   } else if (!props.isEdit) {
     formRef.value?.resetFields(); // Reset form for create mode
     form.value.email_account_id = null;
+    form.value.email_address = '';
     form.value.platform_id = null;
     form.value.login_username = '';
     form.value.login_password = '';
@@ -285,10 +308,13 @@ watch(() => props.platformRegistration, (newVal) => {
 const handleSubmit = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
-    // Add custom validation: Username and Email cannot both be empty
-    if (!form.value.login_username && !form.value.email_account_id) {
-        ElMessage.error('用户名/ID 和 邮箱账户 不能同时为空');
-        return false; // Prevent submission
+    // Add custom validation: Username and Email cannot both be empty (only for create mode)
+    if (!props.isEdit) {
+      const hasEmail = form.value.email_account_id;
+      if (!form.value.login_username && !hasEmail) {
+          ElMessage.error('用户名/ID 和 邮箱账户 不能同时为空');
+          return false; // Prevent submission
+      }
     }
 
     if (valid) {
@@ -304,19 +330,35 @@ const handleSubmit = async () => {
         payload.login_password = form.value.login_password;
       }
 
+      // 调试信息：显示表单当前状态
+      console.log('🔍 表单当前状态:', {
+        email_account_id: form.value.email_account_id,
+        email_address: form.value.email_address,
+        platform_id: form.value.platform_id,
+        login_username: form.value.login_username,
+        phone_number: form.value.phone_number,
+        notes: form.value.notes,
+        isEdit: props.isEdit
+      });
+
       try {
         if (props.isEdit) {
           if (!currentIdToUpdate) {
             ElMessage.error('编辑错误：缺少注册信息ID');
             return;
           }
-          // For update, include IDs as they are part of the form and might be expected by backend
-          // even if not directly editable in the UI for this specific form's edit mode.
-          // 如果 email_account_id 为 null，则不包含在 payload 中，让后端处理为 NULL
-          if (form.value.email_account_id !== null) {
-            payload.email_account_id = form.value.email_account_id;
-          }
-          payload.platform_id = form.value.platform_id;
+          // 编辑模式：不允许修改邮箱地址，因此不包含在payload中
+
+          // 调试信息：确保payload中没有不应该的字段
+          console.log('🔍 编辑模式 - 提交前的payload:', payload);
+
+          // 确保不包含邮箱和平台相关字段，因为编辑模式下不允许修改
+          delete payload.email_account_id;
+          delete payload.email_address;
+          delete payload.platform_id;
+
+          console.log('🔍 编辑模式 - 清理后的payload:', payload);
+
           // The store action will be called by the parent.
           emit('submit-form', { payload, id: currentIdToUpdate, isEdit: true });
 
@@ -324,11 +366,13 @@ const handleSubmit = async () => {
           const isEmailNew = typeof form.value.email_account_id === 'string' && form.value.email_account_id.trim() !== '';
           const isPlatformNew = typeof form.value.platform_id === 'string' && form.value.platform_id.trim() !== '';
 
-          if (isEmailNew || isPlatformNew) { // One or both are new
+          // 统一使用邮箱地址而不是ID，简化逻辑
+          if (form.value.email_account_id) {
             if (isEmailNew) {
+              // 用户手动输入的新邮箱地址
               payload.email_address = String(form.value.email_account_id).trim();
-            } else if (form.value.email_account_id) { // Only process if an existing email IS selected
-              // If email_account_id is null/undefined, we skip this block, allowing username-only submission
+            } else {
+              // 用户选择的现有邮箱账户，转换为邮箱地址
               const selectedEmail = emailAccountStore.emailAccounts.find(e => e.id === form.value.email_account_id);
               if (!selectedEmail) {
                 ElMessage.error('选择的邮箱账户无效');
@@ -336,33 +380,25 @@ const handleSubmit = async () => {
               }
               payload.email_address = selectedEmail.email_address;
             }
-
-            if (isPlatformNew) {
-              payload.platform_name = String(form.value.platform_id).trim();
-            } else {
-               if (!form.value.platform_id) {
-                  ElMessage.error('请选择平台');
-                  return;
-              }
-              const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
-              if (!selectedPlatform) {
-                ElMessage.error('选择的平台无效');
-                return;
-              }
-              payload.platform_name = selectedPlatform.name;
-            }
-            emit('submit-form', { payload, useByNameApi: true, isEdit: false });
-          } else { // Both are existing (selected from dropdown)
-            // Removed the check for email_account_id.
-            // platform_id is already validated by formRef.value.validate based on rules.
-            // We still need to assign them to the payload if they exist.
-            if (form.value.email_account_id) { // Assign if selected
-               payload.email_account_id = form.value.email_account_id;
-            }
-            // platform_id is required by rules, so it should exist here if validation passed.
-            payload.platform_id = form.value.platform_id;
-            emit('submit-form', { payload, useByNameApi: false, isEdit: false });
           }
+
+          if (isPlatformNew) {
+            payload.platform_name = String(form.value.platform_id).trim();
+          } else {
+            if (!form.value.platform_id) {
+              ElMessage.error('请选择平台');
+              return;
+            }
+            const selectedPlatform = platformStore.platforms.find(p => p.id === form.value.platform_id);
+            if (!selectedPlatform) {
+              ElMessage.error('选择的平台无效');
+              return;
+            }
+            payload.platform_name = selectedPlatform.name;
+          }
+
+          // 统一使用按名称创建的API，因为现在都发送邮箱地址和平台名称
+          emit('submit-form', { payload, useByNameApi: true, isEdit: false });
         }
       } finally {
         // 重置加载状态，但不影响父组件的加载状态管理
@@ -432,6 +468,7 @@ defineExpose({
       formRef.value.resetFields();
     }
     form.value.email_account_id = null;
+    form.value.email_address = '';
     form.value.platform_id = null;
     form.value.login_username = '';
     form.value.login_password = '';
