@@ -1,11 +1,8 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
-
-	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -14,6 +11,16 @@ type Config struct {
 	JWT      JWTConfig
 	OAuth2   OAuth2Config
 	Frontend FrontendConfig // 新增前端配置
+	Backend  BackendConfig
+	Security SecurityConfig
+}
+
+type SecurityConfig struct {
+	EncryptionKey string
+}
+
+type BackendConfig struct {
+	BaseURL string
 }
 
 type DatabaseConfig struct {
@@ -31,7 +38,14 @@ type JWTConfig struct {
 }
 
 type OAuth2Config struct {
-	LinuxDo LinuxDoOAuth2Config
+	LinuxDo   LinuxDoOAuth2Config
+	Google    ProviderConfig
+	Microsoft ProviderConfig
+}
+
+type ProviderConfig struct {
+	ClientID     string
+	ClientSecret string
 }
 
 type LinuxDoOAuth2Config struct {
@@ -50,21 +64,14 @@ type FrontendConfig struct {
 var AppConfig *Config
 
 func Init() {
-	// 尝试加载.env文件（在Docker环境中可能不存在，这是正常的）
-	if err := godotenv.Load(); err != nil {
-		// 只在开发环境中显示警告，生产环境通过环境变量配置
-		if os.Getenv("GIN_MODE") != "release" {
-			log.Printf("警告: 无法加载.env文件: %v", err)
-		}
-	}
-
+	// The run_backend.sh script now handles loading the .env file into environment variables.
+	// This function now simply reads from the environment.
 	AppConfig = &Config{
 		Database: DatabaseConfig{
-			// DSN: getEnv("DATABASE_URL", "avnadmin:AVNS_icoPVWCDqQgoAM4nCH1@tcp(mysql-yxmysql.c.aivencloud.com:19894)/email-server?charset=utf8mb4&parseTime=True&loc=Local"),
-			File: getEnv("SQLITE_FILE", "./gorm.db"), // Default SQLite file path
+			File: getEnv("SQLITE_FILE", "./gorm.db"),
 		},
 		Server: ServerConfig{
-			Port: "5555", // 固定容器内部端口，外部端口通过BACKEND_PORT配置
+			Port: getEnv("BACKEND_PORT", "5555"),
 		},
 		JWT: JWTConfig{
 			SecretKey: getEnv("JWT_SECRET", "your-super-secret-jwt-key-change-in-production"),
@@ -79,9 +86,23 @@ func Init() {
 				TokenURL:     getEnv("LINUXDO_TOKEN_URL", "https://connect.linux.do/oauth2/token"),
 				UserInfoURL:  getEnv("LINUXDO_USER_INFO_URL", "https://connect.linux.do/api/user"),
 			},
+			Google: ProviderConfig{
+				ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+			},
+			Microsoft: ProviderConfig{
+				ClientID:     getEnv("MICROSOFT_CLIENT_ID", ""),
+				ClientSecret: getEnv("MICROSOFT_CLIENT_SECRET", ""),
+			},
 		},
 		Frontend: FrontendConfig{
 			BaseURL: getEnv("FRONTEND_BASE_URL", "http://localhost:8080"),
+		},
+		Backend: BackendConfig{
+			BaseURL: getEnv("BACKEND_BASE_URL", "http://localhost:5555"),
+		},
+		Security: SecurityConfig{
+			EncryptionKey: getEnv("ENCRYPTION_KEY", "12345678901234567890123456789012"), // Must be 32 bytes for AES-256
 		},
 	}
 }

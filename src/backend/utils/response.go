@@ -2,6 +2,7 @@ package utils
 
 import (
 	"net/http"
+	"strconv"
 	"strings" // <-- 添加 strings 包导入
 
 	"github.com/gin-gonic/gin"
@@ -93,4 +94,13 @@ import (
    	return parts[1]
    }
    return "" // Return empty if not a valid email format or no domain part
+  }
+
+  // StringToUint converts a string to a uint.
+  func StringToUint(s string) (uint, error) {
+ val, err := strconv.ParseUint(s, 10, 32)
+ if err != nil {
+  return 0, err
+ }
+ return uint(val), nil
   }
