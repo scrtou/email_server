@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"time"
-
 	"github.com/gin-gonic/gin"
 
 	"email_server/config"
@@ -22,6 +21,13 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 	// 公开路由（不需要认证）
 	public := r.Group("/api/v1")
 	{
+		// 新的 OAuth2 路由 (公开)
+		oauth2Public := public.Group("/oauth2")
+		{
+			// oauth2Public.GET("/connect/:provider", handlers.RedirectToOAuthProvider) // Moved to protected routes
+			oauth2Public.GET("/callback/:provider", handlers.HandleOAuth2Callback)
+		}
+
 		// 认证相关
 		auth := public.Group("/auth")
 		{
@@ -34,7 +40,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			{
 				oauth2.GET("/linuxdo/login", handlers.LinuxDoOAuth2Login)
 				oauth2.GET("/linuxdo/callback", handlers.LinuxDoOAuth2Callback)
-				oauth2.GET("/stats", handlers.GetOAuth2StateStats) // 监控端点
+				oauth2.GET("/stats", handlers.GetDBStateStats) // 监控端点 (temporarily disabled)
 			}
 		}
 
@@ -48,6 +54,12 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.AuthRequired())
 	{
+		// OAuth2 connection initiation needs to be protected to get user_id
+		oauth2Protected := protected.Group("/oauth2")
+		{
+			oauth2Protected.GET("/connect/:provider", handlers.RedirectToOAuthProvider)
+		}
+
 		// 用户相关
 		// user := protected.Group("/user") // Grouping /users together
 		// {
@@ -75,6 +87,9 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			emailAccounts.GET("/providers", handlers.GetEmailAccountProviders)                                  // 新增：获取唯一服务商列表
 			emailAccounts.GET("/:id/platform-registrations", handlers.GetPlatformRegistrationsByEmailAccountID) // 修改参数名
 		}
+
+		// Inbox
+		protected.GET("/inbox", handlers.GetInbox)
 
 		// Platform 模块
 		platforms := protected.Group("/platforms")

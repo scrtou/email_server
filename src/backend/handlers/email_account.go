@@ -41,10 +41,11 @@ func CreateEmailAccount(c *gin.Context) {
 
 	var input struct {
 		EmailAddress string `json:"email_address" binding:"required,email"`
-		Password     string `json:"password" binding:"omitempty,min=6"` // 密码可选
-		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
-		Notes       string `json:"notes"`
-		PhoneNumber string `json:"phone_number"` // 手机号码，可选
+		Password     string `json:"password" binding:"omitempty,min=6"`
+		IMAPServer   string `json:"imap_server"`
+		IMAPPort     *int   `json:"imap_port"`
+		Notes        string `json:"notes"`
+		PhoneNumber  string `json:"phone_number"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -85,8 +86,14 @@ func CreateEmailAccount(c *gin.Context) {
 		EmailAddress:      input.EmailAddress,
 		PasswordEncrypted: hashedPassword,
 		Provider:          provider,
+		IMAPServer:        input.IMAPServer,
 		Notes:             input.Notes,
 		PhoneNumber:       input.PhoneNumber,
+	}
+
+	// Only set port if it's not nil
+	if input.IMAPPort != nil {
+		emailAccount.IMAPPort = *input.IMAPPort
 	}
 
 	if err := database.DB.Create(&emailAccount).Error; err != nil {
@@ -245,6 +252,12 @@ func GetEmailAccounts(c *gin.Context) {
 
 		response := ea.ToEmailAccountResponse()
 		response.PlatformCount = platformCount
+
+		// Check if an OAuth token exists for this account
+		var token models.UserOAuthToken
+		err := database.DB.Where("email_account_id = ?", ea.ID).First(&token).Error
+		response.IsOAuthConnected = err == nil
+
 		responses = append(responses, response)
 	}
 
@@ -370,11 +383,12 @@ func UpdateEmailAccount(c *gin.Context) {
 	}
 
 	var input struct {
-		EmailAddress string `json:"email_address" binding:"omitempty,email"` // omitempty 允许部分更新
-		Password     string `json:"password" binding:"omitempty,min=6"`      // 密码可选
-		// Provider     string `json:"provider"` // Provider 将从 EmailAddress 自动提取
-		Notes       string `json:"notes"`
-		PhoneNumber string `json:"phone_number"` // 手机号码，可选，如果提供则更新
+		EmailAddress string `json:"email_address" binding:"omitempty,email"`
+		Password     string `json:"password" binding:"omitempty,min=6"`
+		IMAPServer   string `json:"imap_server"`
+		IMAPPort     *int   `json:"imap_port"`
+		Notes        string `json:"notes"`
+		PhoneNumber  string `json:"phone_number"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -400,8 +414,14 @@ func UpdateEmailAccount(c *gin.Context) {
 	// Notes 总是更新，即使是空字符串，允许用户清空这些字段
 	// Provider 的更新已在 EmailAddress 更新时处理
 	emailAccount.Notes = input.Notes
-	// PhoneNumber 总是更新，即使是空字符串，允许用户清空或设置
 	emailAccount.PhoneNumber = input.PhoneNumber
+	emailAccount.IMAPServer = input.IMAPServer
+	if input.IMAPPort != nil {
+		emailAccount.IMAPPort = *input.IMAPPort
+	} else {
+		// If the input is null, explicitly set it to 0 or another default
+		emailAccount.IMAPPort = 0
+	}
 
 	if err := database.DB.Save(&emailAccount).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "更新邮箱账户失败: "+err.Error())
