@@ -148,5 +148,11 @@ func FetchEmailsWithGraphAPI(emailAccount models.EmailAccount, page, pageSize in
 		})
 	}
 
-	return emails, graphResponse.Count, nil
+	total := graphResponse.Count
+	// 如果API没有返回总数，但返回了邮件，我们至少可以用当前获取的数量，以避免前端出问题
+	if total == 0 && len(emails) > 0 {
+		total = len(emails)
+	}
+
+	return emails, total, nil
 }
