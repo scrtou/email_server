@@ -9,6 +9,7 @@ import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 import ModalDialog from '@/components/ui/ModalDialog.vue'; // Import ModalDialog
 import EmailAccountForm from '@/components/forms/EmailAccountForm.vue'; // Import EmailAccountForm
+import { oauth2API } from '@/utils/api';
 
 // const router = useRouter(); // Keep for other navigation if any, or remove if not used at all
 const emailAccountStore = useEmailAccountStore();
@@ -23,6 +24,13 @@ const emailAccountFormDialog = reactive({
 });
 // --- End Modal Dialog State ---
 
+// --- OAuth Connection Modal State ---
+const oauthConnectDialog = reactive({
+  visible: false,
+  title: '连接新账户',
+});
+// --- End OAuth Connection Modal State ---
+
 const loading = ref(false); // Define loading state for the view
 const MIN_LOADING_TIME = 300; // Minimum loading time in milliseconds
 const isQuerying = ref(false);
@@ -33,7 +41,8 @@ const emailAccountFormRef = ref(null);
 
 // const providerFilter = ref(emailAccountStore.filters.provider || ''); // Removed, use store directly
 
-const currentEmailAccountForDialog = ref(null); // To store the email account context for pagination
+const currentEmailAccountForDialog = ref(null); // To store the email account context for dialogs
+const accountToConnect = ref(null); // Store the account for which the connect dialog is opened
 
 const associatedInfoDialog = reactive({
   visible: false,
@@ -166,12 +175,34 @@ const handleSortChange = ({ prop, order }) => {
 };
 
 const handleAddEmailAccount = () => {
-  // router.push({ name: 'EmailAccountCreate' }); // Replaced by dialog
+  // Reverted to directly open the manual add form as per user feedback.
+  // The OAuth connection is a separate function (authorization for fetching),
+  // not for creating the account record itself.
   emailAccountFormDialog.isEditMode = false;
   emailAccountFormDialog.title = '添加邮箱账户';
-  associatedInfoDialog.visible = false; // 确保关联信息弹窗已关闭
-  emailAccountFormDialog.currentAccount = null; // Clear any previous edit data
+  associatedInfoDialog.visible = false; // Ensure other dialogs are closed
+  emailAccountFormDialog.currentAccount = null;
   emailAccountFormDialog.visible = true;
+};
+
+
+const handleConnectClick = (account) => {
+  accountToConnect.value = account;
+  oauthConnectDialog.visible = true;
+};
+
+const handleConnectWithProvider = async (provider) => {
+  if (!accountToConnect.value) return;
+  try {
+    const response = await oauth2API.getConnectURL(provider, accountToConnect.value.id);
+    if (response && response.auth_url) {
+      window.location.href = response.auth_url;
+    } else {
+      ElMessage.error('无法获取授权链接，请稍后重试。');
+    }
+  } catch (error) {
+    ElMessage.error(`获取授权链接失败: ${error.message}`);
+  }
 };
 
 const handleEdit = (row) => {
@@ -374,6 +405,14 @@ const handleAssociatedPageChange = (payload) => {
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
+        <el-table-column label="连接状态" width="120" align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.is_oauth_connected" type="success" size="small">已连接</el-tag>
+            <el-button v-else type="primary" link size="small" @click="handleConnectClick(scope.row)">
+              连接
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
         <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
         <el-table-column label="操作" width="140" fixed="right" align="center">
@@ -430,6 +469,33 @@ const handleAssociatedPageChange = (payload) => {
       <!-- Removed empty #footer template to use ModalDialog's default buttons -->
     </ModalDialog>
     <!-- End Email Account Add/Edit Modal -->
+
+    <!-- OAuth Provider Selection Modal -->
+    <ModalDialog
+      v-model:visible="oauthConnectDialog.visible"
+      :title="oauthConnectDialog.title"
+      :show-footer="false"
+      width="400px"
+    >
+      <div class="oauth-provider-selection">
+        <p class="dialog-description">请选择您要连接的邮箱服务提供商：</p>
+        <el-button
+          type="primary"
+          class="provider-button google"
+          @click="handleConnectWithProvider('google')"
+        >
+          使用 Google 登录
+        </el-button>
+        <el-button
+          type="primary"
+          class="provider-button microsoft"
+          @click="handleConnectWithProvider('microsoft')"
+        >
+          使用 Microsoft 登录
+        </el-button>
+      </div>
+    </ModalDialog>
+    <!-- End OAuth Provider Selection Modal -->
 
   </div>
 </template>
@@ -628,5 +694,51 @@ const handleAssociatedPageChange = (payload) => {
   .filter-row .el-col {
     flex-basis: 100%; /* Stack columns on very small screens */
   }
+}
+</style>
+
+<style scoped>
+.oauth-provider-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+}
+
+.dialog-description {
+  margin-bottom: 10px;
+  color: #606266;
+  text-align: center;
+}
+
+.provider-button {
+  width: 100%;
+  height: 45px;
+  font-size: 16px;
+}
+
+.provider-button.google {
+  background-color: #4285F4;
+  border-color: #4285F4;
+}
+
+.provider-button.google:hover {
+  background-color: #5a95f5;
+  border-color: #5a95f5;
+}
+
+.provider-button.microsoft {
+  background-color: #0078D4;
+  border-color: #0078D4;
+}
+
+.provider-button.microsoft:hover {
+  background-color: #2488d8;
+  border-color: #2488d8;
+}
+
+.manual-add-link {
+  margin-top: 15px;
 }
 </style>

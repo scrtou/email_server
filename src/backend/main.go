@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"time"
+
 	"github.com/gin-gonic/gin"
 
 	"email_server/config"
@@ -90,6 +91,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 
 		// Inbox
 		protected.GET("/inbox", handlers.GetInbox)
+		protected.GET("/inbox/emails/:messageId", handlers.GetEmailDetail)
 
 		// Platform 模块
 		platforms := protected.Group("/platforms")

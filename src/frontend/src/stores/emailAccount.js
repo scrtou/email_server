@@ -39,6 +39,12 @@ export const useEmailAccountStore = defineStore('emailAccount', {
         // this.fetchEmailAccounts(1, this.pagination.pageSize, this.sort, this.filters);
       }
     },
+   // Action to clear accounts, e.g., when a component is unmounted or needs a fresh start
+   clearAccounts() {
+     this.emailAccounts = [];
+     this.pagination.totalItems = 0;
+     this.pagination.currentPage = 1;
+   },
     // Action to clear all filters
     clearFilters() {
       this.filters.provider = '';
@@ -100,10 +106,13 @@ export const useEmailAccountStore = defineStore('emailAccount', {
           this.emailAccounts = result.data;
           if (result.meta) {
             this.pagination.currentPage = result.meta.current_page;
-            this.pagination.pageSize = result.meta.page_size;
+            // Only update pageSize from meta if it's not the "get all" case
+            if (result.meta.page_size > 0) {
+              this.pagination.pageSize = result.meta.page_size;
+            }
             this.pagination.totalItems = result.meta.total_items;
           } else {
-            // Fallback if meta is somehow not present, though API should provide it
+            // Fallback if meta is somehow not present
             this.pagination = { currentPage: page, pageSize: pageSize, totalItems: result.data.length };
           }
         } else {

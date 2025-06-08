@@ -119,6 +119,7 @@ func GetInbox(c *gin.Context) {
 	var total int
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	folder := c.DefaultQuery("folder", "inbox") // 支持文件夹参数，默认为inbox
 
 	if isOAuth2 {
 		// If it's OAuth2, we need to check the provider name
@@ -130,8 +131,8 @@ func GetInbox(c *gin.Context) {
 
 		// ★★★ CORE LOGIC CHANGE IS HERE ★★★
 		if provider.Name == "microsoft" {
-			log.Printf("[GetInbox] Provider is '%s'. Using Microsoft Graph API to fetch emails.", provider.Name)
-			emails, total, err = integrations.FetchEmailsWithGraphAPI(emailAccount, page, pageSize)
+			log.Printf("[GetInbox] Provider is '%s'. Using Microsoft Graph API to fetch emails from folder '%s'.", provider.Name, folder)
+			emails, total, err = integrations.FetchEmailsWithGraphAPIFromFolder(emailAccount, page, pageSize, folder)
 			// client, err := integrations.GetOAuth2HTTPClient(emailAccount.ID) // 使用您已有的辅助函数
 			// if err != nil {
 			// 	// ... handle error
@@ -196,5 +197,107 @@ func GetInbox(c *gin.Context) {
 			"emails": emails,
 			"total":  total,
 		},
+	})
+}
+
+// GetEmailDetail fetches a single email's detailed information by messageId
+func GetEmailDetail(c *gin.Context) {
+	log.Println("[GetEmailDetail] Handler started.")
+
+	// 1. Get User ID from context
+	userIDClaim, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "User not authenticated (user_id not in context)")
+		return
+	}
+
+	var userID uint
+	switch v := userIDClaim.(type) {
+	case float64:
+		userID = uint(v)
+	case int64:
+		userID = uint(v)
+	case int:
+		userID = uint(v)
+	default:
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Invalid user ID type in context")
+		return
+	}
+
+	if userID == 0 {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "Invalid user ID in token")
+		return
+	}
+
+	// 2. Get messageId from URL parameter
+	messageId := c.Param("messageId")
+	if messageId == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "messageId parameter is required")
+		return
+	}
+
+	// 3. Get account_id from query string
+	accountIDStr := c.Query("account_id")
+	if accountIDStr == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "account_id query parameter is required")
+		return
+	}
+	accountID, err := strconv.ParseUint(accountIDStr, 10, 64)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "Invalid account_id format")
+		return
+	}
+
+	log.Printf("[GetEmailDetail] Target messageId: %s, account_id: %d", messageId, accountID)
+
+	// 4. Find the email account and verify ownership
+	var emailAccount models.EmailAccount
+	if err := database.DB.Where("id = ? AND user_id = ?", accountID, userID).First(&emailAccount).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.SendErrorResponse(c, http.StatusNotFound, "Email account not found or access denied")
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve email account")
+		}
+		return
+	}
+
+	// 5. Get provider information through UserOAuthToken
+	var oauthToken models.UserOAuthToken
+	if err := database.DB.Where("email_account_id = ?", emailAccount.ID).First(&oauthToken).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "No OAuth token found for this email account")
+		return
+	}
+
+	var provider models.OAuthProvider
+	if err := database.DB.First(&provider, oauthToken.ProviderID).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve provider information")
+		return
+	}
+
+	// 6. Fetch email detail using Microsoft Graph API
+	var email *models.Email
+	if provider.Name == "microsoft" {
+		log.Printf("[GetEmailDetail] Provider is '%s'. Using Microsoft Graph API to fetch email detail.", provider.Name)
+		email, err = integrations.FetchEmailDetailWithGraphAPI(emailAccount, messageId)
+		if err != nil {
+			log.Printf("[GetEmailDetail] Error fetching email detail: %v", err)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+			return
+		}
+	} else {
+		utils.SendErrorResponse(c, http.StatusNotImplemented, "Provider not supported for email detail fetching")
+		return
+	}
+
+	if email == nil {
+		utils.SendErrorResponse(c, http.StatusNotFound, "Email not found")
+		return
+	}
+
+	log.Printf("[GetEmailDetail] Successfully fetched email detail for messageId: %s", messageId)
+
+	// 7. Return the successful response
+	c.JSON(http.StatusOK, gin.H{
+		"data": email,
 	})
 }

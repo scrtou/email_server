@@ -15,5 +15,10 @@ module.exports = {
       'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'no-debugger': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'vue/multi-word-component-names': 'off' // 禁用多单词组件名规则
+    },
+    globals: {
+      defineProps: 'readonly',
+      defineEmits: 'readonly',
+      defineExpose: 'readonly'
     }
   }
