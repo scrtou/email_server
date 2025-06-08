@@ -4,22 +4,11 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 
 // 根据环境判断API基础URL
-const getBaseURL = () => {
-  // Use VUE_APP_API_BASE_URL environment variable
-  // Fallback to localhost for development if not set
-  if (process.env.VUE_APP_API_BASE_URL) {
-    return process.env.VUE_APP_API_BASE_URL;
-  }
-  // In development, with proxy, use a relative path that the proxy will catch.
-  // The proxy is configured for '/api/v1'.
-  if (process.env.NODE_ENV === 'development') {
-    return '/api/v1'; // Proxy will forward this to target e.g. http://localhost:5555/api/v1
-  }
-  // Fallback for production if VUE_APP_API_BASE_URL is not set (should be configured in deployment)
-  return '/api/v1'; // Example: relative path for production if served on same domain
-}
-
-const API_BASE_URL = getBaseURL()
+// The VUE_APP_API_BASE_URL in the .env file is the primary source of truth.
+// If it's not available for any reason, we fall back to a hardcoded default
+// to ensure local development works reliably.
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5555/api/v1';
+export { API_BASE_URL } // Export for use in other parts of the app
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -189,4 +178,16 @@ export const searchAPI = {
   search: (params = {}) => api.get('/search', { params }),
 };
  
+// Inbox API
+export const getInboxEmails = (params = {}) => {
+  console.log('🌐 getInboxEmails called with params:', params);
+  return api.get('/inbox', { params });
+};
+export const getEmailDetail = (messageId, params = {}) => api.get(`/inbox/emails/${messageId}`, { params });
+
+// OAuth2 API
+export const oauth2API = {
+ getConnectURL: (provider, accountId) => api.get(`/oauth2/connect/${provider}`, { params: { account_id: accountId } }),
+};
+
 export default api

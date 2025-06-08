@@ -44,6 +44,14 @@
               <el-icon aria-hidden="true"><Message /></el-icon>
               <span>邮箱账户</span>
             </el-menu-item>
+           <el-menu-item
+             index="/inbox"
+             role="menuitem"
+             aria-label="收件箱页面"
+           >
+             <el-icon aria-hidden="true"><Reading /></el-icon>
+             <span>收件箱</span>
+           </el-menu-item>
             <el-menu-item
               index="/platforms"
               role="menuitem"
@@ -146,7 +154,8 @@ import {
   Platform,
   Tickets,
   Setting,
-  Bell // Import Bell icon
+  Bell, // Import Bell icon
+ Reading // Import Reading icon
 } from '@element-plus/icons-vue'
 
 export default {
@@ -161,6 +170,7 @@ export default {
     Tickets,
     Setting,
     Bell, // Register Bell icon
+   Reading, // Register Reading icon
     // ReminderCard // ReminderCard is no longer directly used here
     NotificationList // Register NotificationList
   },
@@ -243,6 +253,28 @@ export default {
         console.log('App.vue onMounted: 获取提醒')
         await notificationStore.fetchReminders();
       }
+
+      // --- Handle OAuth2 Callback Feedback ---
+      const query = route.query;
+      if (query.status) {
+        if (query.status === 'success') {
+          ElMessage.success(query.message || '账户已成功连接！');
+          // Optionally, trigger a refresh of the email accounts list
+          // This requires access to the emailAccountStore, which might be better handled
+          // by listening to an event or a state change in the EmailAccountListView itself.
+          // For now, the message is the primary feedback.
+        } else if (query.status === 'error') {
+          ElMessage.error(query.message || '账户连接失败，请重试。');
+        }
+
+        // Clean up the URL
+        const newQuery = { ...query };
+        delete newQuery.status;
+        delete newQuery.message;
+        delete newQuery.error_details; // Also remove detailed error if present
+        router.replace({ query: newQuery });
+      }
+      // --- End Handle OAuth2 Callback Feedback ---
     });
 
     // 监听认证状态变化

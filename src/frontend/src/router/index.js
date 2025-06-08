@@ -19,6 +19,8 @@ import PlatformListView from '../views/PlatformListView.vue'
 import PlatformRegistrationListView from '../views/PlatformRegistrationListView.vue'
 import ServiceSubscriptionListView from '../views/ServiceSubscriptionListView.vue'
 import SearchResultView from '../views/SearchResultView.vue' // Import SearchResultView
+import InboxView from '../views/InboxView.vue'
+import EmailDetailView from '../views/EmailDetailView.vue'
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
 const routes = [
@@ -159,6 +161,17 @@ const routes = [
       },
 
       // Add other authenticated routes as children of AppLayout here
+     {
+       path: 'inbox',
+       name: 'Inbox',
+       component: InboxView,
+     },
+     {
+       path: 'emails/:id',
+       name: 'EmailDetail',
+       component: EmailDetailView,
+       props: true,
+     },
     ]
   },
   
