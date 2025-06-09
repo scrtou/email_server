@@ -87,7 +87,7 @@ export default {
         // 使用全局标志防止重复显示
         if (!window.oauth2LoginMessageShown) {
           window.oauth2LoginMessageShown = true
-          ElMessage.success('LinuxDo登录成功！')
+          ElMessage.success('OAuth2登录成功！')
           // 5秒后重置标志
           setTimeout(() => {
             window.oauth2LoginMessageShown = false

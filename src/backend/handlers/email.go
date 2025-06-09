@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -118,7 +119,7 @@ func GetInbox(c *gin.Context) {
 	var emails []models.Email
 	var total int
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	folder := c.DefaultQuery("folder", "inbox") // 支持文件夹参数，默认为inbox
 
 	if isOAuth2 {
@@ -133,34 +134,13 @@ func GetInbox(c *gin.Context) {
 		if provider.Name == "microsoft" {
 			log.Printf("[GetInbox] Provider is '%s'. Using Microsoft Graph API to fetch emails from folder '%s'.", provider.Name, folder)
 			emails, total, err = integrations.FetchEmailsWithGraphAPIFromFolder(emailAccount, page, pageSize, folder)
-			// client, err := integrations.GetOAuth2HTTPClient(emailAccount.ID) // 使用您已有的辅助函数
-			// if err != nil {
-			// 	// ... handle error
-			// 	return
-			// }
-			// resp, err := client.Get("https://graph.microsoft.com/v1.0/me")
-			// if err != nil {
-			// 	// ... handle error
-			// 	return
-			// }
-			// defer resp.Body.Close()
-
-			// if resp.StatusCode != http.StatusOK {
-			// 	// ... handle non-200 error, print body
-			// 	utils.SendErrorResponse(c, http.StatusInternalServerError, "Graph API /me call failed with status: "+resp.Status)
-			// 	return
-			// }
-
-			// var userInfo map[string]interface{}
-			// json.NewDecoder(resp.Body).Decode(&userInfo)
-			// log.Printf("SUCCESSFULLY CALLED /me ENDPOINT. User Principal Name: %v", userInfo["userPrincipalName"])
-
-			// // 暂时返回成功，不获取邮件
-			// c.JSON(http.StatusOK, gin.H{"message": "Basic Graph API test successful!", "user_info": userInfo})
-			// return
-
+		} else if provider.Name == "google" {
+			log.Printf("[GetInbox] Provider is '%s'. Using Gmail API to fetch emails from folder '%s'.", provider.Name, folder)
+			// 将folder名称转换为Gmail标签
+			gmailLabel := convertFolderToGmailLabel(folder)
+			emails, total, err = integrations.FetchEmailsWithGmailAPIFromFolder(emailAccount, page, pageSize, gmailLabel)
 		} else {
-			// For other OAuth providers (e.g., Google), we might still use IMAP
+			// For other OAuth providers, we might still use IMAP
 			log.Printf("[GetInbox] Provider is '%s'. Using standard IMAP to fetch emails.", provider.Name)
 			emails, total, err = integrations.FetchEmails(emailAccount, page, pageSize)
 		}
@@ -274,13 +254,21 @@ func GetEmailDetail(c *gin.Context) {
 		return
 	}
 
-	// 6. Fetch email detail using Microsoft Graph API
+	// 6. Fetch email detail using provider-specific API
 	var email *models.Email
 	if provider.Name == "microsoft" {
 		log.Printf("[GetEmailDetail] Provider is '%s'. Using Microsoft Graph API to fetch email detail.", provider.Name)
 		email, err = integrations.FetchEmailDetailWithGraphAPI(emailAccount, messageId)
 		if err != nil {
 			log.Printf("[GetEmailDetail] Error fetching email detail: %v", err)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+			return
+		}
+	} else if provider.Name == "google" {
+		log.Printf("[GetEmailDetail] Provider is '%s'. Using Gmail API to fetch email detail.", provider.Name)
+		email, err = integrations.FetchGmailMessageDetail(emailAccount, messageId)
+		if err != nil {
+			log.Printf("[GetEmailDetail] Error fetching Gmail email detail: %v", err)
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
 			return
 		}
@@ -300,4 +288,96 @@ func GetEmailDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data": email,
 	})
+}
+
+// convertFolderToGmailLabel 将通用文件夹名称转换为Gmail标签
+func convertFolderToGmailLabel(folder string) string {
+	switch strings.ToLower(folder) {
+	case "inbox":
+		return "INBOX"
+	case "sent", "sentitems":
+		return "SENT"
+	case "drafts":
+		return "DRAFT"
+	case "trash", "deleteditems":
+		return "TRASH"
+	case "spam", "junkemail":
+		return "SPAM"
+	case "important":
+		return "IMPORTANT"
+	case "starred":
+		return "STARRED"
+	default:
+		return "INBOX" // 默认返回收件箱
+	}
+}
+
+// MarkEmailAsRead 标记邮件为已读
+func MarkEmailAsRead(c *gin.Context) {
+	// 1. 获取用户ID
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	actualUserID := uint(userID)
+
+	// 2. 获取邮件ID和账户ID
+	messageId := c.Param("messageId")
+	accountIdStr := c.Query("account_id")
+
+	if messageId == "" || accountIdStr == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "缺少必要参数")
+		return
+	}
+
+	accountId, err := strconv.ParseUint(accountIdStr, 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的账户ID")
+		return
+	}
+
+	// 3. 验证账户权限
+	var emailAccount models.EmailAccount
+	if err := database.DB.Where("id = ? AND user_id = ?", accountId, actualUserID).First(&emailAccount).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "邮箱账户未找到或无权访问")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户失败: "+err.Error())
+		return
+	}
+
+	// 4. 根据提供商调用相应的API标记为已读
+	log.Printf("[MarkEmailAsRead] EmailAccount Provider: '%s'", emailAccount.Provider)
+
+	// 根据Provider字段判断邮箱服务商类型
+	providerLower := strings.ToLower(emailAccount.Provider)
+
+	if providerLower == "microsoft" || providerLower == "outlook.com" || strings.Contains(providerLower, "outlook") || strings.Contains(providerLower, "hotmail") {
+		log.Printf("[MarkEmailAsRead] Using Microsoft Graph API for provider: %s", emailAccount.Provider)
+		err = integrations.MarkMicrosoftEmailAsRead(emailAccount, messageId)
+	} else if providerLower == "google" || providerLower == "gmail.com" || strings.Contains(providerLower, "gmail") {
+		log.Printf("[MarkEmailAsRead] Using Gmail API for provider: %s", emailAccount.Provider)
+		err = integrations.MarkGmailAsRead(emailAccount, messageId)
+	} else {
+		log.Printf("[MarkEmailAsRead] Unsupported provider: '%s'", emailAccount.Provider)
+		utils.SendErrorResponse(c, http.StatusNotImplemented, fmt.Sprintf("该提供商 '%s' 暂不支持标记已读功能", emailAccount.Provider))
+		return
+	}
+
+	if err != nil {
+		log.Printf("[MarkEmailAsRead] Error marking email as read: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "标记邮件已读失败: "+err.Error())
+		return
+	}
+
+	// 6. 返回成功响应
+	utils.SendSuccessResponse(c, gin.H{"message": "邮件已标记为已读"})
 }

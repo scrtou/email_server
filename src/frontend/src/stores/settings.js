@@ -9,6 +9,11 @@ export const useSettingsStore = defineStore('settings', {
         pageSize: 8,
         pageSizeOptions: [5,10, 15, 30, 50]
       },
+      // 收件箱页面
+      inbox: {
+        pageSize: 50,
+        pageSizeOptions: [10, 20, 30, 50, 100]
+      },
       // 平台管理页面
       platforms: {
         pageSize: 8,

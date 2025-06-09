@@ -41,6 +41,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			{
 				oauth2.GET("/linuxdo/login", handlers.LinuxDoOAuth2Login)
 				oauth2.GET("/linuxdo/callback", handlers.LinuxDoOAuth2Callback)
+				oauth2.GET("/google/login", handlers.GoogleOAuth2Login)
 				oauth2.GET("/stats", handlers.GetDBStateStats) // 监控端点 (temporarily disabled)
 			}
 		}
@@ -92,6 +93,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		// Inbox
 		protected.GET("/inbox", handlers.GetInbox)
 		protected.GET("/inbox/emails/:messageId", handlers.GetEmailDetail)
+		protected.POST("/inbox/emails/:messageId/mark-read", handlers.MarkEmailAsRead)
 
 		// Platform 模块
 		platforms := protected.Group("/platforms")

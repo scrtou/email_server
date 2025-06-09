@@ -12,7 +12,7 @@ export { API_BASE_URL } // Export for use in other parts of the app
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // 增加到30秒以支持Gmail API
   headers: {
     'Content-Type': 'application/json'
   }
@@ -178,12 +178,70 @@ export const searchAPI = {
   search: (params = {}) => api.get('/search', { params }),
 };
  
-// Inbox API
+// 创建专门用于邮件API的axios实例，使用更长的超时时间
+const emailApi = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 60000, // 60秒超时，专门用于邮件API
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// 为邮件API添加相同的拦截器
+emailApi.interceptors.request.use(
+  config => {
+    const authStore = useAuthStore()
+    if (authStore.token) {
+      config.headers.Authorization = `Bearer ${authStore.token}`
+    }
+    console.log('📧 邮件API请求:', config.method?.toUpperCase(), config.url)
+    return config
+  },
+  error => Promise.reject(error)
+);
+
+emailApi.interceptors.response.use(
+  response => {
+    console.log('📧 邮件API响应:', response.config.url, '状态:', response.status)
+    if (response.data.code === 200 || response.status === 201 || response.status === 200) {
+      if (response.data.meta) {
+        return { data: response.data.data, meta: response.data.meta };
+      }
+      return response.data.data !== undefined ? response.data.data : {};
+    } else {
+      const message = response.data.message || '操作失败，未知错误';
+      ElMessage.error(message);
+      return Promise.reject(new Error(message));
+    }
+  },
+  error => {
+    console.error('📧 邮件API错误:', error)
+    if (error.response) {
+      const status = error.response.status
+      const message = error.response.data?.message || `请求失败 (${status})`
+      if (status === 401) {
+        const authStore = useAuthStore()
+        authStore.logout()
+        router.push('/login')
+        ElMessage.error('登录已过期，请重新登录')
+        return Promise.reject(error)
+      }
+      throw new Error(message)
+    } else if (error.request) {
+      throw new Error('邮件服务连接超时，请稍后重试')
+    } else {
+      throw new Error(error.message || '请求配置错误')
+    }
+  }
+);
+
+// Inbox API - 使用专门的邮件API实例
 export const getInboxEmails = (params = {}) => {
   console.log('🌐 getInboxEmails called with params:', params);
-  return api.get('/inbox', { params });
+  return emailApi.get('/inbox', { params });
 };
-export const getEmailDetail = (messageId, params = {}) => api.get(`/inbox/emails/${messageId}`, { params });
+export const getEmailDetail = (messageId, params = {}) => emailApi.get(`/inbox/emails/${messageId}`, { params });
+export const markEmailAsRead = (messageId, params = {}) => emailApi.post(`/inbox/emails/${messageId}/mark-read`, {}, { params });
 
 // OAuth2 API
 export const oauth2API = {

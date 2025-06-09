@@ -25,15 +25,19 @@
           </el-form-item>
         </el-col>
        <el-col :span="24">
-         <el-form-item label="IMAP 服务器 / 端口">
-           <el-row :gutter="10">
-             <el-col :span="16">
-               <el-input v-model="form.imap_server" placeholder="例如：imap.gmail.com" />
-             </el-col>
-             <el-col :span="8">
-               <el-input v-model.number="form.imap_port" placeholder="端口" />
-             </el-col>
-           </el-row>
+         <el-form-item label="IMAP服务器">
+           <div style="display: flex; gap: 10px; align-items: center;">
+             <el-input
+               v-model="form.imap_server"
+               placeholder="例如：imap.gmail.com"
+               style="flex: 1; min-width: 0;"
+             />
+             <el-input
+               v-model.number="form.imap_port"
+               placeholder="端口"
+               style="width: 100px; flex-shrink: 0;"
+             />
+           </div>
          </el-form-item>
        </el-col>
  <el-col :span="24">

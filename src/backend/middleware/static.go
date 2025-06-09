@@ -20,9 +20,15 @@ func ServeStaticFiles(r *gin.Engine) {
 
 	log.Printf("✅ 找到前端构建文件: %s, 将提供静态文件服务", distPath)
 
-	// Serve static files from the root of the dist directory.
-	// This will handle /favicon.ico, /js/*, /css/*, etc., correctly.
-	r.Static("/", distPath)
+	// Serve static files from specific paths to avoid conflicts with API routes
+	r.Static("/js", filepath.Join(distPath, "js"))
+	r.Static("/css", filepath.Join(distPath, "css"))
+	r.Static("/img", filepath.Join(distPath, "img"))
+	r.Static("/fonts", filepath.Join(distPath, "fonts"))
+
+	// Serve favicon and other root files individually
+	r.StaticFile("/favicon.ico", filepath.Join(distPath, "favicon.ico"))
+	r.StaticFile("/manifest.json", filepath.Join(distPath, "manifest.json"))
 
 	// Custom NoRoute handler to redirect all non-API 404 GET requests to the SPA entry point.
 	r.NoRoute(func(c *gin.Context) {

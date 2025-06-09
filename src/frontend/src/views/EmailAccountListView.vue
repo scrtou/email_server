@@ -387,7 +387,7 @@ const handleAssociatedPageChange = (payload) => {
           resizable
         >
         <el-table-column prop="email_address" label="邮箱地址" min-width="200" sortable="custom" />
-<el-table-column prop="phone_number" label="手机号" min-width="150" sortable="custom" />
+        <el-table-column prop="phone_number" label="手机号" min-width="150" sortable="custom" />
         <!-- 服务商列已移除，服务商信息由后端自动提取和管理 -->
         <!-- <el-table-column prop="id" label="ID" width="80" /> -->
         <el-table-column label="关联平台" width="120" :sortable="false">
@@ -704,18 +704,25 @@ const handleAssociatedPageChange = (payload) => {
   align-items: center;
   gap: 15px;
   padding: 20px;
+  width: 100%;
 }
 
 .dialog-description {
   margin-bottom: 10px;
   color: #606266;
   text-align: center;
+  width: 100%;
 }
 
 .provider-button {
   width: 100%;
+  max-width: 280px;
   height: 45px;
   font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
 }
 
 .provider-button.google {

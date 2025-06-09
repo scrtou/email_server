@@ -265,6 +265,167 @@ func findOrCreateLinuxDoUser(userInfo *models.LinuxDoUserInfo) (*models.User, er
 	return &user, database.DB.Create(&user).Error
 }
 
+// --- Google OAuth2 流程 ---
+
+// GoogleUserInfo 定义Google OAuth2用户信息结构
+type GoogleUserInfo struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+}
+
+// GoogleOAuth2Login 生成Google OAuth2登录URL
+func GoogleOAuth2Login(c *gin.Context) {
+	state, err := generateRandomState()
+	if err != nil {
+		log.Printf("生成state失败: %v", err)
+		utils.SendErrorResponse(c, 500, "系统错误")
+		return
+	}
+
+	expiresAt := time.Now().Add(10 * time.Minute)
+
+	// 创建并保存 state 到数据库，AccountID设为0表示这是登录流程而非邮箱关联
+	oauthState := models.OAuth2State{
+		State:     state,
+		AccountID: 0, // 0表示登录流程
+		ExpiresAt: expiresAt,
+	}
+	if err := database.DB.Create(&oauthState).Error; err != nil {
+		log.Printf("保存OAuth2 state到数据库失败: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "无法启动OAuth2流程")
+		return
+	}
+
+	log.Printf("创建并保存Google OAuth2 state到数据库: %s, 过期时间: %v", state, expiresAt)
+
+	// 构建Google OAuth2授权URL，使用配置文件中的重定向URI
+	authURL := fmt.Sprintf("https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s&access_type=offline&prompt=consent",
+		config.AppConfig.OAuth2.Google.ClientID,
+		url.QueryEscape(config.AppConfig.OAuth2.Google.RedirectURI),
+		state,
+		url.QueryEscape("openid email profile"),
+	)
+
+	utils.SendSuccessResponse(c, gin.H{
+		"auth_url": authURL,
+		"state":    state,
+	})
+}
+
+// --- Google 辅助函数 ---
+
+func exchangeGoogleCodeForToken(code string) (string, error) {
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("client_id", config.AppConfig.OAuth2.Google.ClientID)
+	data.Set("client_secret", config.AppConfig.OAuth2.Google.ClientSecret)
+	data.Set("code", code)
+	data.Set("redirect_uri", config.AppConfig.OAuth2.Google.RedirectURI)
+
+	req, err := http.NewRequest("POST", "https://oauth2.googleapis.com/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("token request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return "", err
+	}
+	return tokenResponse.AccessToken, nil
+}
+
+func getGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("user info request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	var userInfo GoogleUserInfo
+	if err := json.Unmarshal(body, &userInfo); err != nil {
+		return nil, err
+	}
+	return &userInfo, nil
+}
+
+func findOrCreateGoogleUser(userInfo *GoogleUserInfo) (*models.User, error) {
+	var user models.User
+
+	// 首先尝试通过Google ID查找现有用户
+	if err := database.DB.Where("google_id = ?", userInfo.ID).First(&user).Error; err == nil {
+		// 用户已存在，更新用户信息
+		user.Username = userInfo.Name
+		user.Email = userInfo.Email
+		return &user, database.DB.Save(&user).Error
+	}
+
+	// 尝试通过邮箱查找现有用户
+	if err := database.DB.Where("email = ?", userInfo.Email).First(&user).Error; err == nil {
+		// 用户已存在，关联Google ID
+		user.GoogleID = &userInfo.ID
+		provider := "google"
+		user.Provider = &provider
+		return &user, database.DB.Save(&user).Error
+	}
+
+	// 创建新用户
+	provider := "google"
+	// 从邮箱地址生成用户名（取@前面的部分），如果Name为空的话
+	username := userInfo.Name
+	if username == "" {
+		username = userInfo.Email
+		if atIndex := strings.Index(userInfo.Email, "@"); atIndex > 0 {
+			username = userInfo.Email[:atIndex]
+		}
+	}
+
+	user = models.User{
+		Username: username,
+		Email:    userInfo.Email,
+		GoogleID: &userInfo.ID,
+		Provider: &provider,
+		Role:     models.RoleUser,
+		Status:   models.StatusActive,
+	}
+	return &user, database.DB.Create(&user).Error
+}
+
 // --- 通用 OAuth2 提供商流程 (Microsoft, Google, etc.) ---
 
 // getOAuth2Config 从数据库动态构建 oauth2.Config
@@ -350,6 +511,7 @@ func RedirectToOAuthProvider(c *gin.Context) {
 	// 创建并保存 state 到数据库
 	oauthState := models.OAuth2State{
 		State:        state,
+		UserID:       uint(userID.(int64)), // 保存发起OAuth2流程的用户ID，转换int64到uint
 		AccountID:    accountID,
 		PKCEVerifier: pkceVerifier.Value,
 		ExpiresAt:    expiresAt,
@@ -367,8 +529,16 @@ func RedirectToOAuthProvider(c *gin.Context) {
 			oauth2.AccessTypeOffline,
 			oauth2.SetAuthURLParam("code_challenge", pkceVerifier.CodeChallengeS256()),
 			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-			oauth2.SetAuthURLParam("prompt", "consent"),
+			oauth2.SetAuthURLParam("prompt", "select_account"),
 			oauth2.SetAuthURLParam("response_mode", "query"),
+		)
+	} else if providerName == "google" {
+		authURL = conf.AuthCodeURL(state,
+			oauth2.AccessTypeOffline,
+			oauth2.ApprovalForce,
+			oauth2.SetAuthURLParam("code_challenge", pkceVerifier.CodeChallengeS256()),
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+			oauth2.SetAuthURLParam("prompt", "consent"),
 		)
 	} else {
 		authURL = conf.AuthCodeURL(state,
@@ -433,7 +603,20 @@ func HandleOAuth2Callback(c *gin.Context) {
 	}
 	log.Printf("[DEBUG] State从数据库验证成功: %s", state)
 
-	// 2. 准备交换token
+	// 检查是否为登录流程（AccountID为0）
+	if stateInfo.AccountID == 0 {
+		// 这是登录流程，使用简化的token交换流程
+		if provider == "google" {
+			handleGoogleLoginCallback(c, code, state)
+			return
+		} else {
+			log.Printf("不支持的登录provider: %s", provider)
+			c.Redirect(http.StatusTemporaryRedirect, "/?error=unsupported_login_provider")
+			return
+		}
+	}
+
+	// 2. 准备交换token（邮箱关联流程）
 	conf, err := getOAuth2Config(provider)
 	if err != nil {
 		log.Printf("Error getting OAuth2 config for %s: %v", provider, err)
@@ -532,9 +715,10 @@ func HandleOAuth2Callback(c *gin.Context) {
 	}
 	log.Printf("[DEBUG] 获取到用户信息: Email=%s", email)
 
-	userID, _ := c.Get("user_id")
+	// 使用OAuth2State中保存的UserID
 	var user models.User
-	if err := database.DB.First(&user, userID).Error; err != nil {
+	if err := database.DB.First(&user, stateInfo.UserID).Error; err != nil {
+		log.Printf("查找用户失败: user_id=%d, error=%v", stateInfo.UserID, err)
 		c.Redirect(http.StatusTemporaryRedirect, "/?error=user_not_found")
 		return
 	}
@@ -586,7 +770,28 @@ func HandleOAuth2Callback(c *gin.Context) {
 	}
 
 	log.Printf("用户 %s 的 %s 账号已成功关联", user.Email, provider)
-	c.Redirect(http.StatusTemporaryRedirect, "/email-accounts?status=success")
+
+	// 重定向到前端的邮箱账户页面
+	frontendURL := config.AppConfig.Frontend.BaseURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:8080"
+	}
+
+	// 构建成功消息
+	var providerName string
+	switch provider {
+	case "google":
+		providerName = "Google"
+	case "microsoft":
+		providerName = "Microsoft"
+	default:
+		providerName = provider
+	}
+	message := fmt.Sprintf("%s账户关联成功！", providerName)
+
+	redirectURL := fmt.Sprintf("%s/email-accounts?status=success&provider=%s&message=%s",
+		frontendURL, provider, url.QueryEscape(message))
+	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
 // GetDBStateStats 获取数据库中OAuth2 state的统计信息
@@ -645,4 +850,57 @@ func (t *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	return resp, nil
+}
+
+// handleGoogleLoginCallback 处理Google登录回调（简化版本，不需要PKCE）
+func handleGoogleLoginCallback(c *gin.Context, code, state string) {
+	log.Printf("处理Google登录回调: code=%s, state=%s", truncateString(code, 20), state)
+
+	accessToken, err := exchangeGoogleCodeForToken(code)
+	if err != nil {
+		log.Printf("获取访问令牌失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=token_exchange_failed")
+		return
+	}
+
+	userInfo, err := getGoogleUserInfo(accessToken)
+	if err != nil {
+		log.Printf("获取用户信息失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=user_info_failed")
+		return
+	}
+
+	user, err := findOrCreateGoogleUser(userInfo)
+	if err != nil {
+		log.Printf("创建用户失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=user_creation_failed")
+		return
+	}
+
+	if !user.IsStatusActive() {
+		log.Printf("用户账户已被封禁: user_id=%d, username=%s", user.ID, user.Username)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=account_banned")
+		return
+	}
+
+	now := time.Now()
+	if err := database.DB.Model(user).Update("last_login", now).Error; err != nil {
+		log.Printf("更新最后登录时间失败: %v", err)
+	}
+
+	token, err := utils.GenerateToken(int64(user.ID), user.Username, user.Role)
+	if err != nil {
+		log.Printf("生成token失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=token_generation_failed")
+		return
+	}
+
+	log.Printf("Google OAuth2登录成功: user_id=%d, username=%s", user.ID, user.Username)
+
+	frontendURL := config.AppConfig.Frontend.BaseURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:8080"
+	}
+	redirectURL := fmt.Sprintf("%s/oauth2/callback?token=%s&expires_in=%d", frontendURL, token, config.AppConfig.JWT.ExpiresIn)
+	c.Redirect(302, redirectURL)
 }

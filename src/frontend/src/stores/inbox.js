@@ -2,19 +2,23 @@
 
 import { defineStore } from 'pinia';
 import { getInboxEmails, getEmailDetail } from '@/utils/api';
+import { useSettingsStore } from './settings';
 
 export const useInboxStore = defineStore('inbox', {
-  state: () => ({
-    emails: [],
-    isLoading: false,
-    error: null,
-    page: 1,
-    pageSize: 20,
-    totalEmails: 0,
-    hasMore: true,
-    selectedAccountId: null,
-    selectedFolder: 'inbox', // 当前选择的文件夹
-  }),
+  state: () => {
+    const settingsStore = useSettingsStore();
+    return {
+      emails: [],
+      isLoading: false,
+      error: null,
+      page: 1,
+      pageSize: settingsStore.getPageSize('inbox'),
+      totalEmails: 0,
+      hasMore: true,
+      selectedAccountId: null,
+      selectedFolder: 'inbox', // 当前选择的文件夹
+    };
+  },
   getters: {
     // 返回按日期逆序排列的邮件（最新的在前面）
     sortedEmails: (state) => {
