@@ -40,7 +40,7 @@ type JWTConfig struct {
 type OAuth2Config struct {
 	LinuxDo   LinuxDoOAuth2Config
 	Google    GoogleOAuth2Config
-	Microsoft ProviderConfig
+	Microsoft MicrosoftOAuth2Config
 }
 
 type ProviderConfig struct {
@@ -58,6 +58,12 @@ type LinuxDoOAuth2Config struct {
 }
 
 type GoogleOAuth2Config struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+}
+
+type MicrosoftOAuth2Config struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURI  string
@@ -97,9 +103,10 @@ func Init() {
 				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 				RedirectURI:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:5555/api/v1/oauth2/callback/google"),
 			},
-			Microsoft: ProviderConfig{
+			Microsoft: MicrosoftOAuth2Config{
 				ClientID:     getEnv("MICROSOFT_CLIENT_ID", ""),
 				ClientSecret: getEnv("MICROSOFT_CLIENT_SECRET", ""),
+				RedirectURI:  getEnv("MICROSOFT_REDIRECT_URI", "http://localhost:5555/api/v1/oauth2/callback/microsoft"),
 			},
 		},
 		Frontend: FrontendConfig{

@@ -317,6 +317,47 @@ func GoogleOAuth2Login(c *gin.Context) {
 	})
 }
 
+// --- Microsoft OAuth2 流程 ---
+
+// MicrosoftOAuth2Login 生成Microsoft OAuth2登录URL
+func MicrosoftOAuth2Login(c *gin.Context) {
+	state, err := generateRandomState()
+	if err != nil {
+		log.Printf("生成state失败: %v", err)
+		utils.SendErrorResponse(c, 500, "系统错误")
+		return
+	}
+
+	expiresAt := time.Now().Add(10 * time.Minute)
+
+	// 创建并保存 state 到数据库，AccountID设为0表示这是登录流程而非邮箱关联
+	oauthState := models.OAuth2State{
+		State:     state,
+		AccountID: 0, // 0表示登录流程
+		ExpiresAt: expiresAt,
+	}
+	if err := database.DB.Create(&oauthState).Error; err != nil {
+		log.Printf("保存OAuth2 state到数据库失败: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "无法启动OAuth2流程")
+		return
+	}
+
+	log.Printf("创建并保存Microsoft OAuth2 state到数据库: %s, 过期时间: %v", state, expiresAt)
+
+	// 构建Microsoft OAuth2授权URL
+	authURL := fmt.Sprintf("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s&response_mode=query",
+		config.AppConfig.OAuth2.Microsoft.ClientID,
+		url.QueryEscape(config.AppConfig.OAuth2.Microsoft.RedirectURI),
+		state,
+		url.QueryEscape("openid email profile User.Read"),
+	)
+
+	utils.SendSuccessResponse(c, gin.H{
+		"auth_url": authURL,
+		"state":    state,
+	})
+}
+
 // --- Google 辅助函数 ---
 
 func exchangeGoogleCodeForToken(code string) (string, error) {
@@ -422,6 +463,128 @@ func findOrCreateGoogleUser(userInfo *GoogleUserInfo) (*models.User, error) {
 		Provider: &provider,
 		Role:     models.RoleUser,
 		Status:   models.StatusActive,
+	}
+	return &user, database.DB.Create(&user).Error
+}
+
+// --- Microsoft 辅助函数 ---
+
+func exchangeMicrosoftCodeForToken(code string) (string, error) {
+	data := url.Values{}
+	data.Set("client_id", config.AppConfig.OAuth2.Microsoft.ClientID)
+	data.Set("client_secret", config.AppConfig.OAuth2.Microsoft.ClientSecret)
+	data.Set("code", code)
+	data.Set("grant_type", "authorization_code")
+	data.Set("redirect_uri", config.AppConfig.OAuth2.Microsoft.RedirectURI)
+	data.Set("scope", "openid email profile User.Read")
+
+	req, err := http.NewRequest("POST", "https://login.microsoftonline.com/common/oauth2/v2.0/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("token request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return "", err
+	}
+	return tokenResponse.AccessToken, nil
+}
+
+func getMicrosoftUserInfo(accessToken string) (*models.MicrosoftUserInfo, error) {
+	req, err := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/me", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("user info request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	var userInfo models.MicrosoftUserInfo
+	if err := json.Unmarshal(body, &userInfo); err != nil {
+		return nil, err
+	}
+	return &userInfo, nil
+}
+
+func findOrCreateMicrosoftUser(userInfo *models.MicrosoftUserInfo) (*models.User, error) {
+	var user models.User
+
+	// 首先尝试通过Microsoft ID查找现有用户
+	if err := database.DB.Where("microsoft_id = ?", userInfo.ID).First(&user).Error; err == nil {
+		// 用户已存在，更新用户信息
+		user.Username = userInfo.DisplayName
+		// 优先使用Mail字段，如果为空则使用UserPrincipalName
+		email := userInfo.Mail
+		if email == "" {
+			email = userInfo.UserPrincipalName
+		}
+		user.Email = email
+		return &user, database.DB.Save(&user).Error
+	}
+
+	// 尝试通过邮箱查找现有用户
+	email := userInfo.Mail
+	if email == "" {
+		email = userInfo.UserPrincipalName
+	}
+	if err := database.DB.Where("email = ?", email).First(&user).Error; err == nil {
+		// 用户已存在，关联Microsoft ID
+		user.MicrosoftID = &userInfo.ID
+		provider := "microsoft"
+		user.Provider = &provider
+		return &user, database.DB.Save(&user).Error
+	}
+
+	// 创建新用户
+	provider := "microsoft"
+	// 从邮箱地址生成用户名（取@前面的部分），如果DisplayName为空的话
+	username := userInfo.DisplayName
+	if username == "" {
+		username = email
+		if atIndex := strings.Index(email, "@"); atIndex > 0 {
+			username = email[:atIndex]
+		}
+	}
+
+	user = models.User{
+		Username:    username,
+		Email:       email,
+		MicrosoftID: &userInfo.ID,
+		Provider:    &provider,
+		Role:        models.RoleUser,
+		Status:      models.StatusActive,
 	}
 	return &user, database.DB.Create(&user).Error
 }
@@ -608,6 +771,9 @@ func HandleOAuth2Callback(c *gin.Context) {
 		// 这是登录流程，使用简化的token交换流程
 		if provider == "google" {
 			handleGoogleLoginCallback(c, code, state)
+			return
+		} else if provider == "microsoft" {
+			handleMicrosoftLoginCallback(c, code, state)
 			return
 		} else {
 			log.Printf("不支持的登录provider: %s", provider)
@@ -896,6 +1062,59 @@ func handleGoogleLoginCallback(c *gin.Context, code, state string) {
 	}
 
 	log.Printf("Google OAuth2登录成功: user_id=%d, username=%s", user.ID, user.Username)
+
+	frontendURL := config.AppConfig.Frontend.BaseURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:8080"
+	}
+	redirectURL := fmt.Sprintf("%s/oauth2/callback?token=%s&expires_in=%d", frontendURL, token, config.AppConfig.JWT.ExpiresIn)
+	c.Redirect(302, redirectURL)
+}
+
+// handleMicrosoftLoginCallback 处理Microsoft登录回调
+func handleMicrosoftLoginCallback(c *gin.Context, code, state string) {
+	log.Printf("处理Microsoft登录回调: code=%s, state=%s", truncateString(code, 20), state)
+
+	accessToken, err := exchangeMicrosoftCodeForToken(code)
+	if err != nil {
+		log.Printf("获取访问令牌失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=token_exchange_failed")
+		return
+	}
+
+	userInfo, err := getMicrosoftUserInfo(accessToken)
+	if err != nil {
+		log.Printf("获取用户信息失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=user_info_failed")
+		return
+	}
+
+	user, err := findOrCreateMicrosoftUser(userInfo)
+	if err != nil {
+		log.Printf("创建用户失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=user_creation_failed")
+		return
+	}
+
+	if !user.IsStatusActive() {
+		log.Printf("用户账户已被封禁: user_id=%d, username=%s", user.ID, user.Username)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=account_banned")
+		return
+	}
+
+	now := time.Now()
+	if err := database.DB.Model(user).Update("last_login", now).Error; err != nil {
+		log.Printf("更新最后登录时间失败: %v", err)
+	}
+
+	token, err := utils.GenerateToken(int64(user.ID), user.Username, user.Role)
+	if err != nil {
+		log.Printf("生成token失败: %v", err)
+		c.Redirect(302, "http://localhost:8080/auth/login?error=token_generation_failed")
+		return
+	}
+
+	log.Printf("Microsoft OAuth2登录成功: user_id=%d, username=%s", user.ID, user.Username)
 
 	frontendURL := config.AppConfig.Frontend.BaseURL
 	if frontendURL == "" {

@@ -148,6 +148,7 @@
       const loginFormRef = ref()
       const oauthLoading = ref(false)
       const googleOauthLoading = ref(false)
+      const microsoftOauthLoading = ref(false)
 
       const loginForm = reactive({
         username: '',
@@ -230,6 +231,31 @@
         }
       }
 
+      const handleMicrosoftLogin = async () => {
+        try {
+          microsoftOauthLoading.value = true
+          console.log('开始Microsoft OAuth2登录...')
+
+          const response = await api.get('/auth/oauth2/microsoft/login')
+          console.log('Microsoft OAuth2登录响应:', response)
+
+          if (response && response.auth_url) {
+            console.log('跳转到Microsoft授权页面:', response.auth_url)
+            // 跳转到Microsoft授权页面
+            window.location.href = response.auth_url
+          } else {
+            console.error('响应格式错误:', response)
+            ElMessage.error('获取Microsoft授权链接失败')
+          }
+        } catch (error) {
+          console.error('Microsoft登录失败:', error)
+          console.error('错误详情:', error.response?.data || error.message)
+          ElMessage.error(`Microsoft登录失败: ${error.message}`)
+        } finally {
+          microsoftOauthLoading.value = false
+        }
+      }
+
       // 处理OAuth2回调 - 已移除，现在由专门的OAuth2Callback页面处理
 
       onMounted(() => {
@@ -258,9 +284,11 @@
         authStore,
         oauthLoading,
         googleOauthLoading,
+        microsoftOauthLoading,
         handleLogin,
         handleLinuxDoLogin,
-        handleGoogleLogin
+        handleGoogleLogin,
+        handleMicrosoftLogin
       }
     }
   }
@@ -514,6 +542,19 @@
   }
 
   .google-icon:hover .google-logo {
+    transform: scale(1.1);
+  }
+
+  .microsoft-logo {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-base);
+  }
+
+  .microsoft-icon:hover .microsoft-logo {
     transform: scale(1.1);
   }
 

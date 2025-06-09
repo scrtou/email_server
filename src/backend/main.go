@@ -42,6 +42,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 				oauth2.GET("/linuxdo/login", handlers.LinuxDoOAuth2Login)
 				oauth2.GET("/linuxdo/callback", handlers.LinuxDoOAuth2Callback)
 				oauth2.GET("/google/login", handlers.GoogleOAuth2Login)
+				oauth2.GET("/microsoft/login", handlers.MicrosoftOAuth2Login)
 				oauth2.GET("/stats", handlers.GetDBStateStats) // 监控端点 (temporarily disabled)
 			}
 		}

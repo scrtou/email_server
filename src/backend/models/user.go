@@ -13,9 +13,10 @@ type User struct {
 	Email      string `json:"email" gorm:"uniqueIndex:uq_email,priority:1;not null"`
 	Password   string `json:"-" gorm:""` // Password hash, json:"-" to omit from JSON responses by default, nullable for OAuth users
 	// OAuth2 fields
-	LinuxDoID *int64  `json:"-" gorm:"uniqueIndex:uq_linuxdo_id,priority:1"` // LinuxDo user ID, nullable
-	GoogleID  *string `json:"-" gorm:"uniqueIndex:uq_google_id,priority:1"`  // Google user ID, nullable
-	Provider  *string `json:"provider,omitempty"`                            // OAuth provider (e.g., "linuxdo", "google")
+	LinuxDoID   *int64  `json:"-" gorm:"uniqueIndex:uq_linuxdo_id,priority:1"`   // LinuxDo user ID, nullable
+	GoogleID    *string `json:"-" gorm:"uniqueIndex:uq_google_id,priority:1"`    // Google user ID, nullable
+	MicrosoftID *string `json:"-" gorm:"uniqueIndex:uq_microsoft_id,priority:1"` // Microsoft user ID, nullable
+	Provider    *string `json:"provider,omitempty"`                              // OAuth provider (e.g., "linuxdo", "google", "microsoft")
 	// Extended fields
 	Role      string     `json:"role" gorm:"default:user"` // 用户角色: admin=管理员, user=普通用户
 	Status    int        `json:"status" gorm:"default:1"`  // 用户状态: 1=激活, 0=封禁
@@ -84,6 +85,16 @@ type LinuxDoUserInfo struct {
 	Email    string `json:"email"`
 	Name     string `json:"name"`
 	Avatar   string `json:"avatar_url"`
+}
+
+// MicrosoftUserInfo 定义Microsoft OAuth2用户信息结构
+type MicrosoftUserInfo struct {
+	ID                string `json:"id"`
+	DisplayName       string `json:"displayName"`
+	GivenName         string `json:"givenName"`
+	Surname           string `json:"surname"`
+	UserPrincipalName string `json:"userPrincipalName"`
+	Mail              string `json:"mail"`
 }
 
 // 转换为响应格式（隐藏密码）
