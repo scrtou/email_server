@@ -84,7 +84,10 @@ func seedOAuthProviders() {
 			ClientID:     config.AppConfig.OAuth2.Google.ClientID,
 			ClientSecret: config.AppConfig.OAuth2.Google.ClientSecret,
 		},
-		"microsoft": config.AppConfig.OAuth2.Microsoft,
+		"microsoft": {
+			ClientID:     config.AppConfig.OAuth2.Microsoft.ClientID,
+			ClientSecret: config.AppConfig.OAuth2.Microsoft.ClientSecret,
+		},
 	}
 
 	staticData := map[string]models.OAuthProvider{
