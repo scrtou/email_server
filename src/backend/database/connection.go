@@ -80,7 +80,10 @@ func createDefaultAdminUser() {
 func seedOAuthProviders() {
 	// 从配置中读取提供商信息
 	providers := map[string]config.ProviderConfig{
-		"google":    config.AppConfig.OAuth2.Google,
+		"google": {
+			ClientID:     config.AppConfig.OAuth2.Google.ClientID,
+			ClientSecret: config.AppConfig.OAuth2.Google.ClientSecret,
+		},
 		"microsoft": config.AppConfig.OAuth2.Microsoft,
 	}
 

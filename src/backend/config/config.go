@@ -39,7 +39,7 @@ type JWTConfig struct {
 
 type OAuth2Config struct {
 	LinuxDo   LinuxDoOAuth2Config
-	Google    ProviderConfig
+	Google    GoogleOAuth2Config
 	Microsoft ProviderConfig
 }
 
@@ -55,6 +55,12 @@ type LinuxDoOAuth2Config struct {
 	AuthURL      string
 	TokenURL     string
 	UserInfoURL  string
+}
+
+type GoogleOAuth2Config struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
 }
 
 type FrontendConfig struct {
@@ -86,9 +92,10 @@ func Init() {
 				TokenURL:     getEnv("LINUXDO_TOKEN_URL", "https://connect.linux.do/oauth2/token"),
 				UserInfoURL:  getEnv("LINUXDO_USER_INFO_URL", "https://connect.linux.do/api/user"),
 			},
-			Google: ProviderConfig{
+			Google: GoogleOAuth2Config{
 				ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+				RedirectURI:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:5555/api/v1/oauth2/callback/google"),
 			},
 			Microsoft: ProviderConfig{
 				ClientID:     getEnv("MICROSOFT_CLIENT_ID", ""),

@@ -19,11 +19,25 @@
             @change="handleFolderChange"
             style="width: 150px;"
           >
-            <el-option label="收件箱" value="inbox" />
-            <el-option label="垃圾邮件" value="junkemail" />
-            <el-option label="已发送" value="sentitems" />
-            <el-option label="草稿箱" value="drafts" />
-            <el-option label="已删除" value="deleteditems" />
+            <el-option
+              v-for="folder in availableFolders"
+              :key="folder.value"
+              :label="folder.label"
+              :value="folder.value"
+            />
+          </el-select>
+          <el-select
+            v-model="inboxStore.pageSize"
+            placeholder="每页显示"
+            @change="handlePageSizeChange"
+            style="width: 120px;"
+          >
+            <el-option
+              v-for="size in settingsStore.getPageSizeOptions('inbox')"
+              :key="size"
+              :label="`${size}条`"
+              :value="size"
+            />
           </el-select>
           <el-select
             v-model="inboxStore.selectedAccountId"
@@ -54,7 +68,15 @@
       
 
 
-      <div v-if="inboxStore.isLoading && !inboxStore.emails.length" v-loading="true" class="loading-spinner"></div>
+      <div v-if="inboxStore.isLoading && !inboxStore.emails.length" v-loading="true" class="loading-spinner">
+        <div class="loading-content">
+          <el-icon class="loading-icon" :size="40">
+            <Loading />
+          </el-icon>
+          <p class="loading-text">正在获取邮件，请稍候...</p>
+          <p class="loading-subtext">Gmail API 需要一些时间来获取您的邮件</p>
+        </div>
+      </div>
 
       <div v-else-if="inboxStore.emails.length > 0" class="email-list">
         <!-- ★★★★★ KEY BINDING FIX IS HERE ★★★★★ -->
@@ -81,11 +103,12 @@
 
 <script>
 // The <script> and <style> sections remain unchanged.
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useInboxStore } from '@/stores/inbox';
 import { useEmailAccountStore } from '@/stores/emailAccount';
+import { useSettingsStore } from '@/stores/settings';
 import EmailListItem from '@/components/EmailListItem.vue';
-import { Refresh as RefreshIcon } from '@element-plus/icons-vue';
+import { Refresh as RefreshIcon, Loading } from '@element-plus/icons-vue';
 
 
 export default {
@@ -96,6 +119,7 @@ export default {
   setup() {
     const inboxStore = useInboxStore();
     const emailAccountStore = useEmailAccountStore();
+    const settingsStore = useSettingsStore();
     const inboxContainer = ref(null);
 
     const handleAccountChange = async (accountId) => {
@@ -151,6 +175,59 @@ export default {
       }
     };
 
+    const handlePageSizeChange = async (newSize) => {
+      console.log('📄 handlePageSizeChange called with newSize:', newSize);
+
+      // 保存收件箱页面专用的分页设置
+      settingsStore.setPageSize('inbox', newSize);
+
+      // 重新获取邮件
+      if (inboxStore.selectedAccountId) {
+        await inboxStore.selectAccount(inboxStore.selectedAccountId);
+      }
+    };
+
+    // 根据选择的账户提供商显示不同的文件夹
+    const availableFolders = computed(() => {
+      const selectedAccount = emailAccountStore.emailAccounts.find(
+        account => account.id === inboxStore.selectedAccountId
+      );
+
+      if (!selectedAccount) {
+        return [{ label: '收件箱', value: 'inbox' }];
+      }
+
+      // 根据提供商返回不同的文件夹
+      if (selectedAccount.provider === 'google') {
+        return [
+          { label: '收件箱', value: 'inbox' },
+          { label: '已发送', value: 'sentitems' },
+          { label: '草稿箱', value: 'drafts' },
+          { label: '垃圾邮件', value: 'junkemail' },
+          { label: '已删除', value: 'deleteditems' },
+          { label: '重要邮件', value: 'important' },
+          { label: '星标邮件', value: 'starred' }
+        ];
+      } else if (selectedAccount.provider === 'microsoft') {
+        return [
+          { label: '收件箱', value: 'inbox' },
+          { label: '已发送', value: 'sentitems' },
+          { label: '草稿箱', value: 'drafts' },
+          { label: '垃圾邮件', value: 'junkemail' },
+          { label: '已删除', value: 'deleteditems' }
+        ];
+      } else {
+        // 其他提供商或IMAP
+        return [
+          { label: '收件箱', value: 'inbox' },
+          { label: '已发送', value: 'sentitems' },
+          { label: '草稿箱', value: 'drafts' },
+          { label: '垃圾邮件', value: 'junkemail' },
+          { label: '已删除', value: 'deleteditems' }
+        ];
+      }
+    });
+
    // InboxView.vue -> onMounted
 
 // ... in setup() ...
@@ -197,12 +274,16 @@ onMounted(async () => { // ★ 标记为 async
     return {
       inboxStore,
       emailAccountStore,
+      settingsStore,
       inboxContainer,
       handleScroll,
       handleAccountChange,
       handleRefresh,
       handleFolderChange,
+      handlePageSizeChange,
+      availableFolders,
       RefreshIcon,
+      Loading,
     };
   },
 };
@@ -231,9 +312,58 @@ onMounted(async () => { // ★ 标记为 async
 .email-list {
   flex-grow: 1;
   overflow-y: auto;
+  padding: 0 4px;
+}
+
+.email-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.email-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.email-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.email-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 .loading-spinner {
-  height: 200px;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-content {
+  text-align: center;
+}
+
+.loading-icon {
+  color: #409eff;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 16px;
+  color: #303133;
+  margin: 8px 0;
+}
+
+.loading-subtext {
+  font-size: 14px;
+  color: #909399;
+  margin: 0;
 }
 .email-list {
   margin-top: 20px;

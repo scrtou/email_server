@@ -25,6 +25,7 @@ type GraphAPIMessage struct {
 	From             GraphAPIAddress   `json:"from"`
 	ToRecipients     []GraphAPIAddress `json:"toRecipients"`
 	IsRead           bool              `json:"isRead"`
+	HasAttachments   bool              `json:"hasAttachments"`
 }
 
 type GraphAPIAddress struct {
@@ -100,9 +101,9 @@ func FetchEmailsWithGraphAPIFromFolder(emailAccount models.EmailAccount, page, p
 		return nil, 0, fmt.Errorf("failed to get oauth2 client: %w", err)
 	}
 
-	// 构建Graph API请求URL，支持不同的文件夹
+	// 构建Graph API请求URL，支持不同的文件夹，包含isRead字段
 	skip := (page - 1) * pageSize
-	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/me/mailFolders/%s/messages?$top=%d&$skip=%d&$orderby=receivedDateTime desc&$count=true", folderName, pageSize, skip)
+	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/me/mailFolders/%s/messages?$top=%d&$skip=%d&$orderby=receivedDateTime desc&$count=true&$select=id,receivedDateTime,subject,from,toRecipients,isRead,hasAttachments", folderName, pageSize, skip)
 
 	log.Printf("[FetchEmailsWithGraphAPIFromFolder] Requesting URL: %s", url)
 
@@ -148,12 +149,17 @@ func FetchEmailsWithGraphAPIFromFolder(emailAccount models.EmailAccount, page, p
 		}
 
 		emails = append(emails, models.Email{
-			MessageID: msg.ID,
-			Subject:   msg.Subject,
-			Date:      msg.ReceivedDateTime,
-			From:      from,
-			To:        to,
+			MessageID:     msg.ID,
+			Subject:       msg.Subject,
+			Date:          msg.ReceivedDateTime,
+			From:          from,
+			To:            to,
+			IsRead:        msg.IsRead,
+			HasAttachment: msg.HasAttachments,
 		})
+
+		// 调试日志：输出已读状态
+		log.Printf("[Graph] Message %s IsRead: %v", msg.ID, msg.IsRead)
 	}
 
 	total := graphResponse.Count
@@ -289,4 +295,44 @@ func FetchEmailDetailWithGraphAPI(emailAccount models.EmailAccount, messageId st
 	}
 
 	return email, nil
+}
+
+// MarkMicrosoftEmailAsRead 标记Microsoft邮件为已读
+func MarkMicrosoftEmailAsRead(emailAccount models.EmailAccount, messageID string) error {
+	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get oauth2 client: %w", err)
+	}
+
+	// Microsoft Graph API修改邮件的请求体
+	requestBody := map[string]interface{}{
+		"isRead": true,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// 调用Microsoft Graph API修改邮件
+	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/me/messages/%s", messageID)
+	req, err := http.NewRequest("PATCH", url, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to call graph api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("graph api returned non-200 status: %s", resp.Status)
+	}
+
+	log.Printf("[MarkMicrosoftEmailAsRead] Successfully marked message %s as read", messageID)
+	return nil
 }
