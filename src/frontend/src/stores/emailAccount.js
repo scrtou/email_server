@@ -44,6 +44,9 @@ export const useEmailAccountStore = defineStore('emailAccount', {
      this.emailAccounts = [];
      this.pagination.totalItems = 0;
      this.pagination.currentPage = 1;
+     // 同时清空过滤条件，确保获取所有账号
+     this.filters.provider = '';
+     this.filters.emailAddressSearch = '';
    },
     // Action to clear all filters
     clearFilters() {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -94,7 +95,10 @@ func FetchEmailsWithGmailAPIFromFolder(emailAccount models.EmailAccount, page, p
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf("gmail api returned non-200 status: %s", resp.Status)
+		// 读取响应体以获取更详细的错误信息
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[FetchEmailsWithGmailAPIFromFolder] Gmail API error response: %s", string(body))
+		return nil, 0, fmt.Errorf("gmail api returned non-200 status: %s, body: %s", resp.Status, string(body))
 	}
 
 	var listResponse GmailListResponse

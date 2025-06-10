@@ -94,7 +94,7 @@ func seedOAuthProviders() {
 		"google": {
 			AuthURL:    "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:   "https://oauth2.googleapis.com/token",
-			Scopes:     "https://mail.google.com/,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/userinfo.profile",
+			Scopes:     "https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/userinfo.profile,https://www.googleapis.com/auth/gmail.readonly",
 			IMAPServer: "imap.gmail.com",
 			IMAPPort:   993,
 		},
