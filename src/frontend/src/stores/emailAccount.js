@@ -242,6 +242,21 @@ export const useEmailAccountStore = defineStore('emailAccount', {
     setCurrentEmailAccount(account) {
         this.currentEmailAccount = account;
     },
+    async getPassword(id) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] getPassword called while not authenticated.');
+        throw new Error('请先登录再获取密码');
+      }
+
+      try {
+        const response = await emailAccountAPI.getPassword(id);
+        return response.password;
+      } catch (err) {
+        const errorMessage = err.response?.data?.message || err.message || '获取密码失败';
+        throw new Error(errorMessage);
+      }
+    },
     async fetchAssociatedPlatformRegistrations(emailAccountId, params = { page: 1, pageSize: 5 }) {
       const authStore = useAuthStore();
       if (!authStore.isAuthenticated) {

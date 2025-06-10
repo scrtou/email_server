@@ -563,3 +563,64 @@ func GetEmailAccountProviders(c *gin.Context) {
 
 	utils.SendSuccessResponse(c, uniqueProviders)
 }
+
+// GetEmailAccountPassword 获取邮箱账户的密码
+func GetEmailAccountPassword(c *gin.Context) {
+	// 获取用户ID
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	actualUserID := uint(userID)
+
+	// 获取邮箱账户ID
+	emailAccountID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "无效的邮箱账户ID格式")
+		return
+	}
+
+	// 查询邮箱账户
+	var emailAccount models.EmailAccount
+	if err := database.DB.Where("id = ? AND user_id = ?", emailAccountID, actualUserID).First(&emailAccount).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "邮箱账户未找到或无权访问")
+			return
+		}
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询邮箱账户失败: "+err.Error())
+		return
+	}
+
+	// 检查是否有密码
+	if emailAccount.PasswordEncrypted == "" {
+		utils.SendErrorResponse(c, http.StatusNotFound, "该邮箱账户未设置密码")
+		return
+	}
+
+	// 解密密码
+	var decryptedPassword string
+	if utils.IsEncryptedPassword(emailAccount.PasswordEncrypted) {
+		// 新的加密格式，可以解密
+		decryptedPassword, err = utils.DecryptPassword(emailAccount.PasswordEncrypted)
+		if err != nil {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "密码解密失败: "+err.Error())
+			return
+		}
+	} else {
+		// 旧的bcrypt格式，无法解密
+		utils.SendErrorResponse(c, http.StatusBadRequest, "该密码使用旧格式存储，无法查看。请重新设置密码。")
+		return
+	}
+
+	response := map[string]string{
+		"password": decryptedPassword,
+	}
+	utils.SendSuccessResponse(c, response)
+}

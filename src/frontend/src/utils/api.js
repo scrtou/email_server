@@ -138,6 +138,7 @@ export const emailAccountAPI = {
   create: (data) => api.post('/email-accounts', data),
   update: (id, data) => api.put(`/email-accounts/${id}`, data),
   delete: (id) => api.delete(`/email-accounts/${id}`),
+  getPassword: (id) => api.get(`/email-accounts/${id}/password`), // 新增：获取邮箱账户密码
   getAssociatedPlatformRegistrations: (emailAccountId, params = {}) => api.get(`/email-accounts/${emailAccountId}/platform-registrations`, { params }),
   getUniqueProviders: () => api.get('/email-accounts/providers'), // Added for provider filter dropdown
 };
