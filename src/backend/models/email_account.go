@@ -19,15 +19,16 @@ type EmailAccount struct {
 
 // EmailAccountResponse 用于API响应，不包含敏感信息
 type EmailAccountResponse struct {
-	ID            uint   `json:"id"`
-	EmailAddress  string `json:"email_address"`
-	Provider      string `json:"provider"`
-	IMAPServer    string `json:"imap_server"`
-	IMAPPort      int    `json:"imap_port"`
-	Notes         string `json:"notes"`
-	PhoneNumber   string `json:"phone_number,omitempty"`
+	ID               uint   `json:"id"`
+	EmailAddress     string `json:"email_address"`
+	Provider         string `json:"provider"`
+	IMAPServer       string `json:"imap_server"`
+	IMAPPort         int    `json:"imap_port"`
+	Notes            string `json:"notes"`
+	PhoneNumber      string `json:"phone_number,omitempty"`
 	PlatformCount    int64  `json:"platform_count"` // 添加关联平台数量字段
 	IsOAuthConnected bool   `json:"is_oauth_connected"`
+	HasPassword      bool   `json:"has_password"` // 是否设置了密码
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
 }
@@ -43,6 +44,7 @@ func (ea *EmailAccount) ToEmailAccountResponse() EmailAccountResponse {
 		IMAPPort:     ea.IMAPPort,
 		Notes:        ea.Notes,
 		PhoneNumber:  ea.PhoneNumber,
+		HasPassword:  ea.PasswordEncrypted != "", // 检查是否设置了密码
 		// PlatformCount: 0, // 这里暂时不直接赋值，由 handler 处理
 		CreatedAt: ea.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt: ea.UpdatedAt.Format("2006-01-02 15:04:05"),

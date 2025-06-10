@@ -85,6 +85,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 			emailAccounts.POST("", handlers.CreateEmailAccount)
 			emailAccounts.GET("", handlers.GetEmailAccounts)
 			emailAccounts.GET("/:id", handlers.GetEmailAccountByID)
+			emailAccounts.GET("/:id/password", handlers.GetEmailAccountPassword) // 新增：获取邮箱账户密码
 			emailAccounts.PUT("/:id", handlers.UpdateEmailAccount)
 			emailAccounts.DELETE("/:id", handlers.DeleteEmailAccount)
 			emailAccounts.GET("/providers", handlers.GetEmailAccountProviders)                                  // 新增：获取唯一服务商列表
