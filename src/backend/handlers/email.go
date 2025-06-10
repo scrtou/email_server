@@ -241,40 +241,61 @@ func GetEmailDetail(c *gin.Context) {
 		return
 	}
 
-	// 5. Get provider information through UserOAuthToken
+	// 5. Check if this is an OAuth2 account or password-based IMAP account
 	var oauthToken models.UserOAuthToken
-	if err := database.DB.Where("email_account_id = ?", emailAccount.ID).First(&oauthToken).Error; err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "No OAuth token found for this email account")
+	isOAuth2 := false
+	if err := database.DB.Where("email_account_id = ?", emailAccount.ID).First(&oauthToken).Error; err == nil {
+		isOAuth2 = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[GetEmailDetail] Error checking for OAuth2 token: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to check account authentication type")
 		return
 	}
 
-	var provider models.OAuthProvider
-	if err := database.DB.First(&provider, oauthToken.ProviderID).Error; err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve provider information")
-		return
-	}
-
-	// 6. Fetch email detail using provider-specific API
+	// 6. Fetch email detail using appropriate method
 	var email *models.Email
-	if provider.Name == "microsoft" {
-		log.Printf("[GetEmailDetail] Provider is '%s'. Using Microsoft Graph API to fetch email detail.", provider.Name)
-		email, err = integrations.FetchEmailDetailWithGraphAPI(emailAccount, messageId)
-		if err != nil {
-			log.Printf("[GetEmailDetail] Error fetching email detail: %v", err)
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+	if isOAuth2 {
+		// OAuth2 account - use provider-specific API
+		var provider models.OAuthProvider
+		if err := database.DB.First(&provider, oauthToken.ProviderID).Error; err != nil {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve provider information")
 			return
 		}
-	} else if provider.Name == "google" {
-		log.Printf("[GetEmailDetail] Provider is '%s'. Using Gmail API to fetch email detail.", provider.Name)
-		email, err = integrations.FetchGmailMessageDetail(emailAccount, messageId)
-		if err != nil {
-			log.Printf("[GetEmailDetail] Error fetching Gmail email detail: %v", err)
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+
+		if provider.Name == "microsoft" {
+			log.Printf("[GetEmailDetail] Provider is '%s'. Using Microsoft Graph API to fetch email detail.", provider.Name)
+			email, err = integrations.FetchEmailDetailWithGraphAPI(emailAccount, messageId)
+			if err != nil {
+				log.Printf("[GetEmailDetail] Error fetching email detail: %v", err)
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+				return
+			}
+		} else if provider.Name == "google" {
+			log.Printf("[GetEmailDetail] Provider is '%s'. Using Gmail API to fetch email detail.", provider.Name)
+			email, err = integrations.FetchGmailMessageDetail(emailAccount, messageId)
+			if err != nil {
+				log.Printf("[GetEmailDetail] Error fetching Gmail email detail: %v", err)
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+				return
+			}
+		} else {
+			utils.SendErrorResponse(c, http.StatusNotImplemented, "Provider not supported for email detail fetching")
 			return
 		}
 	} else {
-		utils.SendErrorResponse(c, http.StatusNotImplemented, "Provider not supported for email detail fetching")
-		return
+		// Password-based IMAP account - use IMAP to fetch email detail
+		log.Printf("[GetEmailDetail] Account is not OAuth2. Using standard IMAP to fetch email detail.")
+		// Check for IMAP settings for non-OAuth accounts
+		if emailAccount.IMAPServer == "" || emailAccount.IMAPPort == 0 {
+			utils.SendErrorResponse(c, http.StatusBadRequest, "IMAP settings are not configured for this non-OAuth email account.")
+			return
+		}
+		email, err = integrations.FetchEmailDetailWithIMAP(emailAccount, messageId)
+		if err != nil {
+			log.Printf("[GetEmailDetail] Error fetching email detail with IMAP: %v", err)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch email detail: "+err.Error())
+			return
+		}
 	}
 
 	if email == nil {
