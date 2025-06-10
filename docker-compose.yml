@@ -23,7 +23,18 @@ services:
       LINUXDO_AUTH_URL: "${LINUXDO_AUTH_URL:-https://connect.linux.do/oauth2/authorize}"
       LINUXDO_TOKEN_URL: "${LINUXDO_TOKEN_URL:-https://connect.linux.do/oauth2/token}"
       LINUXDO_USER_INFO_URL: "${LINUXDO_USER_INFO_URL:-https://connect.linux.do/api/user}"
+      # Google OAuth2 配置
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-http://localhost:5555/api/v1/oauth2/callback/google}"
+      # Microsoft OAuth2 配置
+      MICROSOFT_CLIENT_ID: "${MICROSOFT_CLIENT_ID}"
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET}"
+      MICROSOFT_REDIRECT_URI: "${MICROSOFT_REDIRECT_URI:-http://localhost:5555/api/v1/oauth2/callback/microsoft}"
+      # 其他配置
       FRONTEND_BASE_URL: "${FRONTEND_BASE_URL:-http://localhost:8080}"
+      BACKEND_BASE_URL: "${BACKEND_BASE_URL:-http://localhost:5555}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:-12345678901234567890123456789012}"
     volumes:
       - ./data/backend:/data # 持久化数据库文件：宿主机路径:容器内路径
       # 或者使用Docker管理的volume（推荐）:
