@@ -14,6 +14,11 @@ class FormDetector {
     this.checkExtensionStatus();
     this.startFormDetection();
     this.listenForMessages();
+
+    // 延迟检查待处理的提示，确保页面完全加载
+    setTimeout(() => {
+      this.checkAndRestorePendingPrompts();
+    }, 1000);
   }
 
   // 检查扩展状态
@@ -403,9 +408,41 @@ class FormDetector {
   }
 
   showSavePrompt(data) {
+    console.log('💬 显示保存提示，先保存到存储中以防页面刷新');
+
+    // 生成唯一的提示ID
+    const promptId = `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 将提示数据保存到存储中，以防页面刷新
+    const promptData = {
+      id: promptId,
+      data: data,
+      timestamp: Date.now(),
+      url: window.location.href,
+      domain: this.getPlatformName()
+    };
+
+    chrome.storage.local.set({
+      [`pendingPrompt_${promptId}`]: promptData
+    }, () => {
+      console.log('✅ 提示数据已保存到存储:', promptId);
+      // 保存成功后显示弹框
+      this.displaySavePrompt(data, promptId);
+    });
+  }
+
+  displaySavePrompt(data, promptId) {
+    // 检查是否已经存在弹框，避免重复显示
+    const existingPrompt = document.getElementById('email-server-save-prompt');
+    if (existingPrompt) {
+      console.log('⚠️ 弹框已存在，移除旧弹框');
+      existingPrompt.remove();
+    }
+
     // 创建保存提示框
     const promptDiv = document.createElement('div');
     promptDiv.id = 'email-server-save-prompt';
+    promptDiv.setAttribute('data-prompt-id', promptId);
     promptDiv.style.cssText = `
       position: fixed;
       top: 20px;
@@ -419,7 +456,21 @@ class FormDetector {
       font-family: Arial, sans-serif;
       font-size: 14px;
       max-width: 300px;
+      animation: slideInRight 0.3s ease-out;
     `;
+
+    // 添加动画样式
+    if (!document.getElementById('email-server-prompt-styles')) {
+      const style = document.createElement('style');
+      style.id = 'email-server-prompt-styles';
+      style.textContent = `
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
     promptDiv.innerHTML = `
       <div style="margin-bottom: 10px; font-weight: bold; color: #007cba;">
@@ -444,16 +495,144 @@ class FormDetector {
 
     // 绑定按钮事件
     document.getElementById('save-to-server').addEventListener('click', () => {
+      console.log('💾 用户点击保存到服务器');
       this.saveToServer(data);
+      this.removePendingPrompt(promptId);
       promptDiv.remove();
     });
 
     document.getElementById('dismiss-prompt').addEventListener('click', () => {
+      console.log('❌ 用户点击忽略提示');
+      this.removePendingPrompt(promptId);
       promptDiv.remove();
+    });
+
+    console.log('✅ 弹框已显示，ID:', promptId);
+  }
+
+  // 移除待处理的提示
+  removePendingPrompt(promptId) {
+    console.log('🗑️ 移除待处理提示:', promptId);
+    chrome.storage.local.remove(`pendingPrompt_${promptId}`, () => {
+      console.log('✅ 待处理提示已从存储中移除');
     });
   }
 
+  // 检查并恢复待处理的提示（页面加载时调用）
+  checkAndRestorePendingPrompts() {
+    console.log('🔍 检查是否有待处理的提示和确认需要恢复');
 
+    chrome.storage.local.get(null, (items) => {
+      const currentDomain = this.getPlatformName();
+      const currentUrl = window.location.href;
+      const now = Date.now();
+
+      // 查找所有待处理的提示
+      const pendingPrompts = Object.keys(items)
+        .filter(key => key.startsWith('pendingPrompt_'))
+        .map(key => ({ key, data: items[key], type: 'prompt' }))
+        .filter(item => {
+          // 检查是否是当前域名的提示
+          const isSameDomain = item.data.domain === currentDomain;
+          // 检查提示是否过期（超过10分钟）
+          const isNotExpired = (now - item.data.timestamp) < 10 * 60 * 1000;
+
+          console.log('📋 检查提示:', {
+            promptId: item.data.id,
+            domain: item.data.domain,
+            currentDomain,
+            isSameDomain,
+            age: Math.round((now - item.data.timestamp) / 1000),
+            isNotExpired
+          });
+
+          return isSameDomain && isNotExpired;
+        });
+
+      // 查找所有待处理的确认
+      const pendingConfirms = Object.keys(items)
+        .filter(key => key.startsWith('pendingConfirm_'))
+        .map(key => ({ key, data: items[key], type: 'confirm' }))
+        .filter(item => {
+          // 检查是否是当前域名的确认
+          const isSameDomain = item.data.domain === currentDomain;
+          // 检查确认是否过期（超过10分钟）
+          const isNotExpired = (now - item.data.timestamp) < 10 * 60 * 1000;
+
+          console.log('📋 检查确认:', {
+            confirmId: item.data.id,
+            domain: item.data.domain,
+            currentDomain,
+            isSameDomain,
+            age: Math.round((now - item.data.timestamp) / 1000),
+            isNotExpired
+          });
+
+          return isSameDomain && isNotExpired;
+        });
+
+      // 合并所有待处理的项目
+      const allPendingItems = [...pendingPrompts, ...pendingConfirms];
+
+      if (allPendingItems.length > 0) {
+        console.log(`🔄 找到 ${allPendingItems.length} 个待恢复的项目 (${pendingPrompts.length} 个提示, ${pendingConfirms.length} 个确认)`);
+
+        // 只恢复最新的一个项目，避免多个弹框
+        const latestItem = allPendingItems.sort((a, b) => b.data.timestamp - a.data.timestamp)[0];
+
+        if (latestItem.type === 'prompt') {
+          console.log('🚀 恢复最新的提示:', latestItem.data.id);
+          this.displaySavePrompt(latestItem.data.data, latestItem.data.id);
+        } else if (latestItem.type === 'confirm') {
+          console.log('🚀 恢复最新的确认:', latestItem.data.id);
+          this.displayUpdateConfirmation(latestItem.data.data, latestItem.data.conflictData, latestItem.data.id);
+        }
+
+        // 清理其他过期或重复的项目
+        allPendingItems.slice(1).forEach(item => {
+          console.log('🗑️ 清理重复项目:', item.data.id);
+          chrome.storage.local.remove(item.key);
+        });
+      } else {
+        console.log('ℹ️ 没有找到需要恢复的提示或确认');
+      }
+
+      // 清理所有过期的项目（超过10分钟）
+      this.cleanupExpiredItems();
+    });
+  }
+
+  // 清理过期的提示和确认
+  cleanupExpiredItems() {
+    chrome.storage.local.get(null, (items) => {
+      const now = Date.now();
+
+      // 查找过期的提示
+      const expiredPrompts = Object.keys(items)
+        .filter(key => key.startsWith('pendingPrompt_'))
+        .filter(key => {
+          const item = items[key];
+          return (now - item.timestamp) > 10 * 60 * 1000; // 10分钟过期
+        });
+
+      // 查找过期的确认
+      const expiredConfirms = Object.keys(items)
+        .filter(key => key.startsWith('pendingConfirm_'))
+        .filter(key => {
+          const item = items[key];
+          return (now - item.timestamp) > 10 * 60 * 1000; // 10分钟过期
+        });
+
+      const allExpiredKeys = [...expiredPrompts, ...expiredConfirms];
+
+      if (allExpiredKeys.length > 0) {
+        console.log(`🗑️ 清理 ${allExpiredKeys.length} 个过期项目 (${expiredPrompts.length} 个提示, ${expiredConfirms.length} 个确认)`);
+        chrome.storage.local.remove(allExpiredKeys, () => {
+          console.log('✅ 过期项目已清理');
+        });
+      }
+    });
+  }
 
   // 检查是否需要提示用户（手动模式）- 简化逻辑，直接显示保存提示
   checkIfNeedToPromptManual(data) {
@@ -639,9 +818,43 @@ class FormDetector {
   }
 
   showUpdateConfirmation(data, conflictData) {
+    console.log('⚠️ 显示密码更新确认，先保存到存储中以防页面刷新');
+
+    // 生成唯一的确认ID
+    const confirmId = `confirm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 将确认数据保存到存储中，以防页面刷新
+    const confirmData = {
+      id: confirmId,
+      type: 'update_confirmation',
+      data: data,
+      conflictData: conflictData,
+      timestamp: Date.now(),
+      url: window.location.href,
+      domain: this.getPlatformName()
+    };
+
+    chrome.storage.local.set({
+      [`pendingConfirm_${confirmId}`]: confirmData
+    }, () => {
+      console.log('✅ 确认数据已保存到存储:', confirmId);
+      // 保存成功后显示确认框
+      this.displayUpdateConfirmation(data, conflictData, confirmId);
+    });
+  }
+
+  displayUpdateConfirmation(data, conflictData, confirmId) {
+    // 检查是否已经存在确认框，避免重复显示
+    const existingConfirm = document.getElementById('email-server-update-confirm');
+    if (existingConfirm) {
+      console.log('⚠️ 确认框已存在，移除旧确认框');
+      existingConfirm.remove();
+    }
+
     // 创建更新确认对话框，与其他弹框保持一致的样式
     const confirmDiv = document.createElement('div');
     confirmDiv.id = 'email-server-update-confirm';
+    confirmDiv.setAttribute('data-confirm-id', confirmId);
     confirmDiv.style.cssText = `
       position: fixed;
       top: 20px;
@@ -655,6 +868,7 @@ class FormDetector {
       font-family: Arial, sans-serif;
       font-size: 14px;
       max-width: 300px;
+      animation: slideInRight 0.3s ease-out;
     `;
 
     confirmDiv.innerHTML = `
@@ -681,16 +895,28 @@ class FormDetector {
 
     // 绑定按钮事件
     document.getElementById('update-password-btn').addEventListener('click', () => {
+      console.log('🔄 用户点击更新密码');
       this.updatePassword(conflictData.existing_id, data.login_password, data);
+      this.removePendingConfirm(confirmId);
       confirmDiv.remove();
     });
 
     document.getElementById('cancel-update-btn').addEventListener('click', () => {
+      console.log('❌ 用户点击忽略更新');
+      this.removePendingConfirm(confirmId);
       confirmDiv.remove();
     });
+
+    console.log('✅ 确认框已显示，ID:', confirmId);
   }
 
-
+  // 移除待处理的确认
+  removePendingConfirm(confirmId) {
+    console.log('🗑️ 移除待处理确认:', confirmId);
+    chrome.storage.local.remove(`pendingConfirm_${confirmId}`, () => {
+      console.log('✅ 待处理确认已从存储中移除');
+    });
+  }
 
   // 检查密码是否有变化，决定是否提示用户（自动模式）
   checkPasswordChangeAndPrompt(newData, conflictData) {
