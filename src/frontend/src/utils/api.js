@@ -205,6 +205,12 @@ emailApi.interceptors.request.use(
 emailApi.interceptors.response.use(
   response => {
     console.log('📧 邮件API响应:', response.config.url, '状态:', response.status)
+
+    // 特殊处理OAuth2令牌状态检查API - 它直接返回状态数据，不使用标准响应格式
+    if (response.config.url && response.config.url.includes('/inbox/oauth2/status')) {
+      return response.data; // 直接返回响应数据
+    }
+
     if (response.data.code === 200 || response.status === 201 || response.status === 200) {
       if (response.data.meta) {
         return { data: response.data.data, meta: response.data.meta };

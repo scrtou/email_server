@@ -160,7 +160,8 @@ const loadOAuth2Accounts = async () => {
   try {
     loading.value = true
     const response = await emailAccountAPI.getConfigured()
-    const accounts = response.data.data || []
+    // getConfigured使用标准API，拦截器返回response.data.data，所以response就是账户数组
+    const accounts = response || []
 
     console.log('🔐 加载的邮箱账户:', accounts)
 
@@ -245,7 +246,10 @@ const checkSingleStatus = async (accountId, showMessage = true) => {
     statusItem.status = 'checking'
     
     const response = await checkOAuth2TokenStatus(accountId)
-    const { status, message } = response.data
+    // 令牌状态检查API直接返回状态数据，不使用标准响应格式
+    const { status, message } = response
+
+    console.log('🔐 令牌状态检查响应:', response)
     
     statusItem.status = status
     statusItem.message = message

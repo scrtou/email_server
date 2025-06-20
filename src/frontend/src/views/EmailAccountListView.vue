@@ -222,7 +222,10 @@ const checkTokenStatus = async (accountId) => {
   checkingTokens.value.add(accountId);
   try {
     const response = await checkOAuth2TokenStatus(accountId);
-    const { status, message, provider } = response.data;
+    // 令牌状态检查API直接返回状态数据，不使用标准响应格式
+    const { status, message, provider } = response;
+
+    console.log('🔐 令牌状态检查响应:', response);
 
     tokenStatuses.value.set(accountId, {
       status,

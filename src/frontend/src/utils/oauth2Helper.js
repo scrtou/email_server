@@ -11,9 +11,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 export async function checkAndHandleOAuth2Status(accountId, showSuccessMessage = false) {
   try {
     const response = await checkOAuth2TokenStatus(accountId)
-    const { status, message, provider, reauth_required } = response.data
+    // 令牌状态检查API直接返回状态数据，不使用标准响应格式
+    const { status, message, provider, reauth_required } = response
 
-    console.log('🔐 OAuth2令牌状态检查结果:', response.data)
+    console.log('🔐 OAuth2令牌状态检查结果:', response)
 
     switch (status) {
       case 'valid':
