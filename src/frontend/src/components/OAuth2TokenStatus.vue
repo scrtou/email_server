@@ -150,15 +150,14 @@ const loadOAuth2Accounts = async () => {
     loading.value = true
     const response = await emailAccountAPI.getConfigured()
     const accounts = response.data.data || []
-    
-    // 过滤出OAuth2账户（有provider信息的）
-    const oauth2Accounts = accounts.filter(account => 
-      account.provider && 
-      (account.provider.toLowerCase().includes('google') || 
-       account.provider.toLowerCase().includes('microsoft') ||
-       account.provider.toLowerCase().includes('outlook'))
-    )
-    
+
+    console.log('🔐 加载的邮箱账户:', accounts)
+
+    // 过滤出OAuth2账户（使用is_oauth_connected字段）
+    const oauth2Accounts = accounts.filter(account => account.is_oauth_connected)
+
+    console.log('🔐 过滤后的OAuth2账户:', oauth2Accounts)
+
     tokenStatuses.value = oauth2Accounts.map(account => ({
       accountId: account.id,
       email: account.email_address,
@@ -167,9 +166,13 @@ const loadOAuth2Accounts = async () => {
       checking: false,
       message: ''
     }))
-    
+
+    console.log('🔐 设置的令牌状态:', tokenStatuses.value)
+
     // 自动检查所有账户的状态
-    await checkAllStatuses()
+    if (tokenStatuses.value.length > 0) {
+      await checkAllStatuses()
+    }
   } catch (error) {
     console.error('加载OAuth2账户失败:', error)
     ElMessage.error('加载OAuth2账户失败')

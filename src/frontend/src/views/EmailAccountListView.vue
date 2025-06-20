@@ -9,7 +9,7 @@ import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 import ModalDialog from '@/components/ui/ModalDialog.vue'; // Import ModalDialog
 import EmailAccountForm from '@/components/forms/EmailAccountForm.vue'; // Import EmailAccountForm
-import { oauth2API } from '@/utils/api';
+import { oauth2API, checkOAuth2TokenStatus } from '@/utils/api';
 
 // const router = useRouter(); // Keep for other navigation if any, or remove if not used at all
 const emailAccountStore = useEmailAccountStore();
@@ -43,6 +43,10 @@ const emailAccountFormRef = ref(null);
 
 const currentEmailAccountForDialog = ref(null); // To store the email account context for dialogs
 const accountToConnect = ref(null); // Store the account for which the connect dialog is opened
+
+// OAuth2令牌状态管理
+const tokenStatuses = ref(new Map()); // 存储每个账户的令牌状态
+const checkingTokens = ref(new Set()); // 正在检查令牌状态的账户ID
 
 const associatedInfoDialog = reactive({
   visible: false,
@@ -80,6 +84,11 @@ onMounted(() => {
     // Filters are now part of the store's fetchEmailAccounts internal logic
   );
   emailAccountStore.fetchUniqueProviders(); // Fetch providers for the dropdown
+
+  // 延迟检查OAuth2令牌状态，等待邮箱账户数据加载完成
+  setTimeout(() => {
+    checkAllTokenStatuses();
+  }, 1000);
 });
 
 // 监听邮箱账户页面专用的 pageSize 变化，同步到当前 store
@@ -205,6 +214,85 @@ const handleConnectWithProvider = async (provider) => {
   }
 };
 
+// 检查单个账户的OAuth2令牌状态
+const checkTokenStatus = async (accountId) => {
+  if (checkingTokens.value.has(accountId)) return; // 避免重复检查
+
+  checkingTokens.value.add(accountId);
+  try {
+    const response = await checkOAuth2TokenStatus(accountId);
+    const { status, message, provider } = response.data;
+
+    tokenStatuses.value.set(accountId, {
+      status,
+      message,
+      provider,
+      lastChecked: new Date()
+    });
+
+    if (status === 'expired' || status === 'error') {
+      ElMessage.warning(`账户 ${accountId} 的令牌状态：${message}`);
+    }
+  } catch (error) {
+    console.error(`检查账户 ${accountId} 令牌状态失败:`, error);
+    tokenStatuses.value.set(accountId, {
+      status: 'error',
+      message: '检查失败',
+      provider: 'unknown',
+      lastChecked: new Date()
+    });
+  } finally {
+    checkingTokens.value.delete(accountId);
+  }
+};
+
+// 批量检查所有OAuth2账户的令牌状态
+const checkAllTokenStatuses = async () => {
+  const oauth2Accounts = emailAccountStore.emailAccounts.filter(account => account.is_oauth_connected);
+  const promises = oauth2Accounts.map(account => checkTokenStatus(account.id));
+  await Promise.all(promises);
+};
+
+// 重新授权
+const handleReauthorize = async (account) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要重新授权账户 "${account.email_address}" 吗？`,
+      '重新授权确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    // 检测提供商类型
+    const tokenStatus = tokenStatuses.value.get(account.id);
+    let provider = 'google'; // 默认
+
+    if (tokenStatus && tokenStatus.provider) {
+      provider = tokenStatus.provider;
+    } else if (account.provider) {
+      // 从账户的provider字段推断
+      const providerLower = account.provider.toLowerCase();
+      if (providerLower.includes('microsoft') || providerLower.includes('outlook')) {
+        provider = 'microsoft';
+      }
+    }
+
+    const response = await oauth2API.getConnectURL(provider, account.id);
+    if (response && response.auth_url) {
+      window.location.href = response.auth_url;
+    } else {
+      ElMessage.error('无法获取重新授权链接，请稍后重试。');
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(`重新授权失败: ${error.message || error}`);
+    }
+  }
+};
+
 const handleEdit = (row) => {
   // router.push({ name: 'EmailAccountEdit', params: { id: row.id } }); // Replaced by dialog
   associatedInfoDialog.visible = false; // 确保关联信息弹窗已关闭
@@ -326,6 +414,36 @@ const handleAssociatedPageChange = (payload) => {
   }
 };
 
+// 令牌状态显示辅助函数
+const getTokenStatusTagType = (accountId) => {
+  const status = tokenStatuses.value.get(accountId);
+  if (!status) return 'info';
+
+  switch (status.status) {
+    case 'valid': return 'success';
+    case 'expired': return 'danger';
+    case 'error': return 'warning';
+    default: return 'info';
+  }
+};
+
+const getTokenStatusText = (accountId) => {
+  const status = tokenStatuses.value.get(accountId);
+  if (!status) return '未检查';
+
+  switch (status.status) {
+    case 'valid': return '正常';
+    case 'expired': return '已过期';
+    case 'error': return '错误';
+    default: return '未知';
+  }
+};
+
+const isTokenExpired = (accountId) => {
+  const status = tokenStatuses.value.get(accountId);
+  return status && (status.status === 'expired' || status.status === 'error');
+};
+
 </script>
 
 <template>
@@ -405,9 +523,46 @@ const handleAssociatedPageChange = (payload) => {
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
-        <el-table-column label="连接状态" width="120" align="center">
+        <el-table-column label="连接状态" width="160" align="center">
           <template #default="scope">
-            <el-tag v-if="scope.row.is_oauth_connected" type="success" size="small">已连接</el-tag>
+            <div v-if="scope.row.is_oauth_connected" class="oauth-status-cell">
+              <!-- 显示令牌状态 -->
+              <div class="status-display">
+                <el-tag
+                  :type="getTokenStatusTagType(scope.row.id)"
+                  size="small"
+                  style="margin-bottom: 4px;"
+                >
+                  {{ getTokenStatusText(scope.row.id) }}
+                </el-tag>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="status-actions">
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="checkTokenStatus(scope.row.id)"
+                  :loading="checkingTokens.has(scope.row.id)"
+                  title="检查令牌状态"
+                >
+                  检查
+                </el-button>
+
+                <el-button
+                  v-if="isTokenExpired(scope.row.id)"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="handleReauthorize(scope.row)"
+                  title="重新授权"
+                >
+                  重新授权
+                </el-button>
+              </div>
+            </div>
+
             <el-button v-else type="primary" link size="small" @click="handleConnectClick(scope.row)">
               连接
             </el-button>
@@ -747,5 +902,33 @@ const handleAssociatedPageChange = (payload) => {
 
 .manual-add-link {
   margin-top: 15px;
+}
+
+/* OAuth2状态显示样式 */
+.oauth-status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 50px;
+  justify-content: center;
+}
+
+.status-display {
+  display: flex;
+  justify-content: center;
+}
+
+.status-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.status-actions .el-button {
+  font-size: 11px;
+  padding: 2px 6px;
+  height: 22px;
+  line-height: 1;
 }
 </style>

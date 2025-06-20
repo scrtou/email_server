@@ -690,12 +690,12 @@ body {
 /* === Enhanced Main Content Area === */
 .main-content {
   background: linear-gradient(135deg, var(--app-bg-color-light) 0%, rgba(249, 250, 251, 0.8) 100%);
-  /* overflow-y: auto; */ /* Removed */
-  display: flex; /* Added */
-  flex-direction: column; /* Added */
-  overflow: hidden; /* Added to prevent main content from scrolling */
-  padding: 0; /* Keep padding on child if needed, or manage globally */
+  overflow-y: auto; /* 恢复滚动功能 */
+  display: flex;
+  flex-direction: column;
+  padding: 0;
   position: relative;
+  height: calc(100vh - 0px); /* 确保有足够的高度 */
 }
 
 .main-content::before {
