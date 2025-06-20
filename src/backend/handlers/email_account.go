@@ -402,10 +402,10 @@ func GetConfiguredEmailAccounts(c *gin.Context) {
 
 	// 添加过滤条件：有IMAP配置或有OAuth2连接
 	// 有IMAP配置：IMAPServer不为空且IMAPPort不为0
-	// 有OAuth2连接：在user_oauth_tokens表中有对应记录
+	// 有OAuth2连接：在user_o_auth_tokens表中有对应记录
 	filteredQuery := baseQuery.Where(
 		"(imap_server IS NOT NULL AND imap_server != '' AND imap_port != 0) OR " +
-			"EXISTS (SELECT 1 FROM user_oauth_tokens WHERE user_oauth_tokens.email_account_id = email_accounts.id)")
+			"EXISTS (SELECT 1 FROM user_o_auth_tokens WHERE user_o_auth_tokens.email_account_id = email_accounts.id)")
 
 	// 获取总数
 	if err := filteredQuery.Count(&total).Error; err != nil {
