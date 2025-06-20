@@ -106,6 +106,15 @@ func (ts *refreshableTokenSource) Token() (*oauth2.Token, error) {
 	newToken, err := tokenSource.Token()
 	if err != nil {
 		log.Printf("[Gmail OAuth2] Failed to refresh token for account %d: %v", ts.accountID, err)
+
+		// 检查是否是刷新令牌失效
+		if strings.Contains(err.Error(), "invalid_grant") ||
+			strings.Contains(err.Error(), "Token has been expired or revoked") {
+			// 标记令牌为需要重新授权状态
+			ts.markTokenAsInvalid()
+			return nil, fmt.Errorf("oauth2_refresh_token_expired: Google账户的刷新令牌已过期或被撤销，需要重新授权")
+		}
+
 		return nil, fmt.Errorf("failed to refresh gmail oauth2 token: %w", err)
 	}
 
@@ -148,6 +157,23 @@ func (ts *refreshableTokenSource) updateTokenInDatabase(newToken *oauth2.Token) 
 	}
 
 	return database.DB.Model(ts.oauthToken).Updates(updates).Error
+}
+
+// markTokenAsInvalid 标记令牌为无效状态，需要重新授权
+func (ts *refreshableTokenSource) markTokenAsInvalid() {
+	// 在数据库中添加一个标记字段来表示令牌需要重新授权
+	// 这里我们可以设置一个很早的过期时间来标记令牌无效
+	invalidTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	updates := map[string]interface{}{
+		"expiry": invalidTime,
+	}
+
+	if err := database.DB.Model(ts.oauthToken).Updates(updates).Error; err != nil {
+		log.Printf("[Gmail OAuth2] Failed to mark token as invalid for account %d: %v", ts.accountID, err)
+	} else {
+		log.Printf("[Gmail OAuth2] Marked token as invalid for account %d, requires re-authorization", ts.accountID)
+	}
 }
 
 // GmailMessage 对应 Gmail API 返回的邮件结构

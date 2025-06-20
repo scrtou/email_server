@@ -113,6 +113,14 @@ function redirectToOAuth2Authorization(provider) {
  * @returns {Promise<boolean>} - 是否已处理错误
  */
 export async function handleEmailAPIError(error, accountId) {
+  // 处理OAuth2重新授权需求错误
+  if (error.isReauthRequired) {
+    console.log('🔐 检测到OAuth2重新授权需求:', error)
+
+    await showReauthDialog(error.provider, error.message)
+    return true // 已处理错误
+  }
+
   if (!error.response) {
     return false
   }
@@ -122,16 +130,16 @@ export async function handleEmailAPIError(error, accountId) {
   // 处理401认证错误
   if (status === 401) {
     const message = data?.message || ''
-    
+
     // 检查是否是OAuth2相关错误
-    if (message.includes('Google账户') || message.includes('Microsoft账户') || 
+    if (message.includes('Google账户') || message.includes('Microsoft账户') ||
         message.includes('授权已过期') || message.includes('重新连接')) {
-      
+
       console.log('🔐 检测到OAuth2认证错误，检查令牌状态...')
-      
+
       // 自动检查令牌状态并处理
       const result = await checkAndHandleOAuth2Status(accountId)
-      
+
       if (result.needsReauth) {
         ElMessage.warning('请完成账户重新授权后再试')
         return true // 已处理错误

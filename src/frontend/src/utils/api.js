@@ -220,7 +220,21 @@ emailApi.interceptors.response.use(
     console.error('📧 邮件API错误:', error)
     if (error.response) {
       const status = error.response.status
-      const message = error.response.data?.message || `请求失败 (${status})`
+      const data = error.response.data
+      const message = data?.message || `请求失败 (${status})`
+
+      // 处理OAuth2重新授权需求 (422状态码)
+      if (status === 422 && data?.error === 'oauth2_reauth_required') {
+        console.log('🔐 检测到OAuth2重新授权需求:', data)
+        // 不抛出错误，让调用方处理重新授权逻辑
+        const reauthError = new Error(message)
+        reauthError.isReauthRequired = true
+        reauthError.provider = data.provider
+        reauthError.accountId = data.account_id
+        reauthError.response = error.response
+        throw reauthError
+      }
+
       if (status === 401) {
         const authStore = useAuthStore()
         authStore.logout()

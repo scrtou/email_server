@@ -158,6 +158,27 @@ func GetInbox(c *gin.Context) {
 	// 5. Handle potential errors from fetching
 	if err != nil {
 		log.Printf("[GetInbox] Fetching emails failed with error: %v", err)
+
+		// 检查是否是刷新令牌失效错误
+		if strings.Contains(err.Error(), "oauth2_refresh_token_expired") {
+			// 刷新令牌失效，需要重新授权，但不要让用户登出
+			var provider models.OAuthProvider
+			providerName := "邮箱"
+			if database.DB.First(&provider, oauthToken.ProviderID).Error == nil {
+				providerName = provider.Name
+			}
+
+			// 使用特殊的状态码422表示需要重新授权
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"error":           "oauth2_reauth_required",
+				"message":         fmt.Sprintf("%s账户的授权已过期，需要重新连接", providerName),
+				"provider":        providerName,
+				"account_id":      emailAccount.ID,
+				"reauth_required": true,
+			})
+			return
+		}
+
 		// Provide more user-friendly error messages based on the error type
 		if strings.Contains(err.Error(), "oauth2") || strings.Contains(err.Error(), "re-authenticate") {
 			// 检查是哪个提供商

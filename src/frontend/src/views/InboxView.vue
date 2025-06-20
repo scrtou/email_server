@@ -109,6 +109,7 @@ import { useEmailAccountStore } from '@/stores/emailAccount';
 import { useSettingsStore } from '@/stores/settings';
 import EmailListItem from '@/components/EmailListItem.vue';
 import { Refresh as RefreshIcon, Loading } from '@element-plus/icons-vue';
+import { handleEmailAPIError } from '@/utils/oauth2Helper';
 
 
 export default {
@@ -131,6 +132,13 @@ export default {
         console.log('🔄 selectAccount call completed');
       } catch (error) {
         console.error('🔄 Error calling selectAccount:', error);
+
+        // 尝试处理OAuth2相关错误
+        const handled = await handleEmailAPIError(error, accountId);
+        if (!handled) {
+          // 如果不是OAuth2错误，显示通用错误消息
+          console.error('未处理的错误:', error);
+        }
       }
     };
 
@@ -147,6 +155,12 @@ export default {
         console.log('✅ Refresh completed');
       } catch (error) {
         console.error('❌ Error during refresh:', error);
+
+        // 尝试处理OAuth2相关错误
+        const handled = await handleEmailAPIError(error, inboxStore.selectedAccountId);
+        if (!handled) {
+          console.error('未处理的刷新错误:', error);
+        }
       }
     };
 

@@ -21,6 +21,7 @@ import ServiceSubscriptionListView from '../views/ServiceSubscriptionListView.vu
 import SearchResultView from '../views/SearchResultView.vue' // Import SearchResultView
 import InboxView from '../views/InboxView.vue'
 import EmailDetailView from '../views/EmailDetailView.vue'
+import OAuth2StatusView from '../views/OAuth2StatusView.vue'
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
 const routes = [
@@ -171,6 +172,11 @@ const routes = [
        name: 'EmailDetail',
        component: EmailDetailView,
        props: true,
+     },
+     {
+       path: 'oauth2-status',
+       name: 'OAuth2Status',
+       component: OAuth2StatusView,
      },
     ]
   },

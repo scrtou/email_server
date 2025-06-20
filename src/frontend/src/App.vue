@@ -52,6 +52,14 @@
              <el-icon aria-hidden="true"><Reading /></el-icon>
              <span>收件箱</span>
            </el-menu-item>
+           <el-menu-item
+             index="/oauth2-status"
+             role="menuitem"
+             aria-label="OAuth2令牌状态管理页面"
+           >
+             <el-icon aria-hidden="true"><Key /></el-icon>
+             <span>令牌状态</span>
+           </el-menu-item>
             <el-menu-item
               index="/platforms"
               role="menuitem"
@@ -155,7 +163,8 @@ import {
   Tickets,
   Setting,
   Bell, // Import Bell icon
- Reading // Import Reading icon
+ Reading, // Import Reading icon
+ Key // Import Key icon
 } from '@element-plus/icons-vue'
 
 export default {
@@ -171,6 +180,7 @@ export default {
     Setting,
     Bell, // Register Bell icon
    Reading, // Register Reading icon
+   Key, // Register Key icon
     // ReminderCard // ReminderCard is no longer directly used here
     NotificationList // Register NotificationList
   },
