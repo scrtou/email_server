@@ -309,30 +309,42 @@ const reauthorize = async (provider, accountId) => {
 
     console.log('🔐 重新授权使用的provider:', finalProvider)
 
-    // 构建OAuth2授权URL
-    const baseUrl = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5555/api/v1'
-    const authUrl = `${baseUrl}/oauth2/connect/${finalProvider}?account_id=${accountId}`
+    // 使用API获取授权URL
+    const response = await oauth2API.getConnectURL(finalProvider, accountId)
+    console.log('🔐 OAuth2 API响应:', response)
 
-    console.log('🔐 重新授权URL:', authUrl)
+    // 检查响应数据结构
+    if (response && response.data && response.data.data) {
+      const authUrl = response.data.data.auth_url
+      console.log('🔐 提取的auth_url:', authUrl)
 
-    // 在新窗口中打开授权页面
-    const authWindow = window.open(
-      authUrl,
-      'oauth2_reauth',
-      'width=600,height=700,scrollbars=yes,resizable=yes'
-    )
+      if (authUrl) {
+        // 在新窗口中打开授权页面
+        const authWindow = window.open(
+          authUrl,
+          'oauth2_reauth',
+          'width=600,height=700,scrollbars=yes,resizable=yes'
+        )
 
-    // 监听授权完成
-    const checkClosed = setInterval(() => {
-      if (authWindow.closed) {
-        clearInterval(checkClosed)
-        ElMessage.info('授权窗口已关闭，正在检查最新状态...')
-        // 延迟检查状态，给服务器时间处理
-        setTimeout(() => {
-          checkSingleStatus(accountId, true)
-        }, 2000)
+        // 监听授权完成
+        const checkClosed = setInterval(() => {
+          if (authWindow.closed) {
+            clearInterval(checkClosed)
+            ElMessage.info('授权窗口已关闭，正在检查最新状态...')
+            // 延迟检查状态，给服务器时间处理
+            setTimeout(() => {
+              checkSingleStatus(accountId, true)
+            }, 2000)
+          }
+        }, 1000)
+      } else {
+        console.error('🔐 响应中没有找到auth_url:', response.data)
+        ElMessage.error('无法获取重新授权链接，请稍后重试。')
       }
-    }, 1000)
+    } else {
+      console.error('🔐 无效的API响应:', response)
+      ElMessage.error('无法获取重新授权链接，请稍后重试。')
+    }
   } catch (error) {
     // 用户取消了重新授权
     console.log('用户取消了重新授权')

@@ -303,9 +303,21 @@ const handleReauthorize = async (account) => {
     console.log('🔐 最终使用的provider:', provider);
 
     const response = await oauth2API.getConnectURL(provider, account.id);
-    if (response && response.data && response.data.auth_url) {
-      window.location.href = response.data.auth_url;
+    console.log('🔐 OAuth2 API响应:', response);
+
+    // 检查响应数据结构
+    if (response && response.data && response.data.data) {
+      const authUrl = response.data.data.auth_url;
+      console.log('🔐 提取的auth_url:', authUrl);
+
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        console.error('🔐 响应中没有找到auth_url:', response.data);
+        ElMessage.error('无法获取重新授权链接，请稍后重试。');
+      }
     } else {
+      console.error('🔐 无效的API响应结构:', response);
       ElMessage.error('无法获取重新授权链接，请稍后重试。');
     }
   } catch (error) {
