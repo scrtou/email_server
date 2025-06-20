@@ -24,7 +24,7 @@
               @click="showProviderDebugInfo"
             >
               <el-icon><Setting /></el-icon>
-              调试信息
+              系统调试
             </el-button>
           </div>
         </div>
@@ -160,15 +160,21 @@ const loadOAuth2Accounts = async () => {
   try {
     loading.value = true
     const response = await emailAccountAPI.getConfigured()
-    // getConfigured使用标准API，拦截器返回response.data.data，所以response就是账户数组
-    const accounts = response || []
+    // getConfigured使用标准API，拦截器返回{data: [...], meta: {...}}
+    console.log('🔐 原始API响应:', response)
 
+    const accounts = response.data || []
     console.log('🔐 加载的邮箱账户:', accounts)
+    console.log('🔐 账户数量:', accounts.length)
 
     // 过滤出OAuth2账户（使用is_oauth_connected字段）
-    const oauth2Accounts = accounts.filter(account => account.is_oauth_connected)
+    const oauth2Accounts = accounts.filter(account => {
+      console.log(`🔐 账户 ${account.email_address}: is_oauth_connected = ${account.is_oauth_connected}`)
+      return account.is_oauth_connected
+    })
 
     console.log('🔐 过滤后的OAuth2账户:', oauth2Accounts)
+    console.log('🔐 OAuth2账户数量:', oauth2Accounts.length)
 
     tokenStatuses.value = oauth2Accounts.map(account => ({
       accountId: account.id,
@@ -359,11 +365,34 @@ const reauthorize = async (provider, accountId) => {
 // 显示提供商调试信息
 const showProviderDebugInfo = async () => {
   try {
-    const response = await oauth2API.getProviders()
-    const providers = response.data.providers || []
+    // 获取所有邮箱账户（不仅仅是已配置的）
+    const allAccountsResponse = await emailAccountAPI.getAll()
+    const allAccounts = allAccountsResponse.data || []
 
-    let debugInfo = `配置的OAuth2提供商 (${providers.length}个):\n\n`
+    // 获取已配置的邮箱账户
+    const configuredResponse = await emailAccountAPI.getConfigured()
+    const configuredAccounts = configuredResponse.data || []
 
+    // 获取OAuth2提供商信息
+    const providersResponse = await oauth2API.getProviders()
+    const providers = providersResponse.data.providers || []
+
+    let debugInfo = `=== 邮箱账户调试信息 ===\n\n`
+    debugInfo += `所有邮箱账户数量: ${allAccounts.length}\n`
+    debugInfo += `已配置邮箱账户数量: ${configuredAccounts.length}\n`
+    debugInfo += `OAuth2账户数量: ${configuredAccounts.filter(acc => acc.is_oauth_connected).length}\n\n`
+
+    debugInfo += `=== 所有邮箱账户详情 ===\n`
+    allAccounts.forEach((account, index) => {
+      debugInfo += `${index + 1}. ${account.email_address}\n`
+      debugInfo += `   ID: ${account.id}\n`
+      debugInfo += `   Provider: ${account.provider || '未设置'}\n`
+      debugInfo += `   IMAP: ${account.imap_server || '未配置'}:${account.imap_port || 0}\n`
+      debugInfo += `   OAuth连接: ${account.is_oauth_connected ? '是' : '否'}\n`
+      debugInfo += `   有密码: ${account.has_password ? '是' : '否'}\n\n`
+    })
+
+    debugInfo += `=== OAuth2提供商配置 (${providers.length}个) ===\n`
     providers.forEach((provider, index) => {
       debugInfo += `${index + 1}. ${provider.name}\n`
       debugInfo += `   Client ID: ${provider.client_id}\n`
@@ -377,16 +406,18 @@ const showProviderDebugInfo = async () => {
       debugInfo += '\n'
     })
 
-    await ElMessageBox.alert(debugInfo, 'OAuth2提供商调试信息', {
+    await ElMessageBox.alert(debugInfo, '系统调试信息', {
       confirmButtonText: '确定',
       type: 'info',
       customStyle: {
-        width: '600px'
+        width: '700px',
+        maxHeight: '80vh',
+        overflow: 'auto'
       }
     })
   } catch (error) {
-    console.error('获取提供商信息失败:', error)
-    ElMessage.error('获取提供商调试信息失败')
+    console.error('获取调试信息失败:', error)
+    ElMessage.error('获取调试信息失败')
   }
 }
 
