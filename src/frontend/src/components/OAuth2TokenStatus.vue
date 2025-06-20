@@ -7,15 +7,26 @@
             <el-icon><Key /></el-icon>
             OAuth2令牌状态
           </span>
-          <el-button 
-            type="primary" 
-            size="small" 
-            @click="refreshAllStatus"
-            :loading="refreshing"
-          >
-            <el-icon><Refresh /></el-icon>
-            刷新状态
-          </el-button>
+          <div class="header-buttons">
+            <el-button
+              type="primary"
+              size="small"
+              @click="refreshAllStatus"
+              :loading="refreshing"
+            >
+              <el-icon><Refresh /></el-icon>
+              刷新状态
+            </el-button>
+
+            <el-button
+              type="info"
+              size="small"
+              @click="showProviderDebugInfo"
+            >
+              <el-icon><Setting /></el-icon>
+              调试信息
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -97,8 +108,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Key, Refresh, Message, Search } from '@element-plus/icons-vue'
-import { emailAccountAPI, checkOAuth2TokenStatus } from '@/utils/api'
+import { Key, Refresh, Message, Search, Setting } from '@element-plus/icons-vue'
+import { emailAccountAPI, checkOAuth2TokenStatus, oauth2API } from '@/utils/api'
 
 const loading = ref(false)
 const refreshing = ref(false)
@@ -161,7 +172,7 @@ const loadOAuth2Accounts = async () => {
     tokenStatuses.value = oauth2Accounts.map(account => ({
       accountId: account.id,
       email: account.email_address,
-      provider: detectProvider(account.provider),
+      provider: detectProvider(account.provider, account.email_address),
       status: 'unknown',
       checking: false,
       message: ''
@@ -182,13 +193,37 @@ const loadOAuth2Accounts = async () => {
 }
 
 // 检测提供商类型
-const detectProvider = (providerString) => {
+const detectProvider = (providerString, emailAddress = '') => {
+  if (!providerString) {
+    // 如果没有provider信息，尝试从邮箱地址推断
+    if (emailAddress) {
+      const emailLower = emailAddress.toLowerCase()
+      if (emailLower.includes('@gmail.com') || emailLower.includes('@googlemail.com')) {
+        return 'google'
+      } else if (emailLower.includes('@outlook.com') || emailLower.includes('@hotmail.com') || emailLower.includes('@live.com')) {
+        return 'microsoft'
+      }
+    }
+    return 'unknown'
+  }
+
   const lower = providerString.toLowerCase()
   if (lower.includes('google') || lower.includes('gmail')) {
     return 'google'
   } else if (lower.includes('microsoft') || lower.includes('outlook') || lower.includes('hotmail')) {
     return 'microsoft'
   }
+
+  // 如果provider字段无法识别，尝试从邮箱地址推断
+  if (emailAddress) {
+    const emailLower = emailAddress.toLowerCase()
+    if (emailLower.includes('@gmail.com') || emailLower.includes('@googlemail.com')) {
+      return 'google'
+    } else if (emailLower.includes('@outlook.com') || emailLower.includes('@hotmail.com') || emailLower.includes('@live.com')) {
+      return 'microsoft'
+    }
+  }
+
   return providerString
 }
 
@@ -260,18 +295,33 @@ const reauthorize = async (provider, accountId) => {
         type: 'warning'
       }
     )
-    
+
+    // 确保provider不是unknown
+    let finalProvider = provider
+    if (provider === 'unknown') {
+      // 尝试从tokenStatuses中的邮箱地址推断
+      const statusItem = tokenStatuses.value.find(s => s.accountId === accountId)
+      if (statusItem && statusItem.email) {
+        finalProvider = detectProvider('', statusItem.email)
+        console.log('🔐 重新推断的provider:', finalProvider)
+      }
+    }
+
+    console.log('🔐 重新授权使用的provider:', finalProvider)
+
     // 构建OAuth2授权URL
     const baseUrl = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5555/api/v1'
-    const authUrl = `${baseUrl}/oauth2/connect/${provider}?account_id=${accountId}`
-    
+    const authUrl = `${baseUrl}/oauth2/connect/${finalProvider}?account_id=${accountId}`
+
+    console.log('🔐 重新授权URL:', authUrl)
+
     // 在新窗口中打开授权页面
     const authWindow = window.open(
       authUrl,
       'oauth2_reauth',
       'width=600,height=700,scrollbars=yes,resizable=yes'
     )
-    
+
     // 监听授权完成
     const checkClosed = setInterval(() => {
       if (authWindow.closed) {
@@ -286,6 +336,40 @@ const reauthorize = async (provider, accountId) => {
   } catch (error) {
     // 用户取消了重新授权
     console.log('用户取消了重新授权')
+  }
+}
+
+// 显示提供商调试信息
+const showProviderDebugInfo = async () => {
+  try {
+    const response = await oauth2API.getProviders()
+    const providers = response.data.providers || []
+
+    let debugInfo = `配置的OAuth2提供商 (${providers.length}个):\n\n`
+
+    providers.forEach((provider, index) => {
+      debugInfo += `${index + 1}. ${provider.name}\n`
+      debugInfo += `   Client ID: ${provider.client_id}\n`
+      debugInfo += `   Auth URL: ${provider.auth_url}\n`
+      debugInfo += `   Token URL: ${provider.token_url}\n`
+      debugInfo += `   Scopes: ${provider.scopes}\n`
+      debugInfo += `   Has Secret: ${provider.has_secret ? '是' : '否'}\n`
+      if (provider.imap_server) {
+        debugInfo += `   IMAP: ${provider.imap_server}:${provider.imap_port}\n`
+      }
+      debugInfo += '\n'
+    })
+
+    await ElMessageBox.alert(debugInfo, 'OAuth2提供商调试信息', {
+      confirmButtonText: '确定',
+      type: 'info',
+      customStyle: {
+        width: '600px'
+      }
+    })
+  } catch (error) {
+    console.error('获取提供商信息失败:', error)
+    ElMessage.error('获取提供商调试信息失败')
   }
 }
 
@@ -309,6 +393,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 8px;
 }
 
 .title {

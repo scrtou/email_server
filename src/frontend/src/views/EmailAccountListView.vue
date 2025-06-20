@@ -266,28 +266,51 @@ const handleReauthorize = async (account) => {
       }
     );
 
-    // 检测提供商类型
-    const tokenStatus = tokenStatuses.value.get(account.id);
-    let provider = 'google'; // 默认
+    // 改进的提供商检测逻辑
+    let provider = 'google'; // 默认为Google
 
-    if (tokenStatus && tokenStatus.provider) {
+    // 1. 首先检查令牌状态中的provider信息
+    const tokenStatus = tokenStatuses.value.get(account.id);
+    if (tokenStatus && tokenStatus.provider && tokenStatus.provider !== 'unknown') {
       provider = tokenStatus.provider;
-    } else if (account.provider) {
-      // 从账户的provider字段推断
+      console.log('🔐 从令牌状态获取provider:', provider);
+    }
+    // 2. 然后检查账户的provider字段
+    else if (account.provider) {
       const providerLower = account.provider.toLowerCase();
-      if (providerLower.includes('microsoft') || providerLower.includes('outlook')) {
+      console.log('🔐 账户provider字段:', account.provider);
+
+      if (providerLower.includes('microsoft') || providerLower.includes('outlook') || providerLower.includes('hotmail')) {
+        provider = 'microsoft';
+      } else if (providerLower.includes('google') || providerLower.includes('gmail')) {
+        provider = 'google';
+      }
+      console.log('🔐 推断的provider:', provider);
+    }
+    // 3. 最后根据邮箱域名推断
+    else if (account.email_address) {
+      const emailDomain = account.email_address.toLowerCase();
+      console.log('🔐 邮箱地址:', emailDomain);
+
+      if (emailDomain.includes('@gmail.com') || emailDomain.includes('@googlemail.com')) {
+        provider = 'google';
+      } else if (emailDomain.includes('@outlook.com') || emailDomain.includes('@hotmail.com') || emailDomain.includes('@live.com')) {
         provider = 'microsoft';
       }
+      console.log('🔐 根据邮箱域名推断的provider:', provider);
     }
 
+    console.log('🔐 最终使用的provider:', provider);
+
     const response = await oauth2API.getConnectURL(provider, account.id);
-    if (response && response.auth_url) {
-      window.location.href = response.auth_url;
+    if (response && response.data && response.data.auth_url) {
+      window.location.href = response.data.auth_url;
     } else {
       ElMessage.error('无法获取重新授权链接，请稍后重试。');
     }
   } catch (error) {
     if (error !== 'cancel') {
+      console.error('🔐 重新授权失败:', error);
       ElMessage.error(`重新授权失败: ${error.message || error}`);
     }
   }

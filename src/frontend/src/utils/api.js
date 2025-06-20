@@ -268,6 +268,7 @@ export const checkOAuth2TokenStatus = (accountId) => {
 // OAuth2 API
 export const oauth2API = {
  getConnectURL: (provider, accountId) => api.get(`/oauth2/connect/${provider}`, { params: { account_id: accountId } }),
+ getProviders: () => api.get('/oauth2/providers'), // 调试用：获取配置的OAuth2提供商
 };
 
 export default api

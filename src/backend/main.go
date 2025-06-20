@@ -61,6 +61,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		oauth2Protected := protected.Group("/oauth2")
 		{
 			oauth2Protected.GET("/connect/:provider", handlers.RedirectToOAuthProvider)
+			oauth2Protected.GET("/providers", handlers.GetOAuth2Providers) // 调试用：查看配置的提供商
 		}
 
 		// 用户相关

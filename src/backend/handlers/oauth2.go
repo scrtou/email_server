@@ -960,6 +960,35 @@ func HandleOAuth2Callback(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
+// GetOAuth2Providers 获取数据库中配置的OAuth2提供商信息（调试用）
+func GetOAuth2Providers(c *gin.Context) {
+	var providers []models.OAuthProvider
+	if err := database.DB.Find(&providers).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch OAuth2 providers")
+		return
+	}
+
+	// 不返回敏感信息
+	var result []gin.H
+	for _, provider := range providers {
+		result = append(result, gin.H{
+			"name":        provider.Name,
+			"client_id":   provider.ClientID,
+			"auth_url":    provider.AuthURL,
+			"token_url":   provider.TokenURL,
+			"scopes":      provider.Scopes,
+			"imap_server": provider.IMAPServer,
+			"imap_port":   provider.IMAPPort,
+			"has_secret":  provider.ClientSecretEncrypted != "",
+		})
+	}
+
+	utils.SendSuccessResponse(c, gin.H{
+		"providers": result,
+		"count":     len(result),
+	})
+}
+
 // GetDBStateStats 获取数据库中OAuth2 state的统计信息
 func GetDBStateStats(c *gin.Context) {
 	var totalCount int64
