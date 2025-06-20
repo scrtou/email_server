@@ -4,6 +4,7 @@ import (
 	"email_server/database"
 	"email_server/models"
 	"email_server/utils"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings" // 新增导入
@@ -335,6 +336,112 @@ func GetEmailAccountByID(c *gin.Context) {
 	}
 
 	utils.SendSuccessResponse(c, emailAccount.ToEmailAccountResponse())
+}
+
+// GetConfiguredEmailAccounts godoc
+// @Summary 获取已配置的邮箱账户（用于收件箱）
+// @Description 获取当前登录用户已配置IMAP信息或OAuth2连接的邮箱账户，专门用于收件箱功能
+// @Tags EmailAccounts
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param pageSize query int false "每页数量" default(10)
+// @Param orderBy query string false "排序字段 (e.g., email_address, created_at, updated_at)" default(created_at)
+// @Param sortDirection query string false "排序方向 (asc, desc)" default(desc)
+// @Success 200 {object} models.SuccessResponse{data=[]models.EmailAccountResponse,meta=models.PaginationMeta} "获取成功"
+// @Failure 401 {object} models.ErrorResponse "用户未认证"
+// @Failure 500 {object} models.ErrorResponse "服务器内部错误"
+// @Router /email-accounts/configured [get]
+func GetConfiguredEmailAccounts(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	actualUserID := uint(userID)
+
+	// 解析查询参数
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	orderBy := c.DefaultQuery("orderBy", "created_at")
+	sortDirection := c.DefaultQuery("sortDirection", "desc")
+
+	// 验证排序字段
+	validOrderFields := map[string]bool{
+		"id":            true,
+		"email_address": true,
+		"provider":      true,
+		"created_at":    true,
+		"updated_at":    true,
+	}
+
+	if !validOrderFields[orderBy] {
+		orderBy = "created_at"
+	}
+
+	if sortDirection != "asc" && sortDirection != "desc" {
+		sortDirection = "desc"
+	}
+
+	// 构建排序子句
+	orderClause := fmt.Sprintf("%s %s", orderBy, strings.ToUpper(sortDirection))
+
+	// 计算偏移量
+	offset := (page - 1) * pageSize
+
+	var emailAccounts []models.EmailAccount
+	var total int64
+
+	// 构建查询，只获取有IMAP配置或OAuth2连接的邮箱账户
+	baseQuery := database.DB.Model(&models.EmailAccount{}).Where("user_id = ?", actualUserID)
+
+	// 添加过滤条件：有IMAP配置或有OAuth2连接
+	// 有IMAP配置：IMAPServer不为空且IMAPPort不为0
+	// 有OAuth2连接：在user_oauth_tokens表中有对应记录
+	filteredQuery := baseQuery.Where(
+		"(imap_server IS NOT NULL AND imap_server != '' AND imap_port != 0) OR " +
+			"EXISTS (SELECT 1 FROM user_oauth_tokens WHERE user_oauth_tokens.email_account_id = email_accounts.id)")
+
+	// 获取总数
+	if err := filteredQuery.Count(&total).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户总数失败: "+err.Error())
+		return
+	}
+
+	// 获取分页数据
+	if err := filteredQuery.Order(orderClause).Offset(offset).Limit(pageSize).Find(&emailAccounts).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户列表失败: "+err.Error())
+		return
+	}
+
+	// 构建响应数据
+	var responses []models.EmailAccountResponse
+	for _, ea := range emailAccounts {
+		var platformCount int64
+		// 计算关联的平台数量
+		if err := database.DB.Model(&models.PlatformRegistration{}).Where("email_account_id = ?", ea.ID).Count(&platformCount).Error; err != nil {
+			platformCount = 0
+		}
+
+		response := ea.ToEmailAccountResponse()
+		response.PlatformCount = platformCount
+
+		// Check if an OAuth token exists for this account
+		var token models.UserOAuthToken
+		err := database.DB.Where("email_account_id = ?", ea.ID).First(&token).Error
+		response.IsOAuthConnected = err == nil
+
+		responses = append(responses, response)
+	}
+
+	// 构建分页元数据
+	pagination := utils.CreatePaginationMeta(page, pageSize, int(total))
+	utils.SendSuccessResponseWithMeta(c, responses, pagination)
 }
 
 // UpdateEmailAccount godoc

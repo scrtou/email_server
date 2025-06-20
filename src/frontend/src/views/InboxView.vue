@@ -240,10 +240,10 @@ onMounted(async () => { // ★ 标记为 async
   inboxStore.error = null;
   emailAccountStore.clearAccounts();
 
-  // 1. 异步获取账户列表
-  console.log('📋 Fetching email accounts...');
-  await emailAccountStore.fetchEmailAccounts(1, 10000);
-  console.log('📋 Email accounts fetched:', emailAccountStore.emailAccounts);
+  // 1. 异步获取已配置的账户列表（只获取有IMAP配置或OAuth2连接的邮箱）
+  console.log('📋 Fetching configured email accounts...');
+  await emailAccountStore.fetchConfiguredEmailAccounts(1, 10000);
+  console.log('📋 Configured email accounts fetched:', emailAccountStore.emailAccounts);
 
   // 2. 检查是否有账户
   if (emailAccountStore.emailAccounts.length > 0) {

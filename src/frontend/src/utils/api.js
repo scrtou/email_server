@@ -134,6 +134,7 @@ export const dashboardAPI = {
 // EmailAccount API (New as per plan)
 export const emailAccountAPI = {
   getAll: (params = {}) => api.get('/email-accounts', { params }),
+  getConfigured: (params = {}) => api.get('/email-accounts/configured', { params }), // 新增：获取已配置的邮箱账户（用于收件箱）
   getById: (id) => api.get(`/email-accounts/${id}`),
   create: (data) => api.post('/email-accounts', data),
   update: (id, data) => api.put(`/email-accounts/${id}`, data),

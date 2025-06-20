@@ -131,6 +131,67 @@ export const useEmailAccountStore = defineStore('emailAccount', {
         this.loading = false;
       }
     },
+    async fetchConfiguredEmailAccounts(page = this.pagination.currentPage, pageSize = this.pagination.pageSize, sortOptions = {}) {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[EmailAccountStore] fetchConfiguredEmailAccounts called while not authenticated.');
+        this.emailAccounts = []; // Clear data
+        this.pagination.totalItems = 0;
+        this.loading = false;
+        return;
+      }
+
+      this.loading = true;
+      this.error = null;
+
+      const orderBy = sortOptions.orderBy || this.sort.orderBy;
+      const sortDirection = sortOptions.sortDirection || this.sort.sortDirection;
+
+      // Update sort state if new options are provided
+      if (sortOptions.orderBy) this.sort.orderBy = sortOptions.orderBy;
+      if (sortOptions.sortDirection) this.sort.sortDirection = sortOptions.sortDirection;
+
+      try {
+        // Determine the pageSize to be sent to the API
+        let apiPageSize = pageSize;
+        if (pageSize === 10000) { // If pageSize 10000 is passed, change it to 0 for the API call
+          apiPageSize = 0;
+        }
+
+        const params = {
+          page,
+          pageSize: apiPageSize, // Use the potentially modified pageSize
+          orderBy: orderBy,
+          sortDirection: sortDirection,
+        };
+        // api.js interceptor returns { data: [...], meta: {...} } for paginated responses
+        const result = await emailAccountAPI.getConfigured(params);
+        if (result && result.data) {
+          this.emailAccounts = result.data;
+          if (result.meta) {
+            this.pagination.currentPage = result.meta.current_page;
+            // Only update pageSize from meta if it's not the "get all" case
+            if (result.meta.page_size > 0) {
+              this.pagination.pageSize = result.meta.page_size;
+            }
+            this.pagination.totalItems = result.meta.total_items;
+          } else {
+            // Fallback if meta is somehow not present
+            this.pagination = { currentPage: page, pageSize: pageSize, totalItems: result.data.length };
+          }
+        } else {
+          this.emailAccounts = [];
+          this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
+        }
+      } catch (err) {
+        this.error = err.message || '获取已配置邮箱账户列表失败';
+        ElMessage.error(this.error);
+        this.emailAccounts = [];
+        this.pagination = { currentPage: 1, pageSize: 10, totalItems: 0 };
+      } finally {
+        this.loading = false;
+      }
+    },
     async fetchEmailAccountById(id) {
       const authStore = useAuthStore();
       if (!authStore.isAuthenticated) {
