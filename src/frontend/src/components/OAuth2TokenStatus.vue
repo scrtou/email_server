@@ -163,18 +163,25 @@ const loadOAuth2Accounts = async () => {
     // getConfigured使用标准API，拦截器返回{data: [...], meta: {...}}
     console.log('🔐 原始API响应:', response)
 
+    // 根据用户提供的数据，API返回的是{data: [...], meta: {...}}格式
     const accounts = response.data || []
     console.log('🔐 加载的邮箱账户:', accounts)
     console.log('🔐 账户数量:', accounts.length)
 
     // 过滤出OAuth2账户（使用is_oauth_connected字段）
     const oauth2Accounts = accounts.filter(account => {
-      console.log(`🔐 账户 ${account.email_address}: is_oauth_connected = ${account.is_oauth_connected}`)
-      return account.is_oauth_connected
+      console.log(`🔐 账户 ${account.email_address}: is_oauth_connected = ${account.is_oauth_connected} (类型: ${typeof account.is_oauth_connected})`)
+      return account.is_oauth_connected === true
     })
 
     console.log('🔐 过滤后的OAuth2账户:', oauth2Accounts)
     console.log('🔐 OAuth2账户数量:', oauth2Accounts.length)
+
+    // 额外调试：显示所有账户的OAuth连接状态
+    console.log('🔐 所有账户的OAuth连接状态:')
+    accounts.forEach((account, index) => {
+      console.log(`  ${index + 1}. ${account.email_address}: ${account.is_oauth_connected} (${typeof account.is_oauth_connected})`)
+    })
 
     tokenStatuses.value = oauth2Accounts.map(account => ({
       accountId: account.id,
