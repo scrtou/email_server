@@ -414,7 +414,11 @@ func GetConfiguredEmailAccounts(c *gin.Context) {
 	}
 
 	// 获取分页数据
-	if err := filteredQuery.Order(orderClause).Offset(offset).Limit(pageSize).Find(&emailAccounts).Error; err != nil {
+	query := filteredQuery.Order(orderClause).Offset(offset)
+	if pageSize > 0 {
+		query = query.Limit(pageSize)
+	}
+	if err := query.Find(&emailAccounts).Error; err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "获取邮箱账户列表失败: "+err.Error())
 		return
 	}
