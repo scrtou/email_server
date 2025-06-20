@@ -2,6 +2,7 @@
 package integrations
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -9,10 +10,145 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"email_server/database"
 	"email_server/models"
+	"email_server/utils"
+
+	"golang.org/x/oauth2"
 )
+
+// GetGmailOAuth2HTTPClient 专门为Gmail API获取OAuth2客户端，包含自动令牌刷新功能
+func GetGmailOAuth2HTTPClient(accountID uint) (*http.Client, error) {
+	var oauthToken models.UserOAuthToken
+	if err := database.DB.Where("email_account_id = ?", accountID).First(&oauthToken).Error; err != nil {
+		return nil, fmt.Errorf("no oauth token found for account %d: %w", accountID, err)
+	}
+
+	var provider models.OAuthProvider
+	if err := database.DB.First(&provider, oauthToken.ProviderID).Error; err != nil {
+		return nil, fmt.Errorf("failed to find oauth provider %d: %w", oauthToken.ProviderID, err)
+	}
+
+	decryptedSecret, err := utils.Decrypt(provider.ClientSecretEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt client secret: %w", err)
+	}
+
+	conf := &oauth2.Config{
+		ClientID:     provider.ClientID,
+		ClientSecret: string(decryptedSecret),
+		Scopes:       strings.Split(provider.Scopes, ","),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  provider.AuthURL,
+			TokenURL: provider.TokenURL,
+		},
+	}
+
+	decryptedAccessToken, err := utils.Decrypt(oauthToken.AccessTokenEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
+	}
+
+	decryptedRefreshToken, err := utils.Decrypt(oauthToken.RefreshTokenEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
+	}
+
+	token := &oauth2.Token{
+		AccessToken:  string(decryptedAccessToken),
+		RefreshToken: string(decryptedRefreshToken),
+		TokenType:    oauthToken.TokenType,
+		Expiry:       oauthToken.Expiry,
+	}
+
+	// 创建一个带有令牌刷新回调的TokenSource
+	tokenSource := &refreshableTokenSource{
+		config:     conf,
+		token:      token,
+		oauthToken: &oauthToken,
+		accountID:  accountID,
+	}
+
+	// 返回一个会自动刷新token的http.Client
+	return &http.Client{
+		Transport: &oauth2.Transport{
+			Source: tokenSource,
+		},
+	}, nil
+}
+
+// refreshableTokenSource 实现oauth2.TokenSource接口，支持自动刷新和数据库更新
+type refreshableTokenSource struct {
+	config     *oauth2.Config
+	token      *oauth2.Token
+	oauthToken *models.UserOAuthToken
+	accountID  uint
+	mu         sync.Mutex
+}
+
+// Token 实现oauth2.TokenSource接口
+func (ts *refreshableTokenSource) Token() (*oauth2.Token, error) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	// 检查令牌是否需要刷新
+	if ts.token.Valid() {
+		return ts.token, nil
+	}
+
+	log.Printf("[Gmail OAuth2] Token expired for account %d, refreshing...", ts.accountID)
+
+	// 使用配置的TokenSource进行刷新
+	tokenSource := ts.config.TokenSource(context.Background(), ts.token)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		log.Printf("[Gmail OAuth2] Failed to refresh token for account %d: %v", ts.accountID, err)
+		return nil, fmt.Errorf("failed to refresh gmail oauth2 token: %w", err)
+	}
+
+	// 更新内存中的令牌
+	ts.token = newToken
+
+	// 更新数据库中的令牌
+	if err := ts.updateTokenInDatabase(newToken); err != nil {
+		log.Printf("[Gmail OAuth2] Failed to update token in database for account %d: %v", ts.accountID, err)
+		// 不返回错误，因为令牌刷新成功了，只是数据库更新失败
+	} else {
+		log.Printf("[Gmail OAuth2] Successfully refreshed and saved token for account %d", ts.accountID)
+	}
+
+	return newToken, nil
+}
+
+// updateTokenInDatabase 更新数据库中的令牌
+func (ts *refreshableTokenSource) updateTokenInDatabase(newToken *oauth2.Token) error {
+	// 加密新的访问令牌
+	encryptedAccessToken, err := utils.Encrypt([]byte(newToken.AccessToken))
+	if err != nil {
+		return fmt.Errorf("failed to encrypt new access token: %w", err)
+	}
+
+	// 更新数据库记录
+	updates := map[string]interface{}{
+		"access_token_encrypted": encryptedAccessToken,
+		"expiry":                 newToken.Expiry,
+		"token_type":             newToken.TokenType,
+	}
+
+	// 只有在提供了新的刷新令牌时才更新
+	if newToken.RefreshToken != "" {
+		encryptedRefreshToken, err := utils.Encrypt([]byte(newToken.RefreshToken))
+		if err != nil {
+			return fmt.Errorf("failed to encrypt new refresh token: %w", err)
+		}
+		updates["refresh_token_encrypted"] = encryptedRefreshToken
+	}
+
+	return database.DB.Model(ts.oauthToken).Updates(updates).Error
+}
 
 // GmailMessage 对应 Gmail API 返回的邮件结构
 type GmailMessage struct {
@@ -65,7 +201,7 @@ func FetchEmailsWithGmailAPI(emailAccount models.EmailAccount, page, pageSize in
 
 // FetchEmailsWithGmailAPIFromFolder 从指定标签/文件夹获取邮件
 func FetchEmailsWithGmailAPIFromFolder(emailAccount models.EmailAccount, page, pageSize int, labelName string) ([]models.Email, int, error) {
-	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	client, err := GetGmailOAuth2HTTPClient(emailAccount.ID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get oauth2 client: %w", err)
 	}
@@ -98,6 +234,12 @@ func FetchEmailsWithGmailAPIFromFolder(emailAccount models.EmailAccount, page, p
 		// 读取响应体以获取更详细的错误信息
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("[FetchEmailsWithGmailAPIFromFolder] Gmail API error response: %s", string(body))
+
+		// 检查是否是认证错误
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, 0, fmt.Errorf("oauth2: authentication failed, please re-authenticate your Google account")
+		}
+
 		return nil, 0, fmt.Errorf("gmail api returned non-200 status: %s, body: %s", resp.Status, string(body))
 	}
 
@@ -329,7 +471,7 @@ func decodeBase64URL(data string) ([]byte, error) {
 
 // FetchGmailMessageDetail 获取Gmail邮件的详细信息
 func FetchGmailMessageDetail(emailAccount models.EmailAccount, messageID string) (*models.Email, error) {
-	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	client, err := GetGmailOAuth2HTTPClient(emailAccount.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get oauth2 client: %w", err)
 	}
@@ -339,7 +481,7 @@ func FetchGmailMessageDetail(emailAccount models.EmailAccount, messageID string)
 
 // MarkGmailAsRead 标记Gmail邮件为已读
 func MarkGmailAsRead(emailAccount models.EmailAccount, messageID string) error {
-	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	client, err := GetGmailOAuth2HTTPClient(emailAccount.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get oauth2 client: %w", err)
 	}

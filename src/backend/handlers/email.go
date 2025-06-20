@@ -160,12 +160,29 @@ func GetInbox(c *gin.Context) {
 		log.Printf("[GetInbox] Fetching emails failed with error: %v", err)
 		// Provide more user-friendly error messages based on the error type
 		if strings.Contains(err.Error(), "oauth2") || strings.Contains(err.Error(), "re-authenticate") {
-			utils.SendErrorResponse(c, http.StatusUnauthorized, "Authentication failed. Please try re-connecting your Microsoft account.")
+			// 检查是哪个提供商
+			var provider models.OAuthProvider
+			if database.DB.First(&provider, oauthToken.ProviderID).Error == nil {
+				if provider.Name == "google" {
+					utils.SendErrorResponse(c, http.StatusUnauthorized, "Google账户认证已过期，请重新连接您的Google账户。")
+				} else if provider.Name == "microsoft" {
+					utils.SendErrorResponse(c, http.StatusUnauthorized, "Microsoft账户认证已过期，请重新连接您的Microsoft账户。")
+				} else {
+					utils.SendErrorResponse(c, http.StatusUnauthorized, "账户认证已过期，请重新连接您的邮箱账户。")
+				}
+			} else {
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "账户认证已过期，请重新连接您的邮箱账户。")
+			}
 		} else if strings.Contains(err.Error(), "graph api") {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to get emails from Microsoft. Please try again later.")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "无法从Microsoft获取邮件，请稍后重试。")
+		} else if strings.Contains(err.Error(), "gmail api") {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "无法从Gmail获取邮件，请稍后重试。")
+		} else if strings.Contains(err.Error(), "invalid_grant") || strings.Contains(err.Error(), "Token has been expired or revoked") {
+			// 特别处理Google的invalid_grant错误
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "Google账户授权已过期或被撤销，请重新连接您的Google账户。")
 		} else {
 			// Generic IMAP errors
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to fetch emails from provider.")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "无法从邮件服务商获取邮件，请检查网络连接或稍后重试。")
 		}
 		return
 	}
@@ -177,6 +194,157 @@ func GetInbox(c *gin.Context) {
 			"emails": emails,
 			"total":  total,
 		},
+	})
+}
+
+// CheckOAuth2TokenStatus 检查OAuth2令牌状态并尝试刷新
+func CheckOAuth2TokenStatus(c *gin.Context) {
+	log.Println("[CheckOAuth2TokenStatus] Handler started.")
+
+	// 1. Get User ID from context
+	userIDClaim, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	var userID uint
+	switch v := userIDClaim.(type) {
+	case float64:
+		userID = uint(v)
+	case int64:
+		userID = uint(v)
+	case int:
+		userID = uint(v)
+	default:
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Invalid user ID type")
+		return
+	}
+
+	// 2. Get account_id from query string
+	accountIDStr := c.Query("account_id")
+	if accountIDStr == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "account_id query parameter is required")
+		return
+	}
+	accountID, err := strconv.ParseUint(accountIDStr, 10, 64)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "Invalid account_id format")
+		return
+	}
+
+	// 3. Find the email account and verify ownership
+	var emailAccount models.EmailAccount
+	if err := database.DB.Where("id = ? AND user_id = ?", accountID, userID).First(&emailAccount).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.SendErrorResponse(c, http.StatusNotFound, "Email account not found or access denied")
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve email account")
+		}
+		return
+	}
+
+	// 4. Check OAuth2 token
+	var oauthToken models.UserOAuthToken
+	if err := database.DB.Where("email_account_id = ?", emailAccount.ID).First(&oauthToken).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.SendErrorResponse(c, http.StatusNotFound, "No OAuth2 token found for this account")
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to check OAuth2 token")
+		}
+		return
+	}
+
+	// 5. Get provider information
+	var provider models.OAuthProvider
+	if err := database.DB.First(&provider, oauthToken.ProviderID).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to get provider information")
+		return
+	}
+
+	// 6. Try to get a valid OAuth2 client (this will trigger token refresh if needed)
+	var client *http.Client
+	if provider.Name == "google" {
+		client, err = integrations.GetGmailOAuth2HTTPClient(emailAccount.ID)
+	} else {
+		client, err = integrations.GetOAuth2HTTPClient(emailAccount.ID)
+	}
+
+	if err != nil {
+		log.Printf("[CheckOAuth2TokenStatus] Failed to get OAuth2 client: %v", err)
+		if strings.Contains(err.Error(), "oauth2") || strings.Contains(err.Error(), "invalid_grant") {
+			c.JSON(http.StatusOK, gin.H{
+				"status":          "expired",
+				"message":         fmt.Sprintf("%s账户授权已过期，需要重新连接", provider.Name),
+				"provider":        provider.Name,
+				"reauth_required": true,
+			})
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to validate token")
+		}
+		return
+	}
+
+	// 7. Test the token by making a simple API call
+	var testURL string
+	switch provider.Name {
+	case "google":
+		testURL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+	case "microsoft":
+		testURL = "https://graph.microsoft.com/v1.0/me"
+	default:
+		// For other providers, just return success if we got a client
+		c.JSON(http.StatusOK, gin.H{
+			"status":   "valid",
+			"message":  "令牌状态正常",
+			"provider": provider.Name,
+		})
+		return
+	}
+
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Failed to create test request")
+		return
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[CheckOAuth2TokenStatus] Test API call failed: %v", err)
+		c.JSON(http.StatusOK, gin.H{
+			"status":          "error",
+			"message":         "令牌验证失败，可能需要重新连接",
+			"provider":        provider.Name,
+			"reauth_required": true,
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		c.JSON(http.StatusOK, gin.H{
+			"status":          "expired",
+			"message":         fmt.Sprintf("%s账户授权已过期，需要重新连接", provider.Name),
+			"provider":        provider.Name,
+			"reauth_required": true,
+		})
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusOK, gin.H{
+			"status":   "error",
+			"message":  "令牌验证失败",
+			"provider": provider.Name,
+		})
+		return
+	}
+
+	// 8. Token is valid
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "valid",
+		"message":  "令牌状态正常",
+		"provider": provider.Name,
 	})
 }
 

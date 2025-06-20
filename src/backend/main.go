@@ -97,6 +97,7 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		protected.GET("/inbox", handlers.GetInbox)
 		protected.GET("/inbox/emails/:messageId", handlers.GetEmailDetail)
 		protected.POST("/inbox/emails/:messageId/mark-read", handlers.MarkEmailAsRead)
+		protected.GET("/inbox/oauth2/status", handlers.CheckOAuth2TokenStatus) // 新增：检查OAuth2令牌状态
 
 		// Platform 模块
 		platforms := protected.Group("/platforms")

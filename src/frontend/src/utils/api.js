@@ -245,6 +245,12 @@ export const getInboxEmails = (params = {}) => {
 export const getEmailDetail = (messageId, params = {}) => emailApi.get(`/inbox/emails/${messageId}`, { params });
 export const markEmailAsRead = (messageId, params = {}) => emailApi.post(`/inbox/emails/${messageId}/mark-read`, {}, { params });
 
+// OAuth2令牌状态检查API
+export const checkOAuth2TokenStatus = (accountId) => {
+  console.log('🔐 checkOAuth2TokenStatus called with accountId:', accountId);
+  return emailApi.get('/inbox/oauth2/status', { params: { account_id: accountId } });
+};
+
 // OAuth2 API
 export const oauth2API = {
  getConnectURL: (provider, accountId) => api.get(`/oauth2/connect/${provider}`, { params: { account_id: accountId } }),
