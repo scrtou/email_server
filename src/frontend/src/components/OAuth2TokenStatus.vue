@@ -314,8 +314,9 @@ const reauthorize = async (provider, accountId) => {
     console.log('🔐 OAuth2 API响应:', response)
 
     // 检查响应数据结构
-    if (response && response.data && response.data.data) {
-      const authUrl = response.data.data.auth_url
+    // API拦截器已经处理了响应，直接从response中获取auth_url
+    if (response && response.auth_url) {
+      const authUrl = response.auth_url
       console.log('🔐 提取的auth_url:', authUrl)
 
       if (authUrl) {
@@ -338,7 +339,7 @@ const reauthorize = async (provider, accountId) => {
           }
         }, 1000)
       } else {
-        console.error('🔐 响应中没有找到auth_url:', response.data)
+        console.error('🔐 响应中没有找到auth_url:', response)
         ElMessage.error('无法获取重新授权链接，请稍后重试。')
       }
     } else {
