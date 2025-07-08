@@ -349,6 +349,10 @@ const openModalForEdit = (registration) => {
 const closeModal = () => {
   showModal.value = false;
   currentRegistration.value = null;
+  // 确保在关闭弹窗时重置表单状态
+  if (platformRegistrationFormRef.value) {
+    platformRegistrationFormRef.value.resetForm();
+  }
 };
 
 // 直接提交表单的方法

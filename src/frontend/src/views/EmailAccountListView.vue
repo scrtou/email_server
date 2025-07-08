@@ -380,6 +380,10 @@ const handleFormSubmit = async (payloadFromForm) => {
 
 const handleFormCancel = () => {
   emailAccountFormDialog.visible = false;
+  // 确保在关闭弹窗时重置表单状态
+  if (emailAccountFormRef.value) {
+    emailAccountFormRef.value.resetForm();
+  }
 };
 
 

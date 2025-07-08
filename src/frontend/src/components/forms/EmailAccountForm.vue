@@ -210,6 +210,9 @@ const resetForm = () => {
     imap_server: '',
     imap_port: null,
   };
+  // 重置查看密码状态
+  viewedPassword.value = '';
+  viewPasswordLoading.value = false;
 };
 
 watch(() => props.emailAccount, (newAccount) => {
@@ -221,6 +224,9 @@ watch(() => props.emailAccount, (newAccount) => {
     form.value.phone_number = newAccount.phone_number || '';
     form.value.notes = newAccount.notes || '';
   }
+  // 确保在切换账户时清空查看的密码
+  viewedPassword.value = '';
+  viewPasswordLoading.value = false;
 }, { immediate: true, deep: true });
 
 onMounted(() => {

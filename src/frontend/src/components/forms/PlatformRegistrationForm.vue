@@ -303,6 +303,9 @@ watch(() => props.platformRegistration, (newVal) => {
     form.value.phone_number = ''; // Reset phone_number
     form.value.notes = '';
   }
+  // 确保在切换平台注册信息时清空查看的密码
+  viewedPassword.value = '';
+  viewPasswordLoading.value = false;
 }, { immediate: true, deep: true });
 
 const handleSubmit = async () => {
@@ -475,6 +478,7 @@ defineExpose({
     form.value.phone_number = ''; // Reset phone_number
     form.value.notes = '';
     viewedPassword.value = ''; // 清空查看的密码
+    viewPasswordLoading.value = false; // 重置加载状态
   },
   formRef
 });
