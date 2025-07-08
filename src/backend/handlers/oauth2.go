@@ -344,12 +344,12 @@ func MicrosoftOAuth2Login(c *gin.Context) {
 
 	log.Printf("创建并保存Microsoft OAuth2 state到数据库: %s, 过期时间: %v", state, expiresAt)
 
-	// 构建Microsoft OAuth2授权URL
-	authURL := fmt.Sprintf("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s&response_mode=query",
+	// 构建Microsoft OAuth2授权URL - 添加offline_access以获取refresh token
+	authURL := fmt.Sprintf("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s&response_mode=query&prompt=consent",
 		config.AppConfig.OAuth2.Microsoft.ClientID,
 		url.QueryEscape(config.AppConfig.OAuth2.Microsoft.RedirectURI),
 		state,
-		url.QueryEscape("openid email profile User.Read"),
+		url.QueryEscape("openid email profile User.Read offline_access Mail.Read"),
 	)
 
 	utils.SendSuccessResponse(c, gin.H{
@@ -692,7 +692,7 @@ func RedirectToOAuthProvider(c *gin.Context) {
 			oauth2.AccessTypeOffline,
 			oauth2.SetAuthURLParam("code_challenge", pkceVerifier.CodeChallengeS256()),
 			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-			oauth2.SetAuthURLParam("prompt", "select_account"),
+			oauth2.SetAuthURLParam("prompt", "consent"), // 确保获取refresh token
 			oauth2.SetAuthURLParam("response_mode", "query"),
 		)
 	} else if providerName == "google" {
@@ -701,7 +701,7 @@ func RedirectToOAuthProvider(c *gin.Context) {
 			oauth2.ApprovalForce,
 			oauth2.SetAuthURLParam("code_challenge", pkceVerifier.CodeChallengeS256()),
 			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-			oauth2.SetAuthURLParam("prompt", "consent"),
+			oauth2.SetAuthURLParam("prompt", "consent"), // 确保获取refresh token
 		)
 	} else {
 		authURL = conf.AuthCodeURL(state,
@@ -918,18 +918,22 @@ func HandleOAuth2Callback(c *gin.Context) {
 		}
 	}
 
+	// 4. 保存或更新OAuth令牌 - 确保不会创建重复记录
+	// 先删除该组合的现有令牌记录，然后创建新记录
+	database.DB.Where("user_id = ? AND email_account_id = ? AND provider_id = ?", 
+		user.ID, emailAccount.ID, oauthProvider.ID).Delete(&models.UserOAuthToken{})
+
 	userOAuthToken := models.UserOAuthToken{
-		UserID:         user.ID,
-		EmailAccountID: emailAccount.ID,
-		ProviderID:     oauthProvider.ID,
-	}
-	err = database.DB.Where(&userOAuthToken).Assign(models.UserOAuthToken{
+		UserID:                user.ID,
+		EmailAccountID:        emailAccount.ID,
+		ProviderID:            oauthProvider.ID,
 		AccessTokenEncrypted:  encryptedAccessToken,
 		RefreshTokenEncrypted: encryptedRefreshToken,
 		TokenType:             token.TokenType,
 		Expiry:                token.Expiry,
-	}).FirstOrCreate(&userOAuthToken).Error
-	if err != nil {
+	}
+	
+	if err := database.DB.Create(&userOAuthToken).Error; err != nil {
 		log.Printf("保存OAuth token失败: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/?error=database_error")
 		return

@@ -22,6 +22,8 @@ import SearchResultView from '../views/SearchResultView.vue' // Import SearchRes
 import InboxView from '../views/InboxView.vue'
 import EmailDetailView from '../views/EmailDetailView.vue'
 import OAuth2StatusView from '../views/OAuth2StatusView.vue'
+import UnifiedTokenView from '../views/UnifiedTokenView.vue'
+import DebugTokenView from '../views/DebugTokenView.vue'
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
 const routes = [
@@ -177,6 +179,21 @@ const routes = [
        path: 'oauth2-status',
        name: 'OAuth2Status',
        component: OAuth2StatusView,
+     },
+     {
+       path: 'token-management',
+       name: 'TokenManagement', 
+       component: UnifiedTokenView,
+     },
+     {
+       path: 'token-status',
+       name: 'TokenStatus', 
+       component: UnifiedTokenView, // 重定向到统一页面
+     },
+     {
+       path: 'debug-tokens',
+       name: 'DebugTokens', 
+       component: DebugTokenView,
      },
     ]
   },

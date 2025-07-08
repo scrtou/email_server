@@ -53,12 +53,12 @@
              <span>收件箱</span>
            </el-menu-item>
            <el-menu-item
-             index="/oauth2-status"
+             index="/token-management"
              role="menuitem"
-             aria-label="OAuth2令牌状态管理页面"
+             aria-label="OAuth2令牌管理页面"
            >
              <el-icon aria-hidden="true"><Key /></el-icon>
-             <span>令牌状态</span>
+             <span>令牌管理</span>
            </el-menu-item>
             <el-menu-item
               index="/platforms"

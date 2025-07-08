@@ -11,6 +11,7 @@ import (
 	"email_server/database"
 	"email_server/handlers"
 	"email_server/middleware"
+	"email_server/services"
 )
 
 func setupRouter() *gin.Engine { //函数签名 返回指针类型
@@ -154,6 +155,12 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		protected.GET("/users/me/reminders", handlers.GetUserReminders)
 		protected.PUT("/users/me/reminders/:id/read", handlers.MarkReminderAsRead) // 新增：标记提醒为已读
 
+		// 令牌管理
+		protected.GET("/tokens/status", handlers.GetTokenStatus)     // 获取令牌状态
+		protected.POST("/tokens/refresh", handlers.RefreshTokens)    // 手动刷新令牌
+		protected.POST("/tokens/cleanup", handlers.CleanupTokens)    // 清理重复和过期令牌
+		protected.GET("/tokens/test", handlers.TestTokenData)        // 测试令牌数据
+
 		// 邮箱管理 (DEPRECATED - Use /email-accounts)
 		// emails := protected.Group("/emails")
 		// {
@@ -213,6 +220,11 @@ func main() {
 
 	// 初始化并启动定时任务
 	handlers.StartSubscriptionReminderJob() // 新增：启动定时任务
+
+	// 启动令牌自动刷新服务
+	tokenRefreshService := services.NewTokenRefreshService()
+	go tokenRefreshService.Start()
+	log.Println("启动OAuth2令牌自动刷新服务")
 
 	// 设置路由
 	r := setupRouter() //短变量声明

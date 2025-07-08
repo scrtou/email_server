@@ -287,8 +287,10 @@ func CheckOAuth2TokenStatus(c *gin.Context) {
 	var client *http.Client
 	if provider.Name == "google" {
 		client, err = integrations.GetGmailOAuth2HTTPClient(emailAccount.ID)
+	} else if provider.Name == "microsoft" {
+		client, err = integrations.GetMicrosoftOAuth2HTTPClient(emailAccount.ID)
 	} else {
-		client, err = integrations.GetOAuth2HTTPClient(emailAccount.ID)
+		err = fmt.Errorf("unsupported OAuth2 provider: %s", provider.Name)
 	}
 
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"email_server/database"
@@ -42,8 +43,8 @@ type GraphAPIResponse struct {
 	Count    int               `json:"@odata.count"`
 }
 
-// getOAuth2HTTPClient 是一个核心辅助函数，用于获取一个可用的、能自动刷新token的http客户端
-func GetOAuth2HTTPClient(accountID uint) (*http.Client, error) {
+// GetMicrosoftOAuth2HTTPClient 专门为Microsoft Graph API获取OAuth2客户端，包含自动令牌刷新功能
+func GetMicrosoftOAuth2HTTPClient(accountID uint) (*http.Client, error) {
 	var oauthToken models.UserOAuthToken
 	if err := database.DB.Where("email_account_id = ?", accountID).First(&oauthToken).Error; err != nil {
 		return nil, fmt.Errorf("no oauth token found for account %d: %w", accountID, err)
@@ -56,7 +57,7 @@ func GetOAuth2HTTPClient(accountID uint) (*http.Client, error) {
 
 	decryptedSecret, err := utils.Decrypt(provider.ClientSecretEncrypted)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt client secret: %w", err)
 	}
 
 	conf := &oauth2.Config{
@@ -71,11 +72,12 @@ func GetOAuth2HTTPClient(accountID uint) (*http.Client, error) {
 
 	decryptedAccessToken, err := utils.Decrypt(oauthToken.AccessTokenEncrypted)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
 	}
+
 	decryptedRefreshToken, err := utils.Decrypt(oauthToken.RefreshTokenEncrypted)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 	}
 
 	token := &oauth2.Token{
@@ -85,8 +87,118 @@ func GetOAuth2HTTPClient(accountID uint) (*http.Client, error) {
 		Expiry:       oauthToken.Expiry,
 	}
 
+	// 创建一个带有令牌刷新回调的TokenSource
+	tokenSource := &microsoftRefreshableTokenSource{
+		config:     conf,
+		token:      token,
+		oauthToken: &oauthToken,
+		accountID:  accountID,
+	}
+
 	// 返回一个会自动刷新token的http.Client
-	return conf.Client(context.Background(), token), nil
+	return &http.Client{
+		Transport: &oauth2.Transport{
+			Source: tokenSource,
+		},
+	}, nil
+}
+
+// microsoftRefreshableTokenSource 实现oauth2.TokenSource接口，支持Microsoft Graph API的自动刷新和数据库更新
+type microsoftRefreshableTokenSource struct {
+	config     *oauth2.Config
+	token      *oauth2.Token
+	oauthToken *models.UserOAuthToken
+	accountID  uint
+	mu         sync.Mutex
+}
+
+// Token 实现oauth2.TokenSource接口
+func (ts *microsoftRefreshableTokenSource) Token() (*oauth2.Token, error) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	// 检查令牌是否需要刷新
+	if ts.token.Valid() {
+		return ts.token, nil
+	}
+
+	log.Printf("[Microsoft OAuth2] Token expired for account %d, refreshing...", ts.accountID)
+
+	// 使用配置的TokenSource进行刷新
+	tokenSource := ts.config.TokenSource(context.Background(), ts.token)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		log.Printf("[Microsoft OAuth2] Failed to refresh token for account %d: %v", ts.accountID, err)
+
+		// 检查是否是刷新令牌失效（Microsoft特定错误码）
+		if strings.Contains(err.Error(), "invalid_grant") ||
+			strings.Contains(err.Error(), "AADSTS70008") || // Token expired
+			strings.Contains(err.Error(), "AADSTS700082") || // Invalid refresh token
+			strings.Contains(err.Error(), "Token has been expired or revoked") {
+			// 标记令牌为需要重新授权状态
+			ts.markTokenAsInvalid()
+			return nil, fmt.Errorf("oauth2_refresh_token_expired: Microsoft账户的刷新令牌已过期或被撤销，需要重新授权")
+		}
+
+		return nil, fmt.Errorf("failed to refresh microsoft oauth2 token: %w", err)
+	}
+
+	// 更新内存中的令牌
+	ts.token = newToken
+
+	// 更新数据库中的令牌
+	if err := ts.updateTokenInDatabase(newToken); err != nil {
+		log.Printf("[Microsoft OAuth2] Failed to update token in database for account %d: %v", ts.accountID, err)
+		// 不返回错误，因为令牌刷新成功了，只是数据库更新失败
+	} else {
+		log.Printf("[Microsoft OAuth2] Successfully refreshed and saved token for account %d", ts.accountID)
+	}
+
+	return newToken, nil
+}
+
+// updateTokenInDatabase 更新数据库中的令牌
+func (ts *microsoftRefreshableTokenSource) updateTokenInDatabase(newToken *oauth2.Token) error {
+	// 加密新的访问令牌
+	encryptedAccessToken, err := utils.Encrypt([]byte(newToken.AccessToken))
+	if err != nil {
+		return fmt.Errorf("failed to encrypt new access token: %w", err)
+	}
+
+	// 更新数据库记录
+	updates := map[string]interface{}{
+		"access_token_encrypted": encryptedAccessToken,
+		"expiry":                 newToken.Expiry,
+		"token_type":             newToken.TokenType,
+	}
+
+	// 只有在提供了新的刷新令牌时才更新
+	if newToken.RefreshToken != "" {
+		encryptedRefreshToken, err := utils.Encrypt([]byte(newToken.RefreshToken))
+		if err != nil {
+			return fmt.Errorf("failed to encrypt new refresh token: %w", err)
+		}
+		updates["refresh_token_encrypted"] = encryptedRefreshToken
+	}
+
+	return database.DB.Model(ts.oauthToken).Updates(updates).Error
+}
+
+// markTokenAsInvalid 标记令牌为无效状态，需要重新授权
+func (ts *microsoftRefreshableTokenSource) markTokenAsInvalid() {
+	// 在数据库中添加一个标记字段来表示令牌需要重新授权
+	// 这里我们可以设置一个很早的过期时间来标记令牌无效
+	invalidTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	updates := map[string]interface{}{
+		"expiry": invalidTime,
+	}
+
+	if err := database.DB.Model(ts.oauthToken).Updates(updates).Error; err != nil {
+		log.Printf("[Microsoft OAuth2] Failed to mark token as invalid for account %d: %v", ts.accountID, err)
+	} else {
+		log.Printf("[Microsoft OAuth2] Marked token as invalid for account %d, requires re-authorization", ts.accountID)
+	}
 }
 
 // FetchEmailsWithGraphAPI 是新的邮件获取实现
@@ -96,7 +208,7 @@ func FetchEmailsWithGraphAPI(emailAccount models.EmailAccount, page, pageSize in
 
 // FetchEmailsWithGraphAPIFromFolder 从指定文件夹获取邮件
 func FetchEmailsWithGraphAPIFromFolder(emailAccount models.EmailAccount, page, pageSize int, folderName string) ([]models.Email, int, error) {
-	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	client, err := GetMicrosoftOAuth2HTTPClient(emailAccount.ID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get oauth2 client: %w", err)
 	}
@@ -173,7 +285,7 @@ func FetchEmailsWithGraphAPIFromFolder(emailAccount models.EmailAccount, page, p
 
 // FetchEmailDetailWithGraphAPI fetches detailed information for a single email by messageId
 func FetchEmailDetailWithGraphAPI(emailAccount models.EmailAccount, messageId string) (*models.Email, error) {
-	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	client, err := GetMicrosoftOAuth2HTTPClient(emailAccount.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get oauth2 client: %w", err)
 	}
@@ -299,7 +411,7 @@ func FetchEmailDetailWithGraphAPI(emailAccount models.EmailAccount, messageId st
 
 // MarkMicrosoftEmailAsRead 标记Microsoft邮件为已读
 func MarkMicrosoftEmailAsRead(emailAccount models.EmailAccount, messageID string) error {
-	client, err := GetOAuth2HTTPClient(emailAccount.ID)
+	client, err := GetMicrosoftOAuth2HTTPClient(emailAccount.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get oauth2 client: %w", err)
 	}
