@@ -431,21 +431,7 @@ export default {
         console.log('OAuth2 API响应:', response)
 
         if (response && response.auth_url) {
-          const authWindow = window.open(
-            response.auth_url,
-            'oauth2_reauth',
-            'width=600,height=700,scrollbars=yes,resizable=yes'
-          )
-
-          const checkClosed = setInterval(() => {
-            if (authWindow.closed) {
-              clearInterval(checkClosed)
-              ElMessage.info('授权窗口已关闭，正在检查最新状态...')
-              setTimeout(() => {
-                loadTokenStatus()
-              }, 2000)
-            }
-          }, 1000)
+          window.location.href = response.auth_url
         } else {
           ElMessage.error('无法获取重新授权链接，请稍后重试。')
         }
