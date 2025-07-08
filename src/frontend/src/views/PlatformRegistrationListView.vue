@@ -18,7 +18,7 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-            <el-button type="info" :icon="Download" style="margin-left: 10px;" @click="handleExport" disabled>
+            <el-button type="info" :icon="Download" style="margin-left: 10px;" @click="handleExport" :loading="platformRegistrationStore.loading">
               导出数据
             </el-button>
           </div>
@@ -514,8 +514,13 @@ const handleImportSuccess = async (data) => {
   );
 };
 
-const handleExport = () => {
-  ElMessage.info('导出功能即将推出');
+const handleExport = async () => {
+  try {
+    await platformRegistrationStore.exportPlatformRegistrations();
+  } catch (error) {
+    console.error('导出失败:', error);
+    ElMessage.error('导出失败，请重试');
+  }
 };
 </script>
 

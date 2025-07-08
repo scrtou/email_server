@@ -5,9 +5,11 @@ import (
 	"email_server/models"
 	"email_server/utils"
 	"errors" // Added for errors.Is
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -848,10 +850,17 @@ func UpdatePlatformRegistration(c *gin.Context) {
 	}
 
 	// --- 新增校验：更新后用户名和关联邮箱不能都为空/无效 ---
-	if (registration.LoginUsername == nil || *registration.LoginUsername == "") && (registration.EmailAccountID == nil || *registration.EmailAccountID == 0) {
-		tx.Rollback()
-		utils.SendErrorResponse(c, http.StatusBadRequest, "更新失败：用户名和关联邮箱不能同时为空或无效")
-		return
+	// 注意：这个校验只在实际改变了用户名或邮箱时才进行，密码更新不受此限制
+	emailChanged := input.EmailAddress != ""
+	usernameChanged := input.LoginUsername != ""
+	
+	// 只有在实际修改了用户名或邮箱时，才需要校验不能同时为空
+	if emailChanged || usernameChanged {
+		if (registration.LoginUsername == nil || *registration.LoginUsername == "") && (registration.EmailAccountID == nil || *registration.EmailAccountID == 0) {
+			tx.Rollback()
+			utils.SendErrorResponse(c, http.StatusBadRequest, "更新失败：用户名和关联邮箱不能同时为空或无效")
+			return
+		}
 	}
 	// --- 校验结束 ---
 
@@ -1243,4 +1252,144 @@ func GetEmailRegistrationsByPlatformID(c *gin.Context) {
 
 	pagination := utils.CreatePaginationMeta(page, pageSize, int(totalRecords))
 	utils.SendSuccessResponseWithMeta(c, responseData, pagination)
+}
+
+// ExportPlatformRegistrations godoc
+// @Summary 导出平台注册信息
+// @Description 导出当前用户的平台注册信息为CSV格式
+// @Tags PlatformRegistrations
+// @Produce application/octet-stream
+// @Param platform_id query int false "按平台ID筛选"
+// @Param email_account_id query int false "按邮箱账户ID筛选"
+// @Param username query string false "按用户名筛选"
+// @Success 200 {string} string "CSV文件内容"
+// @Failure 401 {object} models.ErrorResponse "用户未认证"
+// @Failure 500 {object} models.ErrorResponse "服务器内部错误"
+// @Router /platform-registrations/export [get]
+// @Security BearerAuth
+func ExportPlatformRegistrations(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "用户ID类型错误")
+		return
+	}
+	currentUserID := uint(userID)
+
+	// 获取筛选参数
+	emailAccountIDQuery := c.Query("email_account_id")
+	platformIDQuery := c.Query("platform_id")
+	usernameFilter := strings.ToLower(strings.TrimSpace(c.Query("username")))
+	
+	var emailAccountIDFilter uint64
+	if emailAccountIDQuery != "" {
+		emailAccountIDFilter, _ = strconv.ParseUint(emailAccountIDQuery, 10, 32)
+	}
+	var platformIDFilter uint64
+	if platformIDQuery != "" {
+		platformIDFilter, _ = strconv.ParseUint(platformIDQuery, 10, 32)
+	}
+
+	// 构建查询
+	query := database.DB.Model(&models.PlatformRegistration{}).
+		Where("platform_registrations.user_id = ?", currentUserID).
+		Joins("LEFT JOIN email_accounts ON email_accounts.id = platform_registrations.email_account_id AND email_accounts.user_id = ?", currentUserID).
+		Joins("LEFT JOIN platforms ON platforms.id = platform_registrations.platform_id AND platforms.user_id = ?", currentUserID)
+
+	// 应用筛选条件
+	if emailAccountIDFilter > 0 {
+		query = query.Where("platform_registrations.email_account_id = ?", uint(emailAccountIDFilter))
+	}
+	if platformIDFilter > 0 {
+		query = query.Where("platform_registrations.platform_id = ?", uint(platformIDFilter))
+	}
+	if usernameFilter != "" {
+		query = query.Where("LOWER(platform_registrations.login_username) = LOWER(?)", usernameFilter)
+	}
+
+	// 查询数据
+	var registrations []models.PlatformRegistration
+	if err := query.Preload("EmailAccount").Preload("Platform").Find(&registrations).Error; err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "查询平台注册信息失败: "+err.Error())
+		return
+	}
+
+	// 创建CSV内容
+	var csvContent strings.Builder
+	csvContent.WriteString("平台名称,平台网址,邮箱地址,用户名,密码,手机号,备注,创建时间,更新时间\n")
+
+	for _, pr := range registrations {
+		emailAddress := ""
+		if pr.EmailAccount != nil {
+			emailAddress = pr.EmailAccount.EmailAddress
+		}
+		
+		username := ""
+		if pr.LoginUsername != nil {
+			username = *pr.LoginUsername
+		}
+
+		// 解密密码
+		password := ""
+		if pr.LoginPasswordEncrypted != "" {
+			if utils.IsEncryptedPassword(pr.LoginPasswordEncrypted) {
+				// 新的加密格式，可以解密
+				decryptedPassword, err := utils.DecryptPassword(pr.LoginPasswordEncrypted)
+				if err == nil {
+					password = decryptedPassword
+				} else {
+					password = "[解密失败]"
+				}
+			} else {
+				// 旧的bcrypt格式，无法解密
+				password = "[旧格式,无法查看]"
+			}
+		}
+
+		// 转义CSV字段中的特殊字符
+		platformName := escapeCsvField(pr.Platform.Name)
+		platformURL := escapeCsvField(pr.Platform.WebsiteURL)
+		emailAddr := escapeCsvField(emailAddress)
+		loginUsername := escapeCsvField(username)
+		loginPassword := escapeCsvField(password)
+		phoneNumber := escapeCsvField(pr.PhoneNumber)
+		notes := escapeCsvField(pr.Notes)
+		
+		csvContent.WriteString(fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+			platformName,
+			platformURL,
+			emailAddr,
+			loginUsername,
+			loginPassword,
+			phoneNumber,
+			notes,
+			pr.CreatedAt.Format("2006-01-02 15:04:05"),
+			pr.UpdatedAt.Format("2006-01-02 15:04:05"),
+		))
+	}
+
+	// 设置响应头
+	filename := fmt.Sprintf("platform_registrations_%s.csv", 
+		time.Now().Format("20060102_150405"))
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Length", strconv.Itoa(len(csvContent.String())))
+
+	// 返回CSV内容
+	c.String(http.StatusOK, csvContent.String())
+}
+
+// escapeCsvField 转义CSV字段中的特殊字符
+func escapeCsvField(field string) string {
+	// 如果字段包含逗号、双引号或换行符，需要用双引号包围
+	// 并且将字段中的双引号转义为两个双引号
+	if strings.Contains(field, ",") || strings.Contains(field, "\"") || strings.Contains(field, "\n") {
+		field = strings.ReplaceAll(field, "\"", "\"\"")
+		return "\"" + field + "\""
+	}
+	return field
 }

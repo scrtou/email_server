@@ -42,6 +42,11 @@ api.interceptors.response.use(
   response => {
     console.log('API响应:', response.config.url, response.data)
     
+    // 处理blob响应（文件下载）
+    if (response.config.responseType === 'blob') {
+      return response; // 直接返回blob响应，不进行进一步处理
+    }
+    
     if (response.data.code === 200 || response.status === 201 || response.status === 200) { // Check for HTTP success too
       // If the backend response includes a meta object (typical for pagination)
       // return an object containing both data and meta.
@@ -164,6 +169,49 @@ export const platformRegistrationAPI = {
   delete: (id) => api.delete(`/platform-registrations/${id}`),
   getAssociatedServiceSubscriptions: (registrationId, params = {}) => api.get(`/platform-registrations/${registrationId}/service-subscriptions`, { params }),
   getPassword: (id) => api.get(`/platform-registrations/${id}/password`), // 获取密码
+  export: (params = {}) => {
+    return api.get('/platform-registrations/export', { 
+      params,
+      responseType: 'blob' // 重要：设置响应类型为blob以处理文件下载
+    }).then(response => {
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // 从响应头获取文件名，如果没有则生成带时间戳的默认名称
+      const contentDisposition = response.headers && response.headers['content-disposition'];
+      let filename = '';
+      
+      if (contentDisposition) {
+        // 尝试多种格式的文件名提取
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // 如果无法从响应头获取文件名，生成带时间戳的默认文件名
+      if (!filename) {
+        const now = new Date();
+        const timestamp = now.getFullYear().toString() +
+          (now.getMonth() + 1).toString().padStart(2, '0') +
+          now.getDate().toString().padStart(2, '0') + '_' +
+          now.getHours().toString().padStart(2, '0') +
+          now.getMinutes().toString().padStart(2, '0') +
+          now.getSeconds().toString().padStart(2, '0');
+        filename = `platform_registrations_${timestamp}.csv`;
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return response;
+    });
+  }
 };
 
 // ServiceSubscription API

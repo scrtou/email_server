@@ -309,6 +309,35 @@ export const usePlatformRegistrationStore = defineStore('platformRegistration', 
       } finally {
         this.loading = false;
       }
+    },
+    async exportPlatformRegistrations() {
+      const authStore = useAuthStore();
+      if (!authStore.isAuthenticated) {
+        console.warn('[PlatformRegistrationStore] exportPlatformRegistrations called while not authenticated.');
+        ElMessage.error('请先登录再导出数据');
+        return false;
+      }
+
+      this.loading = true;
+      this.error = null;
+      try {
+        // 使用当前的筛选条件导出数据
+        const exportParams = {
+          email_account_id: this.filters.email_account_id || undefined,
+          platform_id: this.filters.platform_id || undefined,
+          username: this.filters.login_username || undefined,
+        };
+        
+        await platformRegistrationAPI.export(exportParams);
+        ElMessage.success('导出成功');
+        return true;
+      } catch (err) {
+        this.error = err.message || '导出失败';
+        ElMessage.error(this.error);
+        return false;
+      } finally {
+        this.loading = false;
+      }
     }
   },
 });
