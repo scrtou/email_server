@@ -167,3 +167,4 @@ config.local.json
 .directory
 .Trash-*
 .nfs*dify-web.tar
+dify-web.tar
