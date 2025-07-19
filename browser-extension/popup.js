@@ -19,8 +19,36 @@ class PopupManager {
 
     this.setupNavigation();
     this.setupEventListeners();
+    this.setupMessageListener(); // 添加消息监听器
     this.checkLoginStatus();
     this.loadCurrentTabData();
+  }
+
+  // 监听来自background脚本的消息
+  setupMessageListener() {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === 'authError') {
+        console.log('🚪 收到认证错误消息，自动退出登录');
+        this.handleAuthError(message.message);
+      }
+    });
+  }
+
+  // 处理认证错误
+  handleAuthError(message) {
+    this.isLoggedIn = false;
+    this.showLoginPage();
+    this.showMessage('login', message || '登录已过期，请重新登录', 'error');
+  }
+
+  // 统一处理API调用结果，检查认证错误
+  checkApiResult(result) {
+    if (result && result.authError) {
+      console.log('🚪 API调用检测到认证错误，自动退出登录');
+      this.handleAuthError(result.error);
+      return false; // 表示有认证错误，调用方应该终止处理
+    }
+    return true; // 表示没有认证错误，可以继续处理
   }
 
   setInitialState() {
@@ -236,20 +264,91 @@ class PopupManager {
       if (!config.serverURL) {
         console.warn('⚠️ 服务器地址未配置');
         this.updateStatus('请先在设置中配置服务器地址', 'disconnected');
+        this.isLoggedIn = false;
+        this.showLoginPage();
+        return;
       }
 
       if (config && config.token) {
-        console.log('✅ 用户已登录，显示主应用');
-        this.isLoggedIn = true;
-        this.showMainApp();
+        // 验证现有token是否仍然有效
+        console.log('🔍 验证现有token有效性...');
+        const tokenValid = await this.validateToken();
+        if (tokenValid) {
+          console.log('✅ Token有效，用户已登录，显示主应用');
+          this.isLoggedIn = true;
+          this.showMainApp();
+        } else {
+          console.log('❌ Token无效，尝试自动登录');
+          await this.attemptAutoLogin(config);
+        }
       } else {
-        console.log('❌ 用户未登录，显示登录页面');
-        this.isLoggedIn = false;
-        this.showLoginPage();
+        console.log('❌ 没有token，尝试自动登录');
+        await this.attemptAutoLogin(config);
       }
     } catch (error) {
       console.error('❌ 检查登录状态失败:', error);
       // 出错时默认显示登录页面
+      this.isLoggedIn = false;
+      this.showLoginPage();
+    }
+  }
+
+  // 验证token有效性
+  async validateToken() {
+    try {
+      // 尝试调用一个简单的API来验证token
+      const result = await this.sendMessage({ action: 'getRegistrations' });
+      return result.success && !result.authError;
+    } catch (error) {
+      console.error('❌ Token验证失败:', error);
+      return false;
+    }
+  }
+
+  // 尝试自动登录
+  async attemptAutoLogin(config) {
+    // 检查是否启用了自动登录功能
+    if (config && config.autoLogin === false) {
+      console.log('ℹ️ 自动登录已禁用，显示登录页面');
+      this.isLoggedIn = false;
+      this.showLoginPage();
+      return;
+    }
+
+    if (config && config.username && config.password) {
+      console.log('🚀 检测到保存的凭据，尝试自动登录...');
+      
+      // 显示自动登录状态
+      this.isLoggedIn = false;
+      this.showLoginPage();
+      this.showMessage('login', '正在自动登录...', 'success');
+
+      const result = await this.sendMessage({
+        action: 'login',
+        username: config.username,
+        password: config.password
+      });
+
+      if (result.success) {
+        console.log('✅ 自动登录成功');
+        this.isLoggedIn = true;
+        this.showMessage('login', '自动登录成功！', 'success');
+        setTimeout(() => {
+          this.showMainApp();
+          this.loadAccounts();
+        }, 1000);
+      } else {
+        console.log('❌ 自动登录失败:', result.error);
+        this.isLoggedIn = false;
+        this.showLoginPage();
+        // 不显示自动登录失败的错误，避免打扰用户
+        // 但如果用户在登录页面，可以显示一个不太明显的提示
+        if (result.error.includes('过期')) {
+          this.showMessage('login', '保存的登录信息已过期，请重新登录', 'warning');
+        }
+      }
+    } else {
+      console.log('ℹ️ 没有保存的登录凭据，显示登录页面');
       this.isLoggedIn = false;
       this.showLoginPage();
     }
@@ -399,6 +498,11 @@ class PopupManager {
       data: data
     });
 
+    // 统一检查认证错误
+    if (!this.checkApiResult(result)) {
+      return; // 有认证错误，已经处理，直接返回
+    }
+
     if (result.success) {
       this.showMessage('manual', '账号保存成功！', 'success');
       document.getElementById('manual-form').reset();
@@ -431,6 +535,11 @@ class PopupManager {
     const result = await this.sendMessage({ action: 'getRegistrations' });
 
     document.getElementById('accounts-loading').style.display = 'none';
+
+    // 统一检查认证错误
+    if (!this.checkApiResult(result)) {
+      return; // 有认证错误，已经处理，直接返回
+    }
 
     if (result.success) {
       console.log('📋 获取到的账号列表数据:', result.data);
@@ -659,6 +768,11 @@ class PopupManager {
       });
 
       document.getElementById('detail-loading').style.display = 'none';
+
+      // 统一检查认证错误
+      if (!this.checkApiResult(result)) {
+        return; // 有认证错误，已经处理，直接返回
+      }
 
       if (result.success) {
         console.log('🔍 API返回的完整结果:', result);
@@ -930,6 +1044,11 @@ class PopupManager {
       });
 
       document.getElementById('edit-loading').style.display = 'none';
+
+      // 统一检查认证错误
+      if (!this.checkApiResult(result)) {
+        return; // 有认证错误，已经处理，直接返回
+      }
 
       if (result.success) {
         document.getElementById('edit-success').textContent = '保存成功！';

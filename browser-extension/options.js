@@ -55,6 +55,7 @@ class OptionsManager {
       document.getElementById('auto-detect').checked = settings.autoDetect !== false;
       document.getElementById('show-notifications').checked = settings.showNotifications !== false;
       document.getElementById('auto-save').checked = settings.autoSave === true;
+      document.getElementById('auto-login').checked = settings.autoLogin !== false;
       
       if (settings.excludedSites) {
         document.getElementById('excluded-sites').value = settings.excludedSites;
@@ -117,6 +118,7 @@ class OptionsManager {
         autoDetect: document.getElementById('auto-detect').checked,
         showNotifications: document.getElementById('show-notifications').checked,
         autoSave: document.getElementById('auto-save').checked,
+        autoLogin: document.getElementById('auto-login').checked,
         excludedSites: document.getElementById('excluded-sites').value
       };
 

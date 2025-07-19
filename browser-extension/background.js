@@ -27,6 +27,49 @@ class EmailServerAPI {
     }
   }
 
+  // 处理认证错误的方法
+  async handleAuthError(response) {
+    if (response.status === 401 || response.status === 403) {
+      console.log('🚪 检测到认证错误，自动清理token并退出登录');
+      
+      // 清理token
+      this.token = '';
+      const currentConfig = await this.getStoredConfig();
+      await this.saveConfig({ ...currentConfig, token: '' });
+      
+      // 通知popup和content script用户需要重新登录
+      this.broadcastAuthError();
+      
+      return true; // 表示已处理认证错误
+    }
+    return false; // 未处理认证错误
+  }
+
+  // 广播认证错误到所有监听者
+  broadcastAuthError() {
+    // 发送消息到popup（如果打开的话）
+    chrome.runtime.sendMessage({
+      action: 'authError',
+      message: '登录已过期，请重新登录'
+    }).catch(() => {
+      // 忽略发送失败的错误，popup可能没有打开
+    });
+
+    // 发送消息到所有content scripts
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach(tab => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'authError',
+            message: '登录已过期，请重新登录'
+          }).catch(() => {
+            // 忽略发送失败的错误，某些tab可能无法接收消息
+          });
+        }
+      });
+    });
+  }
+
   async getStoredConfig() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(['serverURL', 'token', 'username', 'password'], (result) => {
@@ -134,6 +177,12 @@ class EmailServerAPI {
           message: error.message
         };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { hasConflict: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         const error = await response.json();
         return { hasConflict: false, error: error.message };
       }
@@ -172,6 +221,12 @@ class EmailServerAPI {
           conflictData: error.data
         };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { success: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         const error = await response.json();
         return { success: false, error: error.message };
       }
@@ -217,6 +272,12 @@ class EmailServerAPI {
         console.log('✅ 获取数据成功:', responseData);
         return { success: true, data: responseData.data };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { success: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const error = await response.json();
@@ -271,6 +332,12 @@ class EmailServerAPI {
         // 提取实际的数据部分
         return { success: true, data: responseData.data };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { success: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const error = await response.json();
@@ -324,6 +391,12 @@ class EmailServerAPI {
         console.log('✅ 获取密码成功');
         return { success: true, data: responseData.data };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { success: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const error = await response.json();
@@ -434,6 +507,12 @@ class EmailServerAPI {
         console.log('✅ 更新成功:', responseData);
         return { success: true, data: responseData.data };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { success: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const error = await response.json();
@@ -488,6 +567,12 @@ class EmailServerAPI {
         console.log('✅ 删除成功:', responseData);
         return { success: true, data: responseData.data };
       } else {
+        // 检查是否是认证错误
+        const isAuthError = await this.handleAuthError(response);
+        if (isAuthError) {
+          return { success: false, error: '登录已过期，请重新登录', authError: true };
+        }
+
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const error = await response.json();
