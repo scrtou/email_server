@@ -1,14 +1,31 @@
 <!-- 应用密码设置组件 -->
 <template>
   <div class="app-password-setup">
-    <el-card class="setup-card">
-      <template #header>
-        <div class="card-header">
-          <el-icon class="header-icon"><Key /></el-icon>
-          <span class="card-title">应用密码设置</span>
-          <el-tag v-if="isConnected" type="success">已连接</el-tag>
-        </div>
-      </template>
+    <!-- 未登录提示 -->
+    <el-alert
+      v-if="!isAuthenticated"
+      title="需要登录才能设置应用密码"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="login-alert"
+    >
+      <p>请先登录您的账户，然后再设置应用密码。</p>
+      <el-button type="primary" @click="redirectToLogin" style="margin-top: 10px;">
+        前往登录
+      </el-button>
+    </el-alert>
+
+    <!-- 主要内容区域 -->
+    <div v-else>
+      <el-card class="setup-card">
+        <template #header>
+          <div class="card-header">
+            <el-icon class="header-icon"><Key /></el-icon>
+            <span class="card-title">应用密码设置</span>
+            <el-tag v-if="isConnected" type="success">已连接</el-tag>
+          </div>
+        </template>
 
       <!-- 设置指南 -->
       <el-alert
@@ -105,16 +122,29 @@
         <el-button @click="handleCancel" :disabled="testing || setting">
           取消
         </el-button>
+
+        <!-- 调试按钮 -->
+        <el-button 
+          type="info" 
+          size="small" 
+          @click="debugAuthStatus" 
+          style="margin-left: 10px;"
+        >
+          调试认证状态
+        </el-button>
       </div>
     </el-card>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Key, Message, Lock, Refresh, Check } from '@element-plus/icons-vue'
-import axios from 'axios'
+import { useAuthStore } from '@/stores/auth'
+import api from '@/utils/api'
 
 const props = defineProps({
   emailAccount: {
@@ -128,6 +158,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['success', 'cancel'])
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 // 表单数据
 const form = reactive({
@@ -159,6 +192,7 @@ const isConnected = ref(false)
 
 const isEdit = computed(() => !!props.emailAccount)
 const canSetup = computed(() => form.provider && form.email && form.password)
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 // 初始化
 onMounted(async () => {
@@ -179,7 +213,11 @@ watch(() => props.emailAccount, (newAccount) => {
 
 const loadSupportedProviders = async () => {
   try {
-    const response = await axios.get('/app-password/providers')
+    // 添加调试信息
+    console.log('🔐 用户认证状态:', authStore.isAuthenticated)
+    console.log('🔐 当前token:', authStore.token)
+    
+    const response = await api.get('/app-password/providers')
     if (response.data.success) {
       supportedProviders.value = response.data.data || []
     } else {
@@ -188,6 +226,14 @@ const loadSupportedProviders = async () => {
     }
   } catch (error) {
     console.error('加载服务商列表失败:', error)
+    console.error('错误详情:', error.response?.data)
+    
+    if (error.response?.status === 401) {
+      ElMessage.error('登录已过期，请重新登录')
+      router.push('/login')
+      return
+    }
+    
     // 提供默认的服务商列表作为备选
     supportedProviders.value = getDefaultProviders()
     ElMessage.warning('使用默认服务商列表')
@@ -238,7 +284,7 @@ const initializeForEdit = () => {
 
 const checkAppPasswordStatus = async () => {
   try {
-    const response = await axios.get(`/app-password/check/${props.emailAccount.id}`)
+    const response = await api.get(`/app-password/check/${props.emailAccount.id}`)
     const data = response.data.data
     isConnected.value = data.auth_type === 'app_password'
     if (isConnected.value && data.provider_info) {
@@ -266,11 +312,21 @@ const handleTest = async () => {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
+  // 检查登录状态
+  if (!authStore.isAuthenticated) {
+    ElMessage.error('请先登录再测试连接')
+    router.push('/login')
+    return
+  }
+
   testing.value = true
   try {
-    const response = await axios.post('/app-password/test', {
-      email: form.email,
-      password: form.password,
+    console.log('🧪 开始测试应用密码连接...')
+    console.log('🔐 当前token:', authStore.token?.substring(0, 20) + '...')
+    
+    const response = await api.post('/app-password/test', {
+      email_address: form.email,
+      app_password: form.password,
       provider: form.provider
     })
 
@@ -282,7 +338,15 @@ const handleTest = async () => {
     }
   } catch (error) {
     console.error('测试连接失败:', error)
-    ElMessage.error(error.response?.data?.error || '连接测试失败')
+    console.error('错误详情:', error.response?.data)
+    
+    if (error.response?.status === 401) {
+      ElMessage.error('登录已过期，请重新登录')
+      router.push('/login')
+    } else {
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || '连接测试失败'
+      ElMessage.error(errorMsg)
+    }
   } finally {
     testing.value = false
   }
@@ -296,9 +360,9 @@ const handleSetup = async () => {
 
   setting.value = true
   try {
-    const response = await axios.post('/app-password/setup', {
-      email: form.email,
-      password: form.password,
+    const response = await api.post('/app-password/setup', {
+      email_address: form.email,
+      app_password: form.password,
       provider: form.provider
     })
 
@@ -369,6 +433,22 @@ const getProviderGuide = (providerId) => {
     `
   }
   return guides[providerId] || '请选择服务商查看设置指南'
+}
+
+const redirectToLogin = () => {
+  router.push('/login')
+}
+
+// 调试函数
+const debugAuthStatus = () => {
+  console.log('🔐 调试认证状态:')
+  console.log('- isAuthenticated:', authStore.isAuthenticated)
+  console.log('- token存在:', !!authStore.token)
+  console.log('- token内容:', authStore.token?.substring(0, 50) + '...')
+  console.log('- localStorage token:', localStorage.getItem('token')?.substring(0, 50) + '...')
+  console.log('- 用户信息:', authStore.user)
+  
+  ElMessage.info('请查看浏览器控制台查看认证状态详情')
 }
 </script>
 
@@ -469,5 +549,9 @@ const getProviderGuide = (providerId) => {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid var(--el-border-color-light);
+}
+
+.login-alert {
+  margin-bottom: 24px;
 }
 </style> 

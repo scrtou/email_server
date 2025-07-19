@@ -7,7 +7,7 @@ import router from '@/router'
 // The VUE_APP_API_BASE_URL in the .env file is the primary source of truth.
 // If it's not available for any reason, we fall back to a hardcoded default
 // to ensure local development works reliably.
-const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5555/api/v1';
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:8080/api/v1';
 export { API_BASE_URL } // Export for use in other parts of the app
 
 const api = axios.create({
@@ -23,12 +23,20 @@ api.interceptors.request.use(
   config => {
     const authStore = useAuthStore()
     
+    // 添加详细调试信息
+    console.log('🔍 API请求拦截器:', config.method?.toUpperCase(), config.url)
+    console.log('🔍 认证状态:', authStore.isAuthenticated)
+    console.log('🔍 Token存在:', !!authStore.token)
+    
     // 添加认证token
     if (authStore.token) {
       config.headers.Authorization = `Bearer ${authStore.token}`
+      console.log('✅ 已添加Authorization头')
+    } else {
+      console.log('❌ 没有token，未添加Authorization头')
     }
     
-    console.log('API请求:', config.method?.toUpperCase(), config.url)
+    console.log('🔍 请求头:', config.headers)
     return config
   },
   error => {

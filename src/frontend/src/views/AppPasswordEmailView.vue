@@ -345,7 +345,7 @@ const loadEmailAccount = async (accountId) => {
 
 const loadFolders = async (accountId) => {
   try {
-    const response = await axios.get(`/app-password/folders/${accountId}`)
+    const response = await axios.get(`/api/v1/app-password/folders/${accountId}`)
     if (response.data.success) {
       folders.value = response.data.data || ['INBOX']
     }
@@ -358,7 +358,7 @@ const loadFolders = async (accountId) => {
 const loadEmails = async (accountId) => {
   loading.value = true
   try {
-    const response = await axios.get(`/app-password/emails/${accountId}`, {
+    const response = await axios.get(`/api/v1/app-password/emails/${accountId}`, {
       params: {
         page: pagination.currentPage,
         pageSize: pagination.pageSize
@@ -406,7 +406,7 @@ const handleRowClick = async (row) => {
   // 加载邮件详情
   const accountId = route.params.id
   try {
-    const response = await axios.get(`/app-password/emails/${accountId}/${row.messageId}`)
+    const response = await axios.get(`/api/v1/app-password/emails/${accountId}/${row.messageId}`)
     if (response.data.success) {
       emailDrawer.email = response.data.data.email
       emailDrawer.visible = true
@@ -428,8 +428,8 @@ const openSettings = () => {
 const testConnection = async () => {
   testingConnection.value = true
   try {
-    const response = await axios.post('/app-password/test', {
-      email: emailAccount.value.email_address
+    const response = await axios.post('/api/v1/app-password/test', {
+      email_address: emailAccount.value.email_address
     })
     
     if (response.data.success) {

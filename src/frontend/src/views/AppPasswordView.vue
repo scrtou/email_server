@@ -298,7 +298,7 @@ import {
   Message, Edit, Switch, View
 } from '@element-plus/icons-vue'
 import AppPasswordSetup from '@/components/AppPasswordSetup.vue'
-import axios from 'axios'
+import api from '@/utils/api'
 
 const router = useRouter()
 
@@ -354,7 +354,7 @@ onMounted(() => {
 // 方法
 const loadSupportedProviders = async () => {
   try {
-    const response = await axios.get('/app-password/providers')
+    const response = await api.get('/app-password/providers')
     if (response.data.success) {
       supportedProviders.value = response.data.data || []
     } else {
@@ -401,7 +401,7 @@ const loadAccounts = async () => {
   loading.value = true
   try {
     // 加载邮箱账户列表
-    const accountsResponse = await axios.get('/api/protected/email-accounts', {
+    const accountsResponse = await api.get('/email-accounts', {
       params: {
         page: pagination.currentPage,
         pageSize: pagination.pageSize
@@ -429,7 +429,7 @@ const loadAccounts = async () => {
 const checkAuthTypes = async () => {
   const promises = accounts.value.map(async (account) => {
     try {
-      const response = await axios.get(`/app-password/check/${account.id}`)
+      const response = await api.get(`/app-password/check/${account.id}`)
       const data = response.data.data
       
       account.auth_type = data.auth_type || 'oauth2'
@@ -493,8 +493,9 @@ const migrateToAppPassword = (account) => {
 
 const testConnection = async (account) => {
   try {
-    const response = await axios.post('/app-password/test', {
-      email: account.email_address,
+    const response = await api.post('/app-password/test', {
+      email_address: account.email_address,
+      app_password: account.app_password, 
       provider: account.provider
     })
     

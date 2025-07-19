@@ -216,6 +216,9 @@ func (apm *AppPasswordManager) TestAppPassword(email, appPassword string, config
 
 	// 连接到IMAP服务器
 	serverAddr := fmt.Sprintf("%s:%d", config.IMAPServer, config.IMAPPort)
+	
+	// 添加详细的连接日志
+	log.Printf("[AppPasswordManager] Connecting to %s with TLS", serverAddr)
 
 	var c *imapclient.Client
 	var err error
@@ -232,16 +235,42 @@ func (apm *AppPasswordManager) TestAppPassword(email, appPassword string, config
 	}
 
 	if err != nil {
-		result.Message = fmt.Sprintf("无法连接到服务器: %v", err)
+		result.Message = fmt.Sprintf("无法连接到服务器 %s: %v", serverAddr, err)
+		log.Printf("[AppPasswordManager] Connection failed: %v", err)
 		return result
 	}
 	defer c.Close()
 
+	log.Printf("[AppPasswordManager] Successfully connected to %s, attempting login...", serverAddr)
+	log.Printf("[AppPasswordManager] Login attempt: email=%s, password_length=%d", email, len(appPassword))
+
 	// 尝试登录
 	if err = c.Login(email, appPassword).Wait(); err != nil {
-		result.Message = fmt.Sprintf("登录失败: %v", err)
+		// 提供更详细的错误信息和建议
+		errorMsg := fmt.Sprintf("登录失败: %v", err)
+		
+		// 分析常见错误并提供建议
+		if strings.Contains(err.Error(), "AUTHENTICATIONFAILED") {
+			result.Message = errorMsg + "\n\n可能的原因：\n" +
+				"1. Gmail账户未启用两步验证\n" +
+				"2. 应用密码不正确或已过期\n" +
+				"3. 应用密码格式错误\n" +
+				"4. Gmail IMAP访问被禁用\n\n" +
+				"建议：\n" +
+				"- 确认已启用两步验证\n" +
+				"- 重新生成应用密码\n" +
+				"- 检查Gmail IMAP设置"
+		} else if strings.Contains(err.Error(), "LOGIN") {
+			result.Message = errorMsg + "\n\n建议检查邮箱地址和应用密码是否正确"
+		} else {
+			result.Message = errorMsg
+		}
+		
+		log.Printf("[AppPasswordManager] Login failed: %v", err)
 		return result
 	}
+
+	log.Printf("[AppPasswordManager] Login successful! Getting server capabilities...")
 
 	// 获取服务器能力
 	caps, err := c.Capability().Wait()
@@ -251,6 +280,7 @@ func (apm *AppPasswordManager) TestAppPassword(email, appPassword string, config
 		for cap := range caps {
 			result.Capabilities = append(result.Capabilities, string(cap))
 		}
+		log.Printf("[AppPasswordManager] Server capabilities: %v", result.Capabilities)
 	}
 
 	// 测试列出文件夹
@@ -262,7 +292,7 @@ func (apm *AppPasswordManager) TestAppPassword(email, appPassword string, config
 	}
 
 	result.Success = true
-	result.Message = "应用密码连接测试成功"
+	result.Message = "应用密码连接测试成功！邮箱可以正常访问。"
 
 	log.Printf("[AppPasswordManager] App password test successful for %s", email)
 	return result
