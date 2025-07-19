@@ -145,14 +145,20 @@ func GetInbox(c *gin.Context) {
 			emails, total, err = integrations.FetchEmails(emailAccount, page, pageSize)
 		}
 	} else {
-		// Fallback to password-based IMAP
-		log.Printf("[GetInbox] Account is not OAuth2. Using standard IMAP with password to fetch emails.")
-		// Check for IMAP settings for non-OAuth accounts
-		if emailAccount.IMAPServer == "" || emailAccount.IMAPPort == 0 {
-			utils.SendErrorResponse(c, http.StatusBadRequest, "IMAP settings are not configured for this non-OAuth email account.")
-			return
+		// 检查是否使用应用密码
+		if emailAccount.PasswordEncrypted != "" && emailAccount.IMAPServer != "" && emailAccount.IMAPPort > 0 {
+			log.Printf("[GetInbox] Account uses app password. Using enhanced IMAP with app password to fetch emails.")
+			emails, total, err = integrations.FetchEmailsWithAppPassword(emailAccount, page, pageSize)
+		} else {
+			// Fallback to password-based IMAP
+			log.Printf("[GetInbox] Account is not OAuth2. Using standard IMAP with password to fetch emails.")
+			// Check for IMAP settings for non-OAuth accounts
+			if emailAccount.IMAPServer == "" || emailAccount.IMAPPort == 0 {
+				utils.SendErrorResponse(c, http.StatusBadRequest, "IMAP settings are not configured for this non-OAuth email account.")
+				return
+			}
+			emails, total, err = integrations.FetchEmails(emailAccount, page, pageSize)
 		}
-		emails, total, err = integrations.FetchEmails(emailAccount, page, pageSize)
 	}
 
 	// 5. Handle potential errors from fetching

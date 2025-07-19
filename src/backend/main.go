@@ -161,6 +161,22 @@ func setupRouter() *gin.Engine { //函数签名 返回指针类型
 		protected.POST("/tokens/refresh", handlers.RefreshTokens)    // 手动刷新令牌
 		protected.POST("/tokens/cleanup", handlers.CleanupTokens)    // 清理重复和过期令牌
 		protected.GET("/tokens/test", handlers.TestTokenData)        // 测试令牌数据
+		
+		// 应用密码管理（永不过期的邮箱访问）
+		appPassword := protected.Group("/app-password")
+		{
+			appPassword.GET("/guide", handlers.GetAppPasswordGuide)                // 获取应用密码设置指南
+			appPassword.GET("/providers", handlers.GetSupportedProviders)          // 获取支持的服务商
+			appPassword.POST("/test", handlers.TestAppPassword)                    // 测试应用密码
+			appPassword.POST("/setup", handlers.SetupAppPassword)                  // 设置应用密码
+			appPassword.POST("/migrate/:id", handlers.MigrateToAppPassword)        // 从OAuth2迁移到应用密码
+			appPassword.GET("/check/:id", handlers.CheckAccountAuthType)           // 检查账户认证类型
+			
+			// 应用密码邮件获取
+			appPassword.GET("/emails/:id", handlers.GetEmailsWithAppPassword)      // 获取邮件列表
+			appPassword.GET("/emails/:id/:messageId", handlers.GetEmailDetailWithAppPassword) // 获取邮件详情
+			appPassword.GET("/folders/:id", handlers.GetMailboxFoldersWithAppPassword) // 获取文件夹列表
+		}
 
 		// 邮箱管理 (DEPRECATED - Use /email-accounts)
 		// emails := protected.Group("/emails")
@@ -222,10 +238,25 @@ func main() {
 	// 初始化并启动定时任务
 	handlers.StartSubscriptionReminderJob() // 新增：启动定时任务
 
-	// 启动令牌自动刷新服务
+	// 启动原有的令牌自动刷新服务
 	tokenRefreshService := services.NewTokenRefreshService()
 	go tokenRefreshService.Start()
 	log.Println("启动OAuth2令牌自动刷新服务")
+	
+	// 启动增强版令牌刷新服务（接近永不过期体验）
+	enhancedTokenRefreshService := services.NewEnhancedTokenRefreshService()
+	go enhancedTokenRefreshService.Start()
+	log.Println("启动增强版OAuth2令牌刷新服务（接近永不过期体验）")
+	
+	// 启动无感知重新授权服务
+	seamlessReauthService := services.NewSeamlessReauthService()
+	go seamlessReauthService.Start()
+	log.Println("启动无感知重新授权服务")
+	
+	// 初始化应用密码管理器
+	appPasswordManager := services.NewAppPasswordManager()
+	handlers.InitAppPasswordManager(appPasswordManager)
+	log.Println("初始化应用密码管理器（支持永不过期的应用密码）")
 
 	// 设置路由
 	r := setupRouter() //短变量声明

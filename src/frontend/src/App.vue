@@ -60,6 +60,14 @@
              <el-icon aria-hidden="true"><Key /></el-icon>
              <span>令牌管理</span>
            </el-menu-item>
+           <el-menu-item
+             index="/app-password"
+             role="menuitem"
+             aria-label="应用密码管理页面"
+           >
+             <el-icon aria-hidden="true"><Lock /></el-icon>
+             <span>应用密码</span>
+           </el-menu-item>
             <el-menu-item
               index="/platforms"
               role="menuitem"
@@ -164,7 +172,8 @@ import {
   Setting,
   Bell, // Import Bell icon
  Reading, // Import Reading icon
- Key // Import Key icon
+ Key, // Import Key icon
+ Lock // Import Lock icon
 } from '@element-plus/icons-vue'
 
 export default {
@@ -181,6 +190,7 @@ export default {
     Bell, // Register Bell icon
    Reading, // Register Reading icon
    Key, // Register Key icon
+   Lock, // Register Lock icon
     // ReminderCard // ReminderCard is no longer directly used here
     NotificationList // Register NotificationList
   },

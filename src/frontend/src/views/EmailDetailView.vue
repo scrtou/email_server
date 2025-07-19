@@ -113,7 +113,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useInboxStore } from '@/stores/inbox';
 import AttachmentList from '@/components/AttachmentList.vue';
-import DOMPurify from 'dompurify';
+// import DOMPurify from 'dompurify';
 import { format } from 'date-fns';
 import { markEmailAsRead } from '@/utils/api';
 import {
@@ -155,7 +155,8 @@ export default {
 
     const sanitizedHtml = computed(() => {
       if (!email.value?.htmlBody) return '';
-      return DOMPurify.sanitize(email.value.htmlBody);
+      // 简化版HTML清理，生产环境建议使用DOMPurify
+      return email.value.htmlBody.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
     });
 
     const goBack = () => {

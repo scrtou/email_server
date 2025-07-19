@@ -1,17 +1,17 @@
 
 <script setup>
 import { onMounted, ref, reactive, watch } from 'vue';
-// import { useRouter } from 'vue-router'; // No longer needed for add/edit
+import { useRouter } from 'vue-router';
 import { useEmailAccountStore } from '@/stores/emailAccount';
 import { useSettingsStore } from '@/stores/settings';
 import { ElMessage, ElMessageBox, ElButton } from 'element-plus'; // ElDialog might not be directly used if ModalDialog handles it
-import { Plus, Edit, Delete, View as ViewIcon } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, View as ViewIcon, Key, Switch, ArrowDown, Connection } from '@element-plus/icons-vue';
 import AssociatedInfoDialog from '@/components/AssociatedInfoDialog.vue';
 import ModalDialog from '@/components/ui/ModalDialog.vue'; // Import ModalDialog
 import EmailAccountForm from '@/components/forms/EmailAccountForm.vue'; // Import EmailAccountForm
 import { oauth2API, checkOAuth2TokenStatus } from '@/utils/api';
 
-// const router = useRouter(); // Keep for other navigation if any, or remove if not used at all
+const router = useRouter();
 const emailAccountStore = useEmailAccountStore();
 const settingsStore = useSettingsStore();
 
@@ -47,6 +47,9 @@ const accountToConnect = ref(null); // Store the account for which the connect d
 // OAuth2令牌状态管理
 const tokenStatuses = ref(new Map()); // 存储每个账户的令牌状态
 const checkingTokens = ref(new Set()); // 正在检查令牌状态的账户ID
+
+// 应用密码状态管理
+const accountAuthTypes = ref(new Map()); // 存储每个账户的认证类型
 
 const associatedInfoDialog = reactive({
   visible: false,
@@ -85,9 +88,10 @@ onMounted(() => {
   );
   emailAccountStore.fetchUniqueProviders(); // Fetch providers for the dropdown
 
-  // 延迟检查OAuth2令牌状态，等待邮箱账户数据加载完成
+  // 延迟检查OAuth2令牌状态和认证类型，等待邮箱账户数据加载完成
   setTimeout(() => {
     checkAllTokenStatuses();
+    checkAllAuthTypes();
   }, 1000);
 });
 
@@ -488,6 +492,82 @@ const isTokenExpired = (accountId) => {
   return status && (status.status === 'expired' || status.status === 'error');
 };
 
+// 应用密码相关的辅助函数
+const getAuthTypeTagType = (accountId) => {
+  const authType = accountAuthTypes.value.get(accountId);
+  return authType === 'app_password' ? 'success' : 'warning';
+};
+
+const getAuthTypeIcon = (accountId) => {
+  const authType = accountAuthTypes.value.get(accountId);
+  return authType === 'app_password' ? Key : Connection;
+};
+
+const getAuthTypeText = (accountId) => {
+  const authType = accountAuthTypes.value.get(accountId);
+  return authType === 'app_password' ? '应用密码' : 'OAuth2';
+};
+
+// 检查账户认证类型
+const checkAccountAuthType = async (accountId) => {
+  try {
+    const response = await fetch(`/api/v1/app-password/check/${accountId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}` // 假设使用localStorage存储token
+      }
+    });
+    const result = await response.json();
+    if (result.success) {
+      accountAuthTypes.value.set(accountId, result.data.auth_type || 'oauth2');
+    }
+  } catch (error) {
+    console.error('检查认证类型失败:', error);
+    accountAuthTypes.value.set(accountId, 'oauth2'); // 默认为OAuth2
+  }
+};
+
+// 为所有账户检查认证类型
+const checkAllAuthTypes = async () => {
+  if (!emailAccountStore.emailAccounts || emailAccountStore.emailAccounts.length === 0) return;
+  
+  const promises = emailAccountStore.emailAccounts.map(account => 
+    checkAccountAuthType(account.id)
+  );
+  await Promise.all(promises);
+};
+
+// 应用密码相关操作
+const setupAppPassword = () => {
+  // 跳转到应用密码管理页面
+  router.push('/app-password');
+};
+
+const migrateToAppPassword = async (account) => {
+  try {
+    const confirmed = await ElMessageBox.confirm(
+      `确认将账户 "${account.email_address}" 从OAuth2迁移到应用密码认证？`,
+      '确认迁移',
+      {
+        confirmButtonText: '确认迁移',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    
+    if (confirmed) {
+      // TODO: 实现迁移逻辑
+      ElMessage.info('迁移功能开发中...');
+    }
+  } catch (error) {
+    // 用户取消
+  }
+};
+
+const manageAppPassword = () => {
+  // 跳转到应用密码管理页面
+  router.push('/app-password');
+};
+
 </script>
 
 <template>
@@ -567,10 +647,22 @@ const isTokenExpired = (accountId) => {
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="200" sortable="custom" show-overflow-tooltip />
+        <el-table-column label="认证类型" width="120" align="center">
+          <template #default="scope">
+            <el-tag 
+              :type="getAuthTypeTagType(scope.row.id)"
+              :icon="getAuthTypeIcon(scope.row.id)"
+              size="small"
+            >
+              {{ getAuthTypeText(scope.row.id) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        
         <el-table-column label="连接状态" width="160" align="center">
           <template #default="scope">
             <div v-if="scope.row.is_oauth_connected" class="oauth-status-cell">
-              <!-- 显示令牌状态 -->
+              <!-- OAuth2 令牌状态 -->
               <div class="status-display">
                 <el-tag
                   :type="getTokenStatusTagType(scope.row.id)"
@@ -581,7 +673,7 @@ const isTokenExpired = (accountId) => {
                 </el-tag>
               </div>
 
-              <!-- 操作按钮 -->
+              <!-- OAuth2 操作按钮 -->
               <div class="status-actions">
                 <el-button
                   type="primary"
@@ -607,6 +699,14 @@ const isTokenExpired = (accountId) => {
               </div>
             </div>
 
+            <!-- 应用密码状态 -->
+            <div v-else-if="getAuthTypeText(scope.row.id) === '应用密码'" class="app-password-status-cell">
+              <el-tag type="success" size="small">
+                永不过期
+              </el-tag>
+            </div>
+
+            <!-- 未连接状态 -->
             <el-button v-else type="primary" link size="small" @click="handleConnectClick(scope.row)">
               连接
             </el-button>
@@ -614,12 +714,38 @@ const isTokenExpired = (accountId) => {
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="200" sortable="custom" />
         <el-table-column prop="updated_at" label="更新时间" width="200" sortable="custom" />
-        <el-table-column label="操作" width="140" fixed="right" align="center">
+        <el-table-column label="操作" width="200" fixed="right" align="center">
           <template #default="scope">
-            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)">
+            <!-- 基本操作 -->
+            <el-button link type="primary" :icon="Edit" @click="handleEdit(scope.row)" size="small">
                编辑
             </el-button>
-            <el-button link type="danger" :icon="Delete" @click="confirmDeleteEmailAccount(scope.row.id)">
+            
+            <!-- 应用密码操作 -->
+            <el-dropdown v-if="getAuthTypeText(scope.row.id) !== '应用密码'" trigger="click">
+              <el-button link type="success" size="small">
+                应用密码 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="setupAppPassword(scope.row)">
+                    <el-icon><Key /></el-icon>
+                    设置应用密码
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="scope.row.is_oauth_connected" @click="migrateToAppPassword(scope.row)">
+                    <el-icon><Switch /></el-icon>
+                    从OAuth2迁移
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 应用密码管理 -->
+            <el-button v-else link type="warning" :icon="Key" @click="manageAppPassword(scope.row)" size="small">
+              应用密码
+            </el-button>
+            
+            <el-button link type="danger" :icon="Delete" @click="confirmDeleteEmailAccount(scope.row.id)" size="small">
               删除
             </el-button>
           </template>

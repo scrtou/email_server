@@ -24,6 +24,8 @@ import EmailDetailView from '../views/EmailDetailView.vue'
 import OAuth2StatusView from '../views/OAuth2StatusView.vue'
 import UnifiedTokenView from '../views/UnifiedTokenView.vue'
 import DebugTokenView from '../views/DebugTokenView.vue'
+import AppPasswordView from '../views/AppPasswordView.vue'
+import AppPasswordEmailView from '../views/AppPasswordEmailView.vue'
 // import Layout from '../components/Layout.vue' // This was commented out, ensure it's not needed
  
 const routes = [
@@ -194,6 +196,19 @@ const routes = [
        path: 'debug-tokens',
        name: 'DebugTokens', 
        component: DebugTokenView,
+     },
+     // 应用密码管理路由
+     {
+       path: 'app-password',
+       name: 'AppPassword',
+       component: AppPasswordView,
+     },
+     // 应用密码邮件查看路由
+     {
+       path: 'app-password/emails/:id',
+       name: 'AppPasswordEmails',
+       component: AppPasswordEmailView,
+       props: true,
      },
     ]
   },
