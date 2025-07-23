@@ -1,4 +1,5 @@
 // 弹窗脚本
+console.log('🚀 Popup.js 脚本开始加载');
 
 class PopupManager {
   constructor() {
@@ -10,19 +11,172 @@ class PopupManager {
     this.passwordVisible = false;
     this.generatorInitialized = false;
     this.currentGeneratorTab = 'password';
+    
+    // 构造函数调用日志
+    console.log('🔧 PopupManager构造函数被调用');
+    
     this.init();
   }
 
   init() {
-    // 首先设置初始显示状态（默认显示登录页面）
-    this.setInitialState();
+    console.log('🚀 PopupManager 初始化开始');
+    
+    // 先隐藏所有内容，显示加载提示
+    this.hideAllContent();
 
     this.setupNavigation();
     this.setupEventListeners();
     this.setupMessageListener(); // 添加消息监听器
+    
+    console.log('🔍 开始检查登录状态...');
     this.checkLoginStatus();
     this.loadCurrentTabData();
+    
+    console.log('✅ PopupManager 初始化完成');
   }
+
+  // 隐藏所有内容，显示加载状态
+  hideAllContent() {
+    console.log('🔄 隐藏所有内容，显示加载提示');
+    
+    // 隐藏登录页面
+    const loginHeader = document.getElementById('login-header');
+    const loginPage = document.getElementById('login-page');
+    if (loginHeader) loginHeader.style.display = 'none';
+    if (loginPage) loginPage.style.display = 'none';
+
+    // 隐藏主应用界面
+    const mainHeader = document.getElementById('main-header');
+    const mainContent = document.getElementById('main-content');
+    const mainNav = document.getElementById('main-nav');
+    if (mainHeader) mainHeader.style.display = 'none';
+    if (mainContent) mainContent.style.display = 'none';
+    if (mainNav) mainNav.style.display = 'none';
+
+    // 显示加载提示
+    this.showLoadingIndicator();
+  }
+
+  // 显示加载指示器
+  showLoadingIndicator() {
+    // 移除现有的加载指示器
+    const existingLoader = document.getElementById('loading-indicator');
+    if (existingLoader) {
+      existingLoader.remove();
+    }
+
+    // 创建加载指示器
+    const loader = document.createElement('div');
+    loader.id = 'loading-indicator';
+    loader.innerHTML = `
+      <div style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 200px;
+        padding: 20px;
+        text-align: center;
+        color: #666;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      ">
+        <div style="
+          width: 32px;
+          height: 32px;
+          border: 3px solid #f3f3f3;
+          border-top: 3px solid #007cba;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 16px;
+        "></div>
+        <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">
+          正在检测登录状态...
+        </div>
+        <div style="font-size: 12px; color: #999;">
+          请稍候
+        </div>
+      </div>
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    `;
+
+    // 插入到页面中
+    document.body.appendChild(loader);
+    console.log('✅ 加载指示器已显示');
+  }
+
+  // 隐藏加载指示器
+  hideLoadingIndicator() {
+    const loader = document.getElementById('loading-indicator');
+    if (loader) {
+      loader.remove();
+      console.log('✅ 加载指示器已隐藏');
+    }
+  }
+
+  // 显示自动登录指示器
+  showAutoLoginIndicator() {
+    // 隐藏其他指示器
+    this.hideLoadingIndicator();
+
+    // 创建自动登录指示器
+    const loader = document.createElement('div');
+    loader.id = 'auto-login-indicator';
+    loader.innerHTML = `
+      <div style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 200px;
+        padding: 20px;
+        text-align: center;
+        color: #666;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      ">
+        <div style="
+          width: 32px;
+          height: 32px;
+          border: 3px solid #f3f3f3;
+          border-top: 3px solid #28a745;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 16px;
+        "></div>
+        <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #28a745;">
+          正在自动登录...
+        </div>
+        <div style="font-size: 12px; color: #999;">
+          使用保存的凭据登录中
+        </div>
+      </div>
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    `;
+
+    // 插入到页面中
+    document.body.appendChild(loader);
+    console.log('✅ 自动登录指示器已显示');
+  }
+
+  // 隐藏自动登录指示器
+  hideAutoLoginIndicator() {
+    const loader = document.getElementById('auto-login-indicator');
+    if (loader) {
+      loader.remove();
+      console.log('✅ 自动登录指示器已隐藏');
+    }
+  }
+
+
 
   // 监听来自background脚本的消息
   setupMessageListener() {
@@ -35,8 +189,12 @@ class PopupManager {
   }
 
   // 处理认证错误
-  handleAuthError(message) {
+  async handleAuthError(message) {
     this.isLoggedIn = false;
+    
+    // 清理自动登录尝试记录，允许下次重新尝试自动登录
+    await this.clearLastAutoLoginAttempt();
+    
     this.showLoginPage();
     this.showMessage('login', message || '登录已过期，请重新登录', 'error');
   }
@@ -51,25 +209,7 @@ class PopupManager {
     return true; // 表示没有认证错误，可以继续处理
   }
 
-  setInitialState() {
-    // 确保初始状态为登录页面
-    console.log('🔄 设置初始状态：显示登录页面');
 
-    // 显示登录页面
-    const loginHeader = document.getElementById('login-header');
-    const loginPage = document.getElementById('login-page');
-    if (loginHeader) loginHeader.style.display = 'block';
-    if (loginPage) loginPage.style.display = 'block';
-
-    // 隐藏主应用界面
-    const mainHeader = document.getElementById('main-header');
-    const mainContent = document.getElementById('main-content');
-    const mainNav = document.getElementById('main-nav');
-
-    if (mainHeader) mainHeader.style.display = 'none';
-    if (mainContent) mainContent.style.display = 'none';
-    if (mainNav) mainNav.style.display = 'none';
-  }
 
   setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
@@ -254,11 +394,11 @@ class PopupManager {
 
 
   async checkLoginStatus() {
-    console.log('🔍 检查登录状态...');
+    console.log('🔍 Popup: 检查登录状态...');
 
     try {
       const config = await this.sendMessage({ action: 'getConfig' });
-      console.log('📋 配置信息:', config);
+      console.log('📋 Popup: 配置信息:', config);
 
       // 检查服务器地址配置
       if (!config.serverURL) {
@@ -270,20 +410,22 @@ class PopupManager {
       }
 
       if (config && config.token) {
+        console.log('✅ Popup: 发现已保存的token:', config.token.substring(0, 10) + '...');
         // 验证现有token是否仍然有效
-        console.log('🔍 验证现有token有效性...');
+        console.log('🔍 Popup: 开始验证token有效性...');
         const tokenValid = await this.validateToken();
+        console.log('🔍 Popup: Token验证结果:', tokenValid);
         if (tokenValid) {
-          console.log('✅ Token有效，用户已登录，显示主应用');
+          console.log('✅ Popup: Token有效，用户已登录，显示主应用');
           this.isLoggedIn = true;
           this.showMainApp();
         } else {
-          console.log('❌ Token无效，尝试自动登录');
-          await this.attemptAutoLogin(config);
+          console.log('❌ Popup: Token已过期，尝试自动登录');
+          await this.attemptAutoLogin(config, true); // 传入true表示是因为token过期触发的
         }
       } else {
-        console.log('❌ 没有token，尝试自动登录');
-        await this.attemptAutoLogin(config);
+        console.log('❌ Popup: 没有token，检查是否需要自动登录');
+        await this.attemptAutoLogin(config, false); // 传入false表示是因为没有token触发的
       }
     } catch (error) {
       console.error('❌ 检查登录状态失败:', error);
@@ -296,17 +438,25 @@ class PopupManager {
   // 验证token有效性
   async validateToken() {
     try {
+      console.log('🔍 Popup: 验证token有效性...');
       // 尝试调用一个简单的API来验证token
       const result = await this.sendMessage({ action: 'getRegistrations' });
-      return result.success && !result.authError;
+      const isValid = result.success && !result.authError;
+      console.log('🔍 Popup: Token验证结果:', { 
+        success: result.success, 
+        authError: result.authError, 
+        isValid,
+        error: result.error 
+      });
+      return isValid;
     } catch (error) {
-      console.error('❌ Token验证失败:', error);
+      console.error('❌ Popup: Token验证失败:', error);
       return false;
     }
   }
 
   // 尝试自动登录
-  async attemptAutoLogin(config) {
+  async attemptAutoLogin(config, isTokenExpired = false) {
     // 检查是否启用了自动登录功能
     if (config && config.autoLogin === false) {
       console.log('ℹ️ 自动登录已禁用，显示登录页面');
@@ -315,13 +465,30 @@ class PopupManager {
       return;
     }
 
+    // 如果不是因为token过期触发的，检查是否需要避免重复自动登录
+    if (!isTokenExpired) {
+      const lastAutoLoginAttempt = await this.getLastAutoLoginAttempt();
+      const now = Date.now();
+      const fiveMinutesAgo = now - (5 * 60 * 1000); // 5分钟前
+
+      // 如果5分钟内已经尝试过自动登录，则不再尝试
+      if (lastAutoLoginAttempt && lastAutoLoginAttempt > fiveMinutesAgo) {
+        console.log('ℹ️ 5分钟内已尝试过自动登录，跳过本次尝试，显示登录页面');
+        this.isLoggedIn = false;
+        this.showLoginPage();
+        return;
+      }
+    }
+
     if (config && config.username && config.password) {
-      console.log('🚀 检测到保存的凭据，尝试自动登录...');
+      console.log('🚀 检测到保存的凭据，尝试自动登录...', { isTokenExpired });
+      
+      // 记录本次自动登录尝试的时间（在实际登录之前记录）
+      await this.setLastAutoLoginAttempt(Date.now());
       
       // 显示自动登录状态
       this.isLoggedIn = false;
-      this.showLoginPage();
-      this.showMessage('login', '正在自动登录...', 'success');
+      this.showAutoLoginIndicator();
 
       const result = await this.sendMessage({
         action: 'login',
@@ -330,9 +497,24 @@ class PopupManager {
       });
 
       if (result.success) {
-        console.log('✅ 自动登录成功');
+        console.log('✅ 自动登录成功', { tokenSaved: result.tokenSaved });
+        
+        // 检查token是否成功保存
+        if (result.tokenSaved === false) {
+          console.error('❌ 登录成功但token保存失败');
+          this.isLoggedIn = false;
+          this.showLoginPage();
+          this.showMessage('login', 'Token保存失败，请重新登录', 'error');
+          return;
+        }
+        
         this.isLoggedIn = true;
         this.showMessage('login', '自动登录成功！', 'success');
+        
+        // 清理自动登录尝试记录，因为自动登录成功了
+        await this.clearLastAutoLoginAttempt();
+        
+        // 直接显示主应用，不需要额外验证
         setTimeout(() => {
           this.showMainApp();
           this.loadAccounts();
@@ -342,9 +524,9 @@ class PopupManager {
         this.isLoggedIn = false;
         this.showLoginPage();
         // 不显示自动登录失败的错误，避免打扰用户
-        // 但如果用户在登录页面，可以显示一个不太明显的提示
-        if (result.error.includes('过期')) {
-          this.showMessage('login', '保存的登录信息已过期，请重新登录', 'warning');
+        // 但如果是认证相关错误，可以显示提示
+        if (result.error.includes('用户名') || result.error.includes('密码')) {
+          this.showMessage('login', '保存的登录信息可能已过期，请重新登录', 'warning');
         }
       }
     } else {
@@ -352,6 +534,34 @@ class PopupManager {
       this.isLoggedIn = false;
       this.showLoginPage();
     }
+  }
+
+  // 获取最后一次自动登录尝试的时间
+  async getLastAutoLoginAttempt() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['lastAutoLoginAttempt'], (result) => {
+        resolve(result.lastAutoLoginAttempt || 0);
+      });
+    });
+  }
+
+  // 设置最后一次自动登录尝试的时间
+  async setLastAutoLoginAttempt(timestamp) {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ lastAutoLoginAttempt: timestamp }, () => {
+        resolve();
+      });
+    });
+  }
+
+  // 清理最后一次自动登录尝试的记录
+  async clearLastAutoLoginAttempt() {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove(['lastAutoLoginAttempt'], () => {
+        console.log('🗑️ 已清理自动登录尝试记录');
+        resolve();
+      });
+    });
   }
 
   updateStatus(message, type) {
@@ -368,6 +578,10 @@ class PopupManager {
 
   showLoginPage() {
     console.log('🔐 显示登录页面');
+
+    // 隐藏所有指示器
+    this.hideLoadingIndicator();
+    this.hideAutoLoginIndicator();
 
     // 隐藏主应用界面
     const mainHeader = document.getElementById('main-header');
@@ -390,6 +604,10 @@ class PopupManager {
 
   showMainApp() {
     console.log('🏠 显示主应用界面');
+
+    // 隐藏所有指示器
+    this.hideLoadingIndicator();
+    this.hideAutoLoginIndicator();
 
     // 隐藏登录页面
     const loginHeader = document.getElementById('login-header');
@@ -446,11 +664,23 @@ class PopupManager {
     });
 
     if (result.success) {
+      console.log('✅ 手动登录成功', { tokenSaved: result.tokenSaved });
+      
+      // 检查token是否成功保存
+      if (result.tokenSaved === false) {
+        console.error('❌ 登录成功但token保存失败');
+        this.showMessage('login', 'Token保存失败，请重新登录', 'error');
+        return;
+      }
+      
       this.isLoggedIn = true;
       this.showMessage('login', '登录成功！', 'success');
 
       // 清空表单
       document.getElementById('login-form').reset();
+
+      // 清理自动登录尝试记录，因为手动登录成功了
+      await this.clearLastAutoLoginAttempt();
 
       // 延迟切换到主应用
       setTimeout(() => {
@@ -1112,8 +1342,12 @@ class PopupManager {
   }
 
   sendMessage(message) {
+    console.log('📤 Popup: 发送消息到background:', message);
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(message, resolve);
+      chrome.runtime.sendMessage(message, (response) => {
+        console.log('📥 Popup: 收到background响应:', { message: message.action, response });
+        resolve(response);
+      });
     });
   }
 
@@ -1739,6 +1973,8 @@ class PopupManager {
 }
 
 // 初始化弹窗管理器
+console.log('🔧 准备初始化PopupManager');
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('📄 DOM加载完成，创建PopupManager实例');
   new PopupManager();
 });

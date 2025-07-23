@@ -27,6 +27,23 @@ class EmailServerAPI {
     }
   }
 
+  // 确保token可用（从存储中恢复如果需要）
+  async ensureTokenAvailable() {
+    await this.ensureInitialized();
+    
+    // 如果内存中的token为空，尝试从存储中重新加载
+    if (!this.token) {
+      console.log('⚠️ 内存中token为空，尝试从存储中重新加载...');
+      const config = await this.getStoredConfig();
+      if (config.token) {
+        this.token = config.token;
+        console.log('✅ 从存储中恢复token:', this.token.substring(0, 10) + '...');
+      }
+    }
+    
+    return !!this.token;
+  }
+
   // 处理认证错误的方法
   async handleAuthError(response) {
     if (response.status === 401 || response.status === 403) {
@@ -123,10 +140,19 @@ class EmailServerAPI {
 
           // 获取当前配置，只更新token，保留其他配置
           const currentConfig = await this.getStoredConfig();
-          await this.saveConfig({ ...currentConfig, token: this.token });
+          const newConfig = { ...currentConfig, token: this.token };
+          await this.saveConfig(newConfig);
           console.log('💾 Token已保存到存储');
 
-          return { success: true, data };
+          // 验证token确实已经保存
+          const verifyConfig = await this.getStoredConfig();
+          console.log('🔍 验证保存后的配置:', { 
+            hasToken: !!verifyConfig.token, 
+            tokenMatch: verifyConfig.token === this.token,
+            tokenPreview: verifyConfig.token ? verifyConfig.token.substring(0, 10) + '...' : 'null'
+          });
+
+          return { success: true, data, tokenSaved: !!verifyConfig.token };
         } else {
           console.error('❌ 登录响应中没有token:', data);
           return { success: false, error: '登录响应格式错误：缺少token' };
@@ -148,10 +174,17 @@ class EmailServerAPI {
   }
 
   async checkPlatformRegistrationConflict(registrationData) {
-    await this.ensureInitialized();
-
     if (!this.baseURL) {
-      return { hasConflict: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { hasConflict: false, error: '请先在设置中配置服务器地址' };
+      }
+    }
+
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    if (!hasToken) {
+      return { hasConflict: false, error: '认证信息已过期，请重新登录' };
     }
 
     try {
@@ -192,10 +225,17 @@ class EmailServerAPI {
   }
 
   async createPlatformRegistration(registrationData) {
-    await this.ensureInitialized();
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
+    }
+
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    if (!hasToken) {
+      return { success: false, error: '认证信息已过期，请重新登录' };
     }
 
     try {
@@ -236,15 +276,18 @@ class EmailServerAPI {
   }
 
   async getPlatformRegistrations() {
-    await this.ensureInitialized();
-
-    console.log('🔍 获取平台注册信息:', { baseURL: this.baseURL, hasToken: !!this.token, tokenLength: this.token?.length });
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
     }
 
-    if (!this.token) {
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    console.log('🔍 获取平台注册信息:', { baseURL: this.baseURL, hasToken, tokenLength: this.token?.length });
+
+    if (!hasToken) {
       console.error('❌ Token为空，需要重新登录');
       return { success: false, error: '认证信息已过期，请重新登录' };
     }
@@ -295,15 +338,18 @@ class EmailServerAPI {
   }
 
   async getPlatformRegistrationById(id) {
-    await this.ensureInitialized();
-
-    console.log('🔍 获取平台注册详情:', { id, baseURL: this.baseURL, hasToken: !!this.token });
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
     }
 
-    if (!this.token) {
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    console.log('🔍 获取平台注册详情:', { id, baseURL: this.baseURL, hasToken });
+
+    if (!hasToken) {
       console.error('❌ Token为空，需要重新登录');
       return { success: false, error: '认证信息已过期，请重新登录' };
     }
@@ -355,15 +401,18 @@ class EmailServerAPI {
   }
 
   async getPlatformRegistrationPassword(id) {
-    await this.ensureInitialized();
-
-    console.log('🔍 获取平台注册密码:', { id, baseURL: this.baseURL, hasToken: !!this.token });
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
     }
 
-    if (!this.token) {
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    console.log('🔍 获取平台注册密码:', { id, baseURL: this.baseURL, hasToken });
+
+    if (!hasToken) {
       console.error('❌ Token为空，需要重新登录');
       return { success: false, error: '认证信息已过期，请重新登录' };
     }
@@ -415,15 +464,18 @@ class EmailServerAPI {
 
   // 根据域名获取匹配的平台注册信息（用于自动填充）
   async getPlatformRegistrationsByDomain(domain) {
-    await this.ensureInitialized();
-
-    console.log('🔍 根据域名获取平台注册信息:', { domain, baseURL: this.baseURL, hasToken: !!this.token });
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
     }
 
-    if (!this.token) {
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    console.log('🔍 根据域名获取平台注册信息:', { domain, baseURL: this.baseURL, hasToken });
+
+    if (!hasToken) {
       console.error('❌ Token为空，需要重新登录');
       return { success: false, error: '认证信息已过期，请重新登录' };
     }
@@ -468,15 +520,18 @@ class EmailServerAPI {
   }
 
   async updatePlatformRegistration(id, data) {
-    await this.ensureInitialized();
-
-    console.log('📝 更新平台注册信息:', { id, data, baseURL: this.baseURL, hasToken: !!this.token });
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
     }
 
-    if (!this.token) {
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    console.log('📝 更新平台注册信息:', { id, data, baseURL: this.baseURL, hasToken });
+
+    if (!hasToken) {
       console.error('❌ Token为空，需要重新登录');
       return { success: false, error: '认证信息已过期，请重新登录' };
     }
@@ -530,15 +585,18 @@ class EmailServerAPI {
   }
 
   async deletePlatformRegistration(id) {
-    await this.ensureInitialized();
-
-    console.log('🗑️ 删除平台注册信息:', { id, baseURL: this.baseURL, hasToken: !!this.token });
-
     if (!this.baseURL) {
-      return { success: false, error: '请先在设置中配置服务器地址' };
+      await this.ensureInitialized();
+      if (!this.baseURL) {
+        return { success: false, error: '请先在设置中配置服务器地址' };
+      }
     }
 
-    if (!this.token) {
+    // 确保token可用
+    const hasToken = await this.ensureTokenAvailable();
+    console.log('🗑️ 删除平台注册信息:', { id, baseURL: this.baseURL, hasToken });
+
+    if (!hasToken) {
       console.error('❌ Token为空，需要重新登录');
       return { success: false, error: '认证信息已过期，请重新登录' };
     }
